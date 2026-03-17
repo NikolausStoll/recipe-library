@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Evaluate OpenAI vision quality: send one image to several model/detail configs.
- * Uses same prompt and schema as extractRecipeService (title, introText, ingredientsSections, steps).
+ * Uses same prompt and schema as extractRecipeService (status, confidence, recipe with ingredientsSections, steps, etc.).
  * Outputs structured recipe and token usage per config.
  *
  * Usage: node scripts/evaluate-vision-quality.js <path-to-image>
@@ -15,6 +15,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
+import { EXTRACT_PROMPT, RECIPE_JSON_SCHEMA } from '../src/services/extractRecipeService.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // .env can be in backend/ or project root (parent of backend)
@@ -38,48 +39,16 @@ const base64 = imageBuffer.toString('base64')
 const mime = resolvedPath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'
 const dataUrl = `data:${mime};base64,${base64}`
 
-const EXTRACT_PROMPT = `You are a recipe extractor. The user will provide one or more images containing recipe text (e.g. from a book, screenshot, or photo of a recipe).
+function formatItem(item) {
+  if (typeof item === 'string') return item
+  if (item?.originalText?.trim()) return item.originalText.trim()
+  const parts = [item?.amount != null ? String(item.amount) : '', item?.unit ?? '', item?.ingredient ?? '', item?.additionalInfo ?? ''].filter(Boolean)
+  return parts.join(' ').trim() || '—'
+}
 
-Extract the recipe strictly into the following structure:
-- title: The recipe title (one short line).
-- introText: Any introduction or description before the ingredients list (can be empty string).
-- ingredientsSections: An array of sections. Each section has:
-  - heading: Optional section heading (e.g. "For the dough", "Sauce") or null for the main list.
-  - items: Array of strings, each one ingredient line (amount, unit, name or free text).
-- steps: Array of strings, each one preparation step in order.
-
-Use the exact keys above. If the image has multiple pages, merge the content into one coherent recipe. Preserve the original language of the recipe.`
-
-const RECIPE_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    title: { type: 'string', description: 'Recipe title' },
-    introText: { type: 'string', description: 'Introduction or description before ingredients' },
-    ingredientsSections: {
-      type: 'array',
-      description: 'Ingredient sections (main list and optional sub-sections)',
-      items: {
-        type: 'object',
-        properties: {
-          heading: { type: ['string', 'null'], description: 'Section heading or null' },
-          items: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Ingredient lines',
-          },
-        },
-        required: ['heading', 'items'],
-        additionalProperties: false,
-      },
-    },
-    steps: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Preparation steps in order',
-    },
-  },
-  required: ['title', 'introText', 'ingredientsSections', 'steps'],
-  additionalProperties: false,
+function formatStep(step) {
+  if (typeof step === 'string') return step
+  return step?.text?.trim() ?? '—'
 }
 
 const CONFIGS = [
@@ -137,16 +106,24 @@ async function run() {
       }
 
       const data = JSON.parse(content)
-      console.log('Title:', data.title || '(leer)')
-      console.log('Intro:', data.introText || '(leer)')
-      console.log('Ingredients:')
-      for (const section of data.ingredientsSections ?? []) {
-        if (section.heading) console.log('  ', section.heading)
-        for (const item of section.items ?? []) console.log('    -', item)
-      }
-      console.log('Steps:')
-      for (let i = 0; i < (data.steps?.length ?? 0); i++) {
-        console.log(`  ${i + 1}.`, data.steps[i])
+      const recipe = data.recipe ?? null
+      console.log('Status:', data.status ?? '?', 'Confidence:', data.confidence ?? '?')
+      if (data.warnings?.length) console.log('Warnings:', data.warnings.join('; '))
+      if (data.missingFields?.length) console.log('Missing:', data.missingFields.join('; '))
+      if (!recipe) {
+        console.log('Recipe: (null)')
+      } else {
+        console.log('Title:', recipe.title || '(leer)')
+        console.log('Intro:', recipe.introText || '(leer)')
+        console.log('Ingredients:')
+        for (const section of recipe.ingredientsSections ?? []) {
+          if (section.heading) console.log('  ', section.heading)
+          for (const item of section.items ?? []) console.log('    -', formatItem(item))
+        }
+        console.log('Steps:')
+        for (let i = 0; i < (recipe.steps?.length ?? 0); i++) {
+          console.log(`  ${i + 1}.`, formatStep(recipe.steps[i]))
+        }
       }
 
       if (usage) {

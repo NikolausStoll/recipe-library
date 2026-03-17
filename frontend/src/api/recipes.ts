@@ -20,11 +20,35 @@ export interface RecipeSourceInfo {
   source_image_path?: string | null
 }
 
+/** Single ingredient line from OCR (new schema) */
+export interface ParsedIngredientItem {
+  originalText?: string | null
+  amount?: number | null
+  amountMax?: number | null
+  unit?: string | null
+  ingredient?: string | null
+  additionalInfo?: string | null
+}
+
+/** Single step from OCR (new schema) */
+export interface ParsedRecipeStep {
+  index: number
+  text?: string | null
+}
+
 export interface ParsedRecipeFromOcr {
-  title: string
-  introText: string
-  ingredientsSections: { heading: string | null; items: string[] }[]
-  steps: string[]
+  title?: string | null
+  subtitle?: string | null
+  introText?: string | null
+  language?: string | null
+  servings?: { value?: number | null; unitText?: string | null } | null
+  ingredientsSections: {
+    heading: string | null
+    items: ParsedIngredientItem[]
+  }[]
+  steps: ParsedRecipeStep[]
+  tips?: string[] | null
+  nutritionTotal?: { kcal?: number | null; protein?: number | null; carbs?: number | null; fat?: number | null } | null
 }
 
 export interface RecipeListItem extends RecipeSourceInfo {
@@ -33,10 +57,21 @@ export interface RecipeListItem extends RecipeSourceInfo {
   source_type: string
   import_method: string
   extract_status: string | null
+  extract_confidence?: number | null
+  extract_warnings?: string[] | null
+  extract_missing_fields?: string[] | null
   status: 'draft' | 'confirmed'
   title: string
+  subtitle?: string | null
   description: string | null
+  language?: string | null
   servings: number | null
+  servings_value?: number | null
+  servings_unit_text?: string | null
+  nutrition_kcal?: number | null
+  nutrition_protein?: number | null
+  nutrition_carbs?: number | null
+  nutrition_fat?: number | null
   prep_time_min: number | null
   cook_time_min: number | null
   image_path: string | null
@@ -45,16 +80,40 @@ export interface RecipeListItem extends RecipeSourceInfo {
   updated_at: string
 }
 
+/** Ingredient row from API (matches RECIPE_JSON_SCHEMA + list form) */
+export interface RecipeIngredient {
+  id: number
+  recipe_id: number
+  section_id?: number
+  section_heading?: string | null
+  position: number
+  original_text?: string | null
+  amount?: number | null
+  amount_max?: number | null
+  unit?: string | null
+  ingredient?: string | null
+  name?: string
+  additional_info?: string | null
+}
+
 export interface Recipe extends RecipeListItem {
-  ingredients: { id: number; recipe_id: number; position: number; amount: string | null; unit: string | null; name: string }[]
+  ingredients: RecipeIngredient[]
   recipe_steps: { id: number; recipe_id: number; step_number: number; instruction: string }[]
+  tips?: string[]
 }
 
 export interface IngredientInput {
-  amount?: string | null
+  amount?: string | number | null
   unit?: string | null
-  name: string
+  name?: string | null
+  ingredient?: string | null
   position?: number
+  original_text?: string | null
+  originalText?: string | null
+  amount_max?: number | null
+  amountMax?: number | null
+  additional_info?: string | null
+  additionalInfo?: string | null
 }
 
 export interface RecipeStepInput {
@@ -64,8 +123,13 @@ export interface RecipeStepInput {
 
 export interface RecipeFormPayload {
   title: string
+  subtitle?: string | null
   description?: string | null
+  language?: string | null
   servings?: number | null
+  servings_value?: number | null
+  servings_unit_text?: string | null
+  source_id?: number | null
   source_name?: string | null
   book_title?: string | null
   author?: string | null
@@ -73,6 +137,7 @@ export interface RecipeFormPayload {
   status?: 'draft' | 'confirmed'
   ingredients?: IngredientInput[]
   recipe_steps?: RecipeStepInput[]
+  tips?: string[]
 }
 
 export function listRecipes(): Promise<RecipeListItem[]> {

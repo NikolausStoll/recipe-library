@@ -1,49 +1,362 @@
 # Recipe Library
 
-Monorepo: Vue 3 + Vite frontend, Node.js + Express backend, SQLite (better-sqlite3).
+A full-stack recipe management application with AI-powered recipe extraction from images.
 
-## Structure
+**Stack**: Vue 3 + Vite + TypeScript frontend, Node.js + Express backend, SQLite database (better-sqlite3), OpenAI GPT-4o vision API.
 
-- `frontend/` – Vue 3 + Vite, Vue Router. App layout: header, nav (Dashboard, Recipes, Import, Shopping), content area. **Recipes**: manual recipe entry; **Import**: two-step flow – (1) upload photo of recipe image, (2) upload one or more photos of recipe text; step 2 sends images to OpenAI for structured extraction (title, intro, ingredients, steps); token usage is logged and shown. All styles use CSS custom properties for **light/dark mode**.
-- `backend/` – Express, routes under `src/routes/`, services under `src/services/` (incl. **extractRecipeService**: OpenAI vision + JSON schema for recipe extraction; token usage stored in `extract_usage`), DB under `src/db/`.
-- Tables: **recipe_sources** (type: book|url|manual|other, name, subtitle, author, year, image_path, …; für Bücher mit Cover und Metadaten), **recipes** (source_id → recipe_sources; status, import_method, extract_status, image_path, **parsed_recipe_json**; source_type wird aus der verknüpften Source abgeleitet), `ingredients`, `recipe_steps`, `extract_usage` (recipe_id, prompt_tokens, …).
+## Features
 
-## Scripts (from project root)
+- **Manual Recipe Entry**: Full-featured recipe form with ingredients, steps, tips, nutrition
+- **AI Recipe Import**: Two-step overlay workflow
+  1. Optional: Upload recipe photo
+  2. Upload recipe text image(s) → OpenAI vision extraction with structured JSON schema
+- **Book Source Management**: Track recipes from cookbooks with metadata and cover images
+- **4-Point Perspective Crop**: Optional Python-based image perspective correction
+- **Light/Dark Mode**: CSS custom properties for full theme support
+- **Token Usage Tracking**: Monitor OpenAI API costs via `extract_usage` table
 
-| Command | Description |
-|--------|-------------|
-| `npm run install:all` | Install dependencies (root + workspaces) |
-| `npm run dev` | Start frontend and backend in parallel |
-| `npm run dev:frontend` | Frontend only (Vite) |
-| `npm run dev:backend` | Backend only (Express, port 8097) |
-| `npm run build` | Build frontend for production |
-| `npm run start` | Start backend (after build) |
+## Project Structure
 
-## Environment
+```
+recipe-library/
+├── frontend/          # Vue 3 + Vite + TypeScript
+│   ├── src/
+│   │   ├── views/           # Dashboard, Recipes, Sources, Shopping
+│   │   ├── components/      # RecipeForm, RecipeImportOverlay
+│   │   ├── layouts/         # AppLayout (header + nav)
+│   │   ├── router/          # Vue Router configuration
+│   │   └── api/             # API client functions
+│   └── package.json
+├── backend/           # Node.js + Express + SQLite
+│   ├── src/
+│   │   ├── routes/          # API route handlers
+│   │   ├── services/        # Business logic (extract, recipe, source, image)
+│   │   ├── db/              # Database schema and initialization
+│   │   └── server.js        # Express app entry point
+│   ├── scripts/             # Utility scripts (crop_perspective.py, evaluate-vision-quality.js)
+│   ├── requirements.txt     # Python dependencies (opencv, numpy)
+│   └── package.json
+├── .env.example       # Environment variables template
+├── Dockerfile         # Multi-stage production build
+├── run-local.sh       # Docker local development script
+└── package.json       # Root workspace configuration
+```
 
-The `.env` file lives in the **project root**. Relevant keys: `DB_PATH`, `UPLOAD_DIR`, `IMAGE_MAX_DIMENSION`, `IMAGE_QUALITY`, `OPENAI_API_KEY` (required for step 2 of import; recipe text extraction), optional `OPENAI_EXTRACT_MODEL` (default: gpt-4o).
+### Database Schema
 
-**Perspective crop (optional):** The 4-point crop uses `backend/scripts/crop_perspective.py` (Python 3 + opencv-python + numpy). Install with `pip install opencv-python-headless numpy`. Optional env: `CROP_PYTHON` (e.g. `python3`).
+- **recipe_sources**: Book/URL/manual sources (type, name, author, year, image_path)
+- **recipes**: Main recipe table (title, description, servings, nutrition, extract metadata, status: draft|confirmed)
+- **recipe_ingredient_sections**: Ingredient groupings with headings
+- **ingredients**: Individual ingredients (amount, unit, ingredient, additional_info)
+- **recipe_steps**: Preparation steps
+- **recipe_tips**: Cooking tips and variations
+- **extract_usage**: OpenAI token usage log
 
-## Run locally with Docker
+## Quick Start
 
-Create `.env` (see `.env.example`), then:
+### Local Development
 
 ```bash
+# 1. Install dependencies
+npm run install:all
+
+# 2. Create .env file (see Environment section below)
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+
+# 3. Start development servers
+npm run dev
+```
+
+App available at [http://localhost:8097](http://localhost:8097)
+
+### Docker (Recommended for Production)
+
+```bash
+# Create .env file
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+
+# Build and run
 ./run-local.sh
 ```
 
-App: http://localhost:8097
+App available at [http://localhost:8097](http://localhost:8097)
 
-## API
+## Available Scripts
 
-- `GET /api/health` – Health check
-- `GET /api/recipes` – List all recipes (no ingredients/steps)
-- `GET /api/recipes/:id` – Get one recipe with ingredients and steps
-- `POST /api/recipes` – Create recipe (stored as **draft**; body: `title` required; optional: `description`, `servings`, source fields; `ingredients[]`, `recipe_steps[]`)
-- `PUT /api/recipes/:id` – Update recipe (body: optional recipe fields, `status` (draft | confirmed), source fields, `ingredients[]`, `recipe_steps[]` replace existing)
-- `DELETE /api/recipes/:id` – Delete recipe (cascades to ingredients and steps)
-- `POST /api/upload` – **Step 1**: Upload recipe image (multipart field `image`). Creates a draft recipe with `image_path`, returns `{ url, recipe }`. Image resized to longest side ≤ `IMAGE_MAX_DIMENSION`, saved as WebP.
-- `POST /api/recipes/:id/extract-from-images` – **Step 2**: Extract recipe text from image(s) via OpenAI (multipart field `images`, one or more files). Returns `{ recipe, usage?: { prompt_tokens, completion_tokens, total_tokens } }`; usage is logged to `extract_usage` table.
-- **Sources (e.g. books):** `GET /api/sources` – List sources. `GET /api/sources/:id` – One source. `POST /api/sources` – Create (body: `type`, `name`, `subtitle?`, `author?`, `year?`, …). `PUT /api/sources/:id` – Update. `DELETE /api/sources/:id` – Delete (fails if recipes reference it). `POST /api/sources/:id/cover` – Upload book cover (multipart `image`, optional `points` for 4-point crop; resize to 2400px, WebP).
-- `GET /uploads/*` – Serve uploaded images.
+| Command | Description |
+|---------|-------------|
+| `npm run install:all` | Install all dependencies (root + workspaces) |
+| `npm run dev` | Start frontend (Vite) and backend (Express) in parallel |
+| `npm run dev:frontend` | Start frontend only (Vite dev server) |
+| `npm run dev:backend` | Start backend only (Express on port 8097) |
+| `npm run build` | Build frontend for production |
+| `npm run start` | Start production server (requires built frontend) |
+
+## Environment Variables
+
+Create a `.env` file in the **project root** based on [.env.example](.env.example):
+
+### Required
+- `OPENAI_API_KEY` – OpenAI API key for recipe extraction (**required** for AI import feature)
+
+### Optional
+- `DB_PATH` – SQLite database path (default: `recipe-library.db`)
+- `UPLOAD_DIR` – Directory for uploaded images (default: `/data/uploads`)
+- `STATIC_DIR` – Static files directory (default: `/app/public`)
+- `IMAGE_QUALITY` – WebP quality 0-100 (default: `80`)
+- `IMAGE_MAX_DIMENSION` – Max dimension for uploaded images in pixels (default: `2400`)
+- `TEXT_IMAGE_MAX_DIMENSION` – Max dimension for OpenAI text images (default: `1400`)
+- `OPENAI_EXTRACT_MODEL` – OpenAI model for extraction (default: `gpt-4o-mini`)
+- `OPENAI_EXTRACT_DETAIL` – Vision API detail level: `low` | `high` | `auto` (default: `high`)
+- `CROP_PYTHON` – Python executable path for perspective crop (optional)
+
+### Python Setup (Optional 4-Point Crop)
+
+The perspective crop feature requires Python 3 with OpenCV and NumPy:
+
+```bash
+cd backend
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+```
+
+The backend automatically uses `backend/venv/bin/python3` if available. Otherwise, set `CROP_PYTHON` in `.env`.
+
+## Technology Stack
+
+### Frontend
+- **Vue 3** – Composition API with `<script setup>`
+- **TypeScript** – Type-safe component development
+- **Vite** – Fast development server and build tool
+- **Vue Router** – Client-side routing
+- **CSS Custom Properties** – Theme-able light/dark mode
+
+### Backend
+- **Node.js 20+** – JavaScript runtime
+- **Express** – Web framework
+- **better-sqlite3** – Fast, synchronous SQLite driver
+- **Sharp** – High-performance image processing
+- **Multer** – File upload handling
+- **OpenAI SDK** – GPT-4o vision API integration
+
+### Optional
+- **Python 3** – For perspective crop feature
+- **OpenCV** – Computer vision (4-point crop)
+- **NumPy** – Numerical computing
+
+## API Reference
+
+### Health Check
+- **`GET /api/health`** – Server health status
+
+### Recipes
+
+#### List & Retrieve
+- **`GET /api/recipes`** – List all recipes (excludes ingredients/steps for performance)
+  - Response: `[{ id, title, subtitle, image_path, status, ... }]`
+
+- **`GET /api/recipes/:id`** – Get single recipe with full details
+  - Response: `{ id, title, ..., ingredients: [...], recipe_steps: [...], recipe_tips: [...] }`
+
+#### Create & Update
+- **`POST /api/recipes`** – Create new recipe (stored as `draft`)
+  - Body: `{ title: string (required), description?, servings?, ingredients?, recipe_steps?, ... }`
+  - Response: `{ id, title, status: 'draft', ... }`
+
+- **`PUT /api/recipes/:id`** – Update existing recipe
+  - Body: Any recipe fields, `ingredients[]`, `recipe_steps[]` (replace existing)
+  - Set `status: 'confirmed'` to mark as final
+  - Response: Updated recipe object
+
+- **`DELETE /api/recipes/:id`** – Delete recipe
+  - Cascades to ingredients, steps, tips, sections
+
+### AI Import (Two-Step Process)
+
+#### Step 1: Upload Recipe Photo (Optional)
+- **`POST /api/upload`** – Upload recipe image
+  - Body: `multipart/form-data` with `image` field
+  - Creates draft recipe with `image_path`
+  - Image resized to `IMAGE_MAX_DIMENSION` (longest side), saved as WebP
+  - Response: `{ url: string, recipe: { id, image_path, ... } }`
+
+#### Step 2: Extract Recipe from Text Images
+- **`POST /api/recipes/:id/extract-from-images`** – AI extraction via OpenAI
+  - Body: `multipart/form-data` with `images` field (one or more text images)
+  - Images resized to `TEXT_IMAGE_MAX_DIMENSION` before sending to OpenAI
+  - Response: `{ recipe: { status, confidence, warnings, missingFields, recipe: {...} }, usage?: { prompt_tokens, completion_tokens, total_tokens } }`
+  - Token usage logged to `extract_usage` table
+
+### Sources (Cookbooks, URLs, etc.)
+
+- **`GET /api/sources`** – List all sources
+  - Response: `[{ id, type, name, author, year, image_path, ... }]`
+
+- **`GET /api/sources/:id`** – Get single source
+  - Response: `{ id, type, name, ... }`
+
+- **`POST /api/sources`** – Create new source
+  - Body: `{ type: 'book'|'url'|'manual'|'other', name: string (required), subtitle?, author?, year?, ... }`
+  - Response: Created source object
+
+- **`PUT /api/sources/:id`** – Update source
+  - Body: Any source fields
+  - Response: Updated source object
+
+- **`DELETE /api/sources/:id`** – Delete source
+  - Fails if recipes reference this source (foreign key constraint)
+
+- **`POST /api/sources/:id/cover`** – Upload book cover image
+  - Body: `multipart/form-data` with `image` field
+  - Optional: `points` field with 4-point crop coordinates (JSON array)
+  - Image resized to 2400px, saved as WebP
+  - Response: `{ image_path: string }`
+
+### Static Files
+- **`GET /uploads/*`** – Serve uploaded images (recipes, covers)
+
+## Development
+
+### Project Layout
+- **Monorepo**: Single repository with `frontend` and `backend` workspaces
+- **ES Modules**: Both frontend and backend use `import`/`export` (not CommonJS)
+- **Database**: SQLite with better-sqlite3 (synchronous API)
+- **Image Processing**: Sharp for resize/format conversion, optional OpenCV for perspective crop
+
+### Adding Features
+
+1. **Database Changes**: Update schema in `backend/src/db/index.js`, add migration if needed
+2. **Backend**: Service layer (`backend/src/services/`) → Route handler (`backend/src/routes/`)
+3. **Frontend**: API function (`frontend/src/api/`) → Component → View
+4. **Documentation**: Update README.md, AGENTS.md, CLAUDE.md
+
+### Code Style
+- **English Only**: All code, comments, UI text, and documentation in English
+- **TypeScript**: Use for all new frontend code
+- **Composition API**: Prefer `<script setup>` syntax in Vue components
+- **Prepared Statements**: Always use for database queries (SQL injection prevention)
+- **Error Handling**: Catch errors at route level, return meaningful messages
+
+## Deployment
+
+### Docker Production
+
+```bash
+# Build image
+docker build -t recipe-library .
+
+# Run with persistent data
+docker run -d \
+  --name recipe-library \
+  -p 8097:8097 \
+  --env-file .env \
+  -v $(pwd)/data:/data \
+  recipe-library
+```
+
+### Manual Deployment
+
+```bash
+# 1. Install dependencies
+npm run install:all
+
+# 2. Build frontend
+npm run build
+
+# 3. Set environment variables
+export DB_PATH=/path/to/recipe-library.db
+export UPLOAD_DIR=/path/to/uploads
+export OPENAI_API_KEY=sk-...
+
+# 4. Start server
+npm run start
+```
+
+### Requirements
+- Node.js 20+
+- OpenAI API key (for AI import feature)
+- Python 3 + OpenCV (optional, for perspective crop)
+- Writable directory for uploads and database
+
+## Troubleshooting
+
+### OpenAI API Errors
+
+**Problem**: Recipe extraction fails with API error
+
+**Solutions**:
+- Verify `OPENAI_API_KEY` is set correctly in `.env`
+- Check OpenAI account has credits/active subscription
+- Review `extract_usage` table for error details
+- Ensure images don't exceed OpenAI size limits (currently 20MB per image)
+- Try different `OPENAI_EXTRACT_MODEL` (e.g., `gpt-4o` vs `gpt-4o-mini`)
+
+### Database Errors
+
+**Problem**: Foreign key constraint violation
+
+**Solutions**:
+- Check `PRAGMA foreign_keys = ON` is set (automatic in `initDb()`)
+- Cannot delete source if recipes reference it – delete recipes first
+- Use transactions for multi-step operations
+
+**Problem**: Database locked
+
+**Solutions**:
+- SQLite doesn't handle concurrent writes well – use connection pooling or queue
+- Check no other process has the database open
+- For `:memory:` database, data is lost on restart (use file path)
+
+### Image Upload Issues
+
+**Problem**: Upload fails or image not displayed
+
+**Solutions**:
+- Check `UPLOAD_DIR` exists and is writable
+- Verify Sharp can process the image format (supports JPEG, PNG, WebP, TIFF, GIF, SVG)
+- Check image file size isn't too large
+- Ensure `IMAGE_MAX_DIMENSION` setting is reasonable (default: 2400px)
+
+**Problem**: Perspective crop fails
+
+**Solutions**:
+- Ensure Python venv is set up: `cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt`
+- Set `CROP_PYTHON` in `.env` if not using venv
+- Verify opencv-python and numpy are installed
+- Check 4 points are provided in correct format
+
+### Performance
+
+**Problem**: Slow recipe list loading
+
+**Solutions**:
+- Recipe list endpoint excludes ingredients/steps by design
+- Add database indexes if filtering/sorting by custom fields
+- Consider pagination for large recipe collections
+
+**Problem**: High OpenAI costs
+
+**Solutions**:
+- Monitor `extract_usage` table regularly
+- Use `gpt-4o-mini` instead of `gpt-4o` (set `OPENAI_EXTRACT_MODEL`)
+- Reduce `TEXT_IMAGE_MAX_DIMENSION` to lower token usage
+- Set `OPENAI_EXTRACT_DETAIL=low` for lower quality but cheaper extraction
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make changes and test thoroughly
+4. Update documentation (README.md, AGENTS.md, CLAUDE.md)
+5. Commit with descriptive messages: `git commit -m "Add feature description"`
+6. Push and create a pull request
+
+## License
+
+[Add your license here]
+
+## Support
+
+For issues, questions, or feature requests, please open an issue on the repository.

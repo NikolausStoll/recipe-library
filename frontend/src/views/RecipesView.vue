@@ -1,6 +1,11 @@
 <template>
   <div class="view view--recipes">
     <h1>Recipes</h1>
+    <div class="recipe-view__actions">
+      <button type="button" class="btn btn--secondary" @click="showImportOverlay = true">
+        Add Recipe from Image
+      </button>
+    </div>
     <RecipeForm
       :initial="formInitial"
       :editing-id="editingId"
@@ -8,6 +13,11 @@
       @submit="onFormSubmit"
       @confirm="onConfirmRecipe"
       @cancel="editingId = null; formInitial = null; editingStatus = null"
+    />
+    <RecipeImportOverlay
+      v-if="showImportOverlay"
+      @done="onImportDone"
+      @close="showImportOverlay = false"
     />
     <div class="recipe-list-toolbar">
       <input
@@ -59,6 +69,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import RecipeForm from '../components/RecipeForm.vue'
+import RecipeImportOverlay from '../components/RecipeImportOverlay.vue'
 import {
   listRecipes,
   getRecipe,
@@ -66,16 +77,85 @@ import {
   updateRecipe,
   deleteRecipe,
 } from '../api/recipes'
-import type { RecipeListItem, RecipeFormPayload } from '../api/recipes'
+import type { Recipe, RecipeListItem, RecipeFormPayload, ParsedRecipeFromOcr, ParsedIngredientItem } from '../api/recipes'
 
 const recipes = ref<RecipeListItem[]>([])
 const loading = ref(true)
 const error = ref('')
 const editingId = ref<number | null>(null)
-const formInitial = ref<Partial<RecipeFormPayload> | null>(null)
+const formInitial = ref<(Partial<RecipeFormPayload> & { parsed_recipe?: ParsedRecipeFromOcr | null }) | null>(null)
 const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
+const showImportOverlay = ref(false)
+
+function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeFormPayload> & {
+  parsed_recipe?: ParsedRecipeFromOcr | null
+  extract_confidence?: number | null
+  extract_missing_fields?: string[] | null
+  nutrition_kcal?: number | null
+  nutrition_protein?: number | null
+  nutrition_carbs?: number | null
+  nutrition_fat?: number | null
+}) {
+  const pr = recipe.parsed_recipe
+  type Ing = { amount: string; unit: string; name: string; section_heading?: string | null; original_text?: string | null }
+  const ingredients: Ing[] = []
+  if (recipe.ingredients?.length) {
+    for (const ing of recipe.ingredients) {
+      ingredients.push({
+        amount: ing.amount != null ? String(ing.amount) : '',
+        unit: ing.unit ?? '',
+        name: ing.name ?? ing.ingredient ?? '',
+        section_heading: ing.section_heading ?? null,
+        original_text: ing.original_text ?? null,
+      })
+    }
+  } else if (pr?.ingredientsSections?.length) {
+    for (const section of pr.ingredientsSections) {
+      for (const item of section.items ?? []) {
+        ingredients.push({
+          amount: item.amount != null ? String(item.amount) : '',
+          unit: (item as ParsedIngredientItem).unit ?? '',
+          name: (item as ParsedIngredientItem).ingredient ?? (item as ParsedIngredientItem).originalText ?? '',
+          section_heading: section.heading ?? null,
+          original_text: (item as ParsedIngredientItem).originalText ?? null,
+        })
+      }
+    }
+  }
+  if (ingredients.length === 0) ingredients.push({ amount: '', unit: '', name: '' })
+
+  const recipe_steps = (pr?.steps ?? []).map((s) => ({ instruction: s?.text?.trim() ?? '' }))
+  if (recipe_steps.length === 0) recipe_steps.push({ instruction: '' })
+
+  return {
+    title: recipe.title ?? '',
+    subtitle: recipe.subtitle ?? '',
+    description: pr?.introText ?? recipe.description ?? '',
+    servings: pr?.servings?.value ?? recipe.servings ?? null,
+    source_id: recipe.source_id ?? null,
+    source_page: recipe.source_page ?? '',
+    ingredients,
+    recipe_steps,
+    parsed_recipe: pr ?? null,
+    extract_confidence: recipe.extract_confidence ?? null,
+    extract_missing_fields: recipe.extract_missing_fields ?? null,
+    nutrition_kcal: recipe.nutrition_kcal ?? pr?.nutritionTotal?.kcal ?? null,
+    nutrition_protein: recipe.nutrition_protein ?? pr?.nutritionTotal?.protein ?? null,
+    nutrition_carbs: recipe.nutrition_carbs ?? pr?.nutritionTotal?.carbs ?? null,
+    nutrition_fat: recipe.nutrition_fat ?? pr?.nutritionTotal?.fat ?? null,
+    tips: recipe.tips ?? pr?.tips ?? [],
+  }
+}
+
+function onImportDone(recipe: Recipe) {
+  showImportOverlay.value = false
+  editingId.value = recipe.id
+  editingStatus.value = 'draft'
+  formInitial.value = buildFormInitialFromImportedRecipe(recipe)
+  loadList()
+}
 
 const filteredAndSortedRecipes = computed(() => {
   let list = recipes.value
@@ -119,18 +199,27 @@ function startEdit(id: number) {
     editingStatus.value = (recipe.status === 'draft' || recipe.status === 'confirmed') ? recipe.status : 'draft'
     formInitial.value = {
       title: recipe.title,
+      subtitle: recipe.subtitle ?? '',
       description: recipe.description ?? '',
       servings: recipe.servings ?? null,
-      source_name: recipe.source_name ?? '',
-      book_title: recipe.source_book_title ?? '',
-      author: recipe.source_author ?? '',
+      source_id: recipe.source_id ?? null,
       source_page: recipe.source_page ?? '',
       ingredients: recipe.ingredients.map((ing) => ({
-        amount: ing.amount ?? '',
+        amount: ing.amount != null ? String(ing.amount) : '',
         unit: ing.unit ?? '',
-        name: ing.name ?? '',
+        name: ing.name ?? ing.ingredient ?? '',
+        section_heading: ing.section_heading ?? null,
+        original_text: ing.original_text ?? null,
       })),
       recipe_steps: recipe.recipe_steps.map((s) => ({ instruction: s.instruction ?? '' })),
+      parsed_recipe: recipe.parsed_recipe ?? null,
+      extract_confidence: recipe.extract_confidence ?? null,
+      extract_missing_fields: recipe.extract_missing_fields ?? null,
+      nutrition_kcal: recipe.nutrition_kcal ?? null,
+      nutrition_protein: recipe.nutrition_protein ?? null,
+      nutrition_carbs: recipe.nutrition_carbs ?? null,
+      nutrition_fat: recipe.nutrition_fat ?? null,
+      tips: recipe.tips ?? [],
     }
   }).catch((e) => {
     error.value = e instanceof Error ? e.message : 'Failed to load recipe'
@@ -193,6 +282,24 @@ onMounted(loadList)
 .view h1 {
   margin: 0 0 1rem 0;
   color: var(--color-text);
+}
+
+.recipe-view__actions {
+  margin-bottom: 1rem;
+}
+
+.recipe-view__actions .btn {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--color-btn-secondary-border);
+  background: var(--color-btn-secondary-bg);
+  color: var(--color-btn-secondary-fg);
+}
+
+.recipe-view__actions .btn:hover {
+  background: var(--color-btn-secondary-hover);
 }
 
 .recipe-list-toolbar {

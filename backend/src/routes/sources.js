@@ -98,7 +98,14 @@ router.post('/:id/cover', ensureUploadDir, (req, res, next) => {
   if (!source) return res.status(404).json({ error: 'Source not found' })
   if (!req.file) return res.status(400).json({ error: 'No image; use field "image"' })
   let buf = req.file.buffer
-  const points = req.body?.points
+  let points = req.body?.points
+  if (typeof points === 'string') {
+    try {
+      points = JSON.parse(points)
+    } catch {
+      points = undefined
+    }
+  }
   if (Array.isArray(points) && points.length === 4) {
     const ext = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg'
     buf = await cropPerspectiveBuffer(buf, points, ext)

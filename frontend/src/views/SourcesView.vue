@@ -1,47 +1,47 @@
 <template>
   <div class="view view--sources">
-    <h1>Buchquellen</h1>
+    <h1>Book Sources</h1>
     <p class="view__intro">Quellen (z. B. Kochbücher) verwalten. Rezepte können einer Quelle zugeordnet werden.</p>
 
     <!-- Form: add or edit -->
     <section v-if="formOpen" class="sources-form">
-      <h2 class="sources-form__title">{{ editingId ? 'Buchquelle bearbeiten' : 'Neue Buchquelle' }}</h2>
+      <h2 class="sources-form__title">{{ editingId ? 'Edit Book Source' : 'New Book Source' }}</h2>
       <form class="form" @submit.prevent="saveSource">
         <div class="form__row">
-          <label class="form__label" for="src-name">Titel *</label>
+          <label class="form__label" for="src-name">Title *</label>
           <input id="src-name" v-model="form.name" type="text" class="form__input" required />
         </div>
         <div class="form__row">
-          <label class="form__label" for="src-subtitle">Untertitel</label>
+          <label class="form__label" for="src-subtitle">Subtitle</label>
           <input id="src-subtitle" v-model="form.subtitle" type="text" class="form__input" />
         </div>
         <div class="form__row form__row--inline">
           <div>
-            <label class="form__label" for="src-author">Autor</label>
+            <label class="form__label" for="src-author">Author</label>
             <input id="src-author" v-model="form.author" type="text" class="form__input" />
           </div>
           <div>
-            <label class="form__label" for="src-year">Jahr</label>
+            <label class="form__label" for="src-year">Year</label>
             <input id="src-year" v-model.number="form.year" type="number" class="form__input" min="1" max="2100" placeholder="z. B. 2020" />
           </div>
         </div>
         <div class="form__actions">
           <button type="submit" class="btn btn--primary" :disabled="saving">
-            {{ saving ? 'Speichern…' : 'Speichern' }}
+            {{ saving ? 'Saving…' : 'Save' }}
           </button>
-          <button type="button" class="btn btn--secondary" @click="closeForm">Abbrechen</button>
+          <button type="button" class="btn btn--secondary" @click="closeForm">Cancel</button>
         </div>
         <p v-if="formError" class="form__error">{{ formError }}</p>
       </form>
 
       <!-- Cover / picture upload: always shown in form (for new: upload after first save) -->
       <div v-if="formOpen" class="sources-form__cover">
-        <h3 class="sources-form__cover-title">Buchcover / Bild</h3>
+        <h3 class="sources-form__cover-title">Book Cover / Image</h3>
         <div v-if="editingId && currentSource?.image_path" class="sources-form__cover-current">
           <img :src="coverDisplayUrl" alt="Cover" class="sources-form__cover-img" />
-          <span class="sources-form__cover-hint">Neues Bild wählen zum Ersetzen</span>
+          <span class="sources-form__cover-hint">Select new image to replace</span>
         </div>
-        <div v-if="!coverFile && (!editingId || !currentSource?.image_path)" class="sources-form__cover-upload">
+        <div v-if="!coverFile" class="sources-form__cover-upload">
           <input
             ref="coverInputRef"
             type="file"
@@ -50,7 +50,7 @@
             @change="onCoverFileSelected"
           />
           <button type="button" class="btn btn--secondary" @click="coverInputRef?.click()">
-            {{ editingId ? 'Cover auswählen…' : 'Bild auswählen (4 Punkte setzen, dann Speichern – Bild wird mit hochgeladen)' }}
+            {{ editingId ? 'Select Cover…' : 'Select Image (optional 4 points for crop, then Save)' }}
           </button>
         </div>
         <div v-if="coverFile && coverPreview" class="sources-form__cover-crop">
@@ -58,7 +58,7 @@
             <img
               ref="coverCropImgRef"
               :src="coverPreview"
-              alt="Vorschau"
+              alt="Preview"
               class="crop-editor__img sources-form__crop-img"
               @load="onCoverCropLoad"
             />
@@ -92,12 +92,12 @@
             <button
               type="button"
               class="btn btn--primary"
-              :disabled="coverCropPoints.length !== 4 || coverUploading || !editingId"
-              @click="uploadCover"
+              :disabled=”coverUploading || !editingId”
+              @click=”uploadCover”
             >
-              {{ coverUploading ? 'Lade hoch…' : (editingId ? 'Cover speichern (4 Punkte setzen)' : 'Zuerst „Speichern“ klicken') }}
+              {{ coverUploading ? 'Uploading…' : (editingId ? (coverCropPoints.length === 4 ? 'Save Cover (with crop)' : 'Save Cover (without crop)') : 'Click “Save” first') }}
             </button>
-            <button type="button" class="btn btn--secondary" @click="clearCoverFile">Abbrechen</button>
+            <button type=”button” class=”btn btn--secondary” @click=”clearCoverFile”>Cancel</button>
           </div>
           <p v-if="coverError" class="form__error">{{ coverError }}</p>
         </div>
@@ -106,15 +106,15 @@
 
     <!-- List -->
     <div v-if="!formOpen" class="sources-toolbar">
-      <button type="button" class="btn btn--primary" @click="openNewForm">Neue Buchquelle</button>
+      <button type="button" class="btn btn--primary" @click="openNewForm">New Book Source</button>
     </div>
     <p v-if="listError" class="form__error">{{ listError }}</p>
-    <p v-if="loading && !sources.length">Lade…</p>
+    <p v-if="loading && !sources.length">Loading…</p>
     <ul v-else class="sources-list">
       <li v-for="s in sources" :key="s.id" class="sources-list__item">
         <div class="sources-list__thumb" @click="startEdit(s.id)">
           <img v-if="s.image_path" :src="s.image_path" :alt="s.name" class="sources-list__img" />
-          <span v-else class="sources-list__no-img">Kein Cover</span>
+          <span v-else class="sources-list__no-img">No Cover</span>
         </div>
         <div class="sources-list__main" @click="startEdit(s.id)">
           <strong class="sources-list__name">{{ s.name }}</strong>
@@ -126,14 +126,14 @@
         <button
           type="button"
           class="btn btn--secondary sources-list__delete"
-          title="Quelle löschen"
+          title="Delete source"
           @click="onDelete(s.id)"
         >
-          Löschen
+          Delete
         </button>
       </li>
     </ul>
-    <p v-if="!loading && !sources.length" class="empty">Noch keine Buchquellen. „Neue Buchquelle“ zum Anlegen.</p>
+    <p v-if=”!loading && !sources.length” class=”empty”>No book sources yet. Click “New Book Source” to create one.</p>
   </div>
 </template>
 
@@ -192,7 +192,7 @@ async function loadList() {
   try {
     sources.value = await listSources()
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : 'Quellen konnten nicht geladen werden'
+    listError.value = e instanceof Error ? e.message : 'Failed to load sources'
   } finally {
     loading.value = false
   }
@@ -262,36 +262,39 @@ async function saveSource() {
       sources.value.unshift(created)
       editingId.value = created.id
       currentSource.value = created
-      // If user already selected a cover and set 4 points, upload it now
+      // If user already selected a cover, upload it now (with optional 4-point crop)
       const file = coverFile.value
       const points = coverCropPoints.value
       const img = coverCropImgRef.value
-      if (file && points.length === 4 && img) {
-        const rect = img.getBoundingClientRect()
-        const nw = img.naturalWidth
-        const nh = img.naturalHeight
-        if (rect.width > 0 && rect.height > 0 && nw > 0 && nh > 0) {
-          const imagePoints = points.map((p) => ({
-            x: Math.round((p.x / rect.width) * nw),
-            y: Math.round((p.y / rect.height) * nh),
-          }))
-          coverUploading.value = true
-          try {
-            const { source } = await uploadSourceCover(created.id, file, imagePoints)
-            const idx = sources.value.findIndex((x) => x.id === source.id)
-            if (idx >= 0) sources.value[idx] = source
-            currentSource.value = source
-            clearCoverFile()
-          } catch (e) {
-            coverError.value = e instanceof Error ? e.message : 'Cover-Upload nach Speichern fehlgeschlagen'
-          } finally {
-            coverUploading.value = false
+      if (file) {
+        let imagePoints: Array<{ x: number; y: number }> | undefined
+        if (points.length === 4 && img) {
+          const rect = img.getBoundingClientRect()
+          const nw = img.naturalWidth
+          const nh = img.naturalHeight
+          if (rect.width > 0 && rect.height > 0 && nw > 0 && nh > 0) {
+            imagePoints = points.map((p) => ({
+              x: Math.round((p.x / rect.width) * nw),
+              y: Math.round((p.y / rect.height) * nh),
+            }))
           }
+        }
+        coverUploading.value = true
+        try {
+          const { source } = await uploadSourceCover(created.id, file, imagePoints)
+          const idx = sources.value.findIndex((x) => x.id === source.id)
+          if (idx >= 0) sources.value[idx] = source
+          currentSource.value = source
+          clearCoverFile()
+        } catch (e) {
+          coverError.value = e instanceof Error ? e.message : 'Cover upload after save failed'
+        } finally {
+          coverUploading.value = false
         }
       }
     }
   } catch (e) {
-    formError.value = e instanceof Error ? e.message : 'Speichern fehlgeschlagen'
+    formError.value = e instanceof Error ? e.message : 'Failed to save'
   } finally {
     saving.value = false
   }
@@ -359,18 +362,19 @@ async function uploadCover() {
   const id = editingId.value
   const file = coverFile.value
   const img = coverCropImgRef.value
-  if (!id || !file || coverCropPoints.value.length !== 4 || !img) return
-  const rect = img.getBoundingClientRect()
-  const nw = img.naturalWidth
-  const nh = img.naturalHeight
-  if (rect.width <= 0 || rect.height <= 0 || nw <= 0 || nh <= 0) {
-    coverError.value = 'Bildgröße konnte nicht ermittelt werden.'
-    return
+  if (!id || !file) return
+  let points: Array<{ x: number; y: number }> | undefined
+  if (coverCropPoints.value.length === 4 && img) {
+    const rect = img.getBoundingClientRect()
+    const nw = img.naturalWidth
+    const nh = img.naturalHeight
+    if (rect.width > 0 && rect.height > 0 && nw > 0 && nh > 0) {
+      points = coverCropPoints.value.map((p) => ({
+        x: Math.round((p.x / rect.width) * nw),
+        y: Math.round((p.y / rect.height) * nh),
+      }))
+    }
   }
-  const points = coverCropPoints.value.map((p) => ({
-    x: Math.round((p.x / rect.width) * nw),
-    y: Math.round((p.y / rect.height) * nh),
-  }))
   coverUploading.value = true
   coverError.value = ''
   try {
@@ -380,20 +384,20 @@ async function uploadCover() {
     currentSource.value = source
     clearCoverFile()
   } catch (e) {
-    coverError.value = e instanceof Error ? e.message : 'Cover-Upload fehlgeschlagen'
+    coverError.value = e instanceof Error ? e.message : 'Cover upload failed'
   } finally {
     coverUploading.value = false
   }
 }
 
 async function onDelete(id: number) {
-  if (!confirm('Buchquelle wirklich löschen? Geht nur, wenn kein Rezept sie verwendet.')) return
+  if (!confirm('Really delete book source? Only works if no recipe uses it.')) return
   try {
     await deleteSource(id)
     sources.value = sources.value.filter((s) => s.id !== id)
     if (editingId.value === id) closeForm()
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : 'Löschen fehlgeschlagen (evtl. wird die Quelle noch von Rezepten verwendet).'
+    listError.value = e instanceof Error ? e.message : 'Delete failed (source may still be used by recipes).'
   }
 }
 

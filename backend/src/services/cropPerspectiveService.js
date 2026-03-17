@@ -5,7 +5,9 @@ import os from 'os'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const CROP_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'crop_perspective.py')
+const BACKEND_DIR = path.join(__dirname, '..', '..')
+const CROP_SCRIPT = path.join(BACKEND_DIR, 'scripts', 'crop_perspective.py')
+const VENV_PYTHON = path.join(BACKEND_DIR, 'venv', 'bin', 'python3')
 
 /**
  * Run perspective crop: input image + 4 points → Python script → overwrite output.
@@ -28,7 +30,7 @@ export function cropPerspective(inputPath, outputPath, points) {
   if (flat.some((n) => Number.isNaN(n))) {
     return Promise.reject(new Error('Invalid point coordinates'))
   }
-  const python = process.env.CROP_PYTHON || 'python3'
+  const python = process.env.CROP_PYTHON || (fs.existsSync(VENV_PYTHON) ? VENV_PYTHON : 'python3')
   const args = [CROP_SCRIPT, inputPath, outputPath, ...flat.map(String)]
   return new Promise((resolve, reject) => {
     const child = spawn(python, args, { stdio: ['pipe', 'pipe', 'pipe'] })

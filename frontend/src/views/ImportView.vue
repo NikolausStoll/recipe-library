@@ -242,7 +242,7 @@
             >
               <span v-if="section.heading" class="import-result__heading">{{ section.heading }}</span>
               <ul class="import-result__items">
-                <li v-for="(item, ii) in section.items" :key="ii">{{ item }}</li>
+                <li v-for="(item, ii) in section.items" :key="ii">{{ formatParsedItem(item) }}</li>
               </ul>
             </li>
           </ul>
@@ -250,7 +250,7 @@
         <template v-if="currentRecipe.parsed_recipe.steps?.length">
           <p class="import-result__label"><strong>Schritte</strong></p>
           <ol class="import-result__steps">
-            <li v-for="(step, i) in currentRecipe.parsed_recipe.steps" :key="i">{{ step }}</li>
+            <li v-for="(step, i) in currentRecipe.parsed_recipe.steps" :key="i">{{ formatParsedStep(step) }}</li>
           </ol>
         </template>
       </div>
@@ -294,6 +294,16 @@ const cropping = ref(false)
 const cropError = ref('')
 let draggingPointIndex: number | null = null
 let cropDragUnsubscribe: (() => void) | null = null
+
+function formatParsedItem(item: import('../api/recipes').ParsedIngredientItem): string {
+  if (item.originalText?.trim()) return item.originalText.trim()
+  const parts = [item.amount != null ? String(item.amount) : '', item.unit ?? '', item.ingredient ?? '', item.additionalInfo ?? ''].filter(Boolean)
+  return parts.join(' ').trim() || '—'
+}
+
+function formatParsedStep(step: import('../api/recipes').ParsedRecipeStep): string {
+  return step?.text?.trim() ?? '—'
+}
 
 const cropPolylinePoints = computed(() => {
   if (cropPoints.value.length !== 4) return ''

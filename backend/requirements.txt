@@ -1,0 +1,3 @@
+# For backend/scripts/crop_perspective.py (optional 4-point perspective crop)
+opencv-python-headless>=4.5.0
+numpy>=1.19.0

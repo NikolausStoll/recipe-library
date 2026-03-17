@@ -6,53 +6,141 @@
 import OpenAI from 'openai'
 import { getDb } from '../db/index.js'
 
-const EXTRACT_PROMPT = `You are a recipe extractor. The user will provide one or more images containing recipe text (e.g. from a book, screenshot, or photo of a recipe).
+export const EXTRACT_PROMPT = `You are a recipe extractor. The user will provide one or more images containing recipe text
 
-Extract the recipe strictly into the following structure:
-- title: The recipe title (one short line).
-- introText: Any introduction or description before the ingredients list (can be empty string).
-- ingredientsSections: An array of sections. Each section has:
-  - heading: Optional section heading (e.g. "For the dough", "Sauce") or null for the main list.
-  - items: Array of strings, each one ingredient line (amount, unit, name or free text).
-- steps: Array of strings, each one preparation step in order.
+Rules:
+- Extract only information that is actually visible in the image.
+- Do not guess missing or unclear values when extracting visible data.
+- If a value is not clearly visible, use null.
+- If something is missing, cut off, or uncertain, add an entry to warnings and/or missingFields.
+
+- Keep ingredient names clean and normalized, but preserve the visible ingredient line in originalText.
+- Put preparation notes, alternatives, ranges, and qualifiers into additionalInfo.
+
+- Ingredient section headings may contain serving information.
+- If a heading includes serving or people information, extract that information into recipe.servings as well.
+- Preserve the visible heading text in ingredientsSections.heading.
+
+- Use amount as the lower value and amountMax as the upper value for ranges.
+- For exact amounts, set amountMax equal to amount.
+
+- Keep step texts concise but faithful to the visible text.
+
+- Do not invent metadata that must come directly from the image (e.g. servings, times, titles).
+
+- nutritionTotal must be estimated based on the extracted ingredients and their amounts.
+- It is allowed and expected to approximate nutrition values using general knowledge about ingredients.
+- Do not leave nutritionTotal empty if ingredients are available.
+- If ingredients are too unclear or incomplete to estimate nutrition, set nutritionTotal fields to null and add a warning.
+- Nutrition values are not extracted from the image but derived from ingredients.
+
+- Extract tips, hints, or variations into the tips array if they are clearly separate from steps or introText.
+
+- If extraction is only partly reliable, set status to "partial".
+- If almost nothing reliable can be extracted, set status to "failed" and recipe to null.
+
+- Confidence must be a number between 0 and 1 representing overall extraction quality.
+
+- Return JSON only. No markdown, no explanations, no code fences.
 
 Use the exact keys above. If the image has multiple pages, merge the content into one coherent recipe. Preserve the original language of the recipe.`
 
-const RECIPE_JSON_SCHEMA = {
+export const RECIPE_JSON_SCHEMA = {
   type: 'object',
+  additionalProperties: false,
+  required: ['status', 'confidence', 'warnings', 'missingFields', 'recipe'],
   properties: {
-    title: { type: 'string', description: 'Recipe title' },
-    introText: { type: 'string', description: 'Introduction or description before ingredients' },
-    ingredientsSections: {
-      type: 'array',
-      description: 'Ingredient sections (main list and optional sub-sections)',
-      items: {
-        type: 'object',
-        properties: {
-          heading: { type: ['string', 'null'], description: 'Section heading or null' },
-          items: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Ingredient lines',
+    status: { type: 'string', enum: ['success', 'partial', 'failed'], description: 'Overall extraction result' },
+    confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Overall extraction confidence' },
+    warnings: { type: 'array', items: { type: 'string' }, description: 'Uncertainties or extraction problems' },
+    missingFields: { type: 'array', items: { type: 'string' }, description: 'Fields that are missing, unclear, or not visible' },
+
+    recipe: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['title', 'subtitle', 'introText', 'language', 'servings', 'ingredientsSections', 'steps', 'nutritionTotal', 'tips'],
+      properties: {
+        title: { type: ['string', 'null'] },
+        subtitle: { type: ['string', 'null'] },
+        introText: { type: ['string', 'null'] },
+        language: { type: ['string', 'null'] },
+
+        servings: {
+          type: ['object', 'null'],
+          additionalProperties: false,
+          required: ['value', 'unitText'],
+          properties: {
+            value: { type: ['number', 'null'] },
+            unitText: { type: ['string', 'null'] },
           },
         },
-        required: ['heading', 'items'],
-        additionalProperties: false,
+
+        ingredientsSections: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['heading', 'items'],
+            properties: {
+              heading: { type: ['string', 'null'] },
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['originalText', 'amount', 'amountMax', 'unit', 'ingredient', 'additionalInfo'],
+                  properties: {
+                    originalText: { type: ['string', 'null'] },
+                    amount: { type: ['number', 'null'] },
+                    amountMax: { type: ['number', 'null'] },
+                    unit: { type: ['string', 'null'], description: 'Unit of the ingredient, e.g. "g", "ml", "pcs", "pinch".' },
+                    ingredient: { type: ['string', 'null'] },
+                    additionalInfo: { type: ['string', 'null'] },
+                  },
+                },
+              },
+            },
+          },
+        },
+
+        steps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['index', 'text'],
+            properties: {
+              index: { type: 'integer', minimum: 1 },
+              text: { type: ['string', 'null'] },
+            },
+          },
+        },
+
+        tips: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Tips, notes, variations, or cooking advice not part of steps',
+        },
+
+        nutritionTotal: {
+          type: ['object', 'null'],
+          additionalProperties: false,
+          required: ['kcal', 'protein', 'carbs', 'fat'],
+          properties: {
+            kcal: { type: ['number', 'null'] },
+            protein: { type: ['number', 'null'] },
+            carbs: { type: ['number', 'null'] },
+            fat: { type: ['number', 'null'] },
+          },
+        },
       },
     },
-    steps: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Preparation steps in order',
-    },
   },
-  required: ['title', 'introText', 'ingredientsSections', 'steps'],
-  additionalProperties: false,
 }
 
 /**
  * @param {Buffer[]} imageBuffers - One or more images (recipe text)
- * @returns {Promise<{ recipe: { title: string, introText: string, ingredientsSections: Array<{ heading: string|null, items: string[] }>, steps: string[] }, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number } }>}
+ * @returns {Promise<{ recipe: { status: string, confidence: number, warnings: string[], missingFields: string[], recipe: object|null }, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number } }>}
  */
 export async function extractRecipeFromImages(imageBuffers) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -103,14 +191,22 @@ export async function extractRecipeFromImages(imageBuffers) {
 }
 
 /**
- * Log token usage for an extract run to extract_usage table.
+ * Log token usage and optional full JSON response for an extract run to extract_usage table (for debugging).
  */
-export function logExtractUsage(recipeId, usage) {
-  if (!usage) return
+export function logExtractUsage(recipeId, usage, responseJson = null) {
+  if (!usage && !responseJson) return
   const db = getDb()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  const responseStr = responseJson != null ? (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson)) : null
   db.prepare(`
-    INSERT INTO extract_usage (recipe_id, prompt_tokens, completion_tokens, total_tokens, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(recipeId, usage.prompt_tokens, usage.completion_tokens, usage.total_tokens, now)
+    INSERT INTO extract_usage (recipe_id, prompt_tokens, completion_tokens, total_tokens, response_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    recipeId,
+    usage?.prompt_tokens ?? null,
+    usage?.completion_tokens ?? null,
+    usage?.total_tokens ?? null,
+    responseStr,
+    now
+  )
 }

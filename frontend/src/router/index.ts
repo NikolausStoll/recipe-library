@@ -11,7 +11,6 @@ const router = createRouter({
         { path: '', name: 'dashboard', component: () => import('../views/DashboardView.vue'), meta: { title: 'Dashboard' } },
         { path: 'recipes', name: 'recipes', component: () => import('../views/RecipesView.vue'), meta: { title: 'Recipes' } },
         { path: 'sources', name: 'sources', component: () => import('../views/SourcesView.vue'), meta: { title: 'Buchquellen' } },
-        { path: 'import', name: 'import', component: () => import('../views/ImportView.vue'), meta: { title: 'Import' } },
         { path: 'shopping', name: 'shopping', component: () => import('../views/ShoppingView.vue'), meta: { title: 'Shopping' } },
       ],
     },

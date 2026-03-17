@@ -187,7 +187,7 @@ router.post('/:id/extract-from-images', (req, res, next) => {
     )
     const { recipe: parsedRecipe, usage } = await extractRecipeFromImages(buffers)
     const updated = recipeService.setRecipeParsedRecipe(id, parsedRecipe, { updateTitle: true })
-    if (usage) logExtractUsage(id, usage)
+    if (usage || parsedRecipe) logExtractUsage(id, usage, parsedRecipe)
     res.json({ recipe: updated, usage: usage || null })
   } catch (e) {
     console.error('Extract from images failed:', e)

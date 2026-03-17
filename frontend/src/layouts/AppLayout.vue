@@ -5,8 +5,7 @@
       <nav class="app-nav">
         <router-link to="/" class="nav-link" active-class="nav-link--active">Dashboard</router-link>
         <router-link to="/recipes" class="nav-link" active-class="nav-link--active">Recipes</router-link>
-        <router-link to="/sources" class="nav-link" active-class="nav-link--active">Buchquellen</router-link>
-        <router-link to="/import" class="nav-link" active-class="nav-link--active">Import</router-link>
+        <router-link to="/sources" class="nav-link" active-class="nav-link--active">Sources</router-link>
         <router-link to="/shopping" class="nav-link" active-class="nav-link--active">Shopping</router-link>
       </nav>
     </header>
