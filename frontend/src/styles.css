@@ -1,0 +1,88 @@
+/* Theme: light (default) and dark. Toggle via data-theme="dark" on html. */
+:root {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  --color-bg: #f5f5f5;
+  --color-bg-elevated: #fff;
+  --color-bg-muted: #fafafa;
+  --color-text: #1a1a2e;
+  --color-text-muted: #666;
+  --text-muted: var(--color-text-muted);
+  --color-border: #e0e0e0;
+  --color-border-subtle: #eee;
+  --color-header-bg: #1a1a2e;
+  --color-header-fg: #eee;
+  --color-header-hover: rgba(255, 255, 255, 0.1);
+  --color-input-border: #ccc;
+  --color-input-bg: transparent;
+  --color-btn-primary-bg: #1a1a2e;
+  --color-btn-primary-hover: #2a2a4e;
+  --color-btn-secondary-bg: #fff;
+  --color-btn-secondary-border: #ccc;
+  --color-btn-secondary-fg: #333;
+  --color-btn-secondary-hover: #f5f5f5;
+  --color-btn-confirm-bg: #2d6a2d;
+  --color-btn-confirm-hover: #3d7a3d;
+  --color-draft-bg: #f0e68c;
+  --color-draft-fg: #6b5a00;
+  --color-delete-fg: #c00;
+  --color-delete-border: #fcc;
+  --color-delete-hover-bg: #fee;
+  --color-error: #c00;
+  --color-required: #c00;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] {
+  --color-bg: #1a1a2e;
+  --color-bg-elevated: #252538;
+  --color-bg-muted: #2a2a40;
+  --color-text: #e8e8ee;
+  --color-text-muted: #a0a0b0;
+  --text-muted: var(--color-text-muted);
+  --color-border: #3a3a50;
+  --color-border-subtle: #323248;
+  --color-header-bg: #0f0f1a;
+  --color-header-fg: #e8e8ee;
+  --color-header-hover: rgba(255, 255, 255, 0.08);
+  --color-input-border: #4a4a60;
+  --color-input-bg: #252538;
+  --color-btn-primary-bg: #3a3a5c;
+  --color-btn-primary-hover: #4a4a6c;
+  --color-btn-secondary-bg: #252538;
+  --color-btn-secondary-border: #4a4a60;
+  --color-btn-secondary-fg: #e8e8ee;
+  --color-btn-secondary-hover: #2a2a40;
+  --color-btn-confirm-bg: #2d6a2d;
+  --color-btn-confirm-hover: #3d7a3d;
+  --color-draft-bg: #5c5c20;
+  --color-draft-fg: #e8e090;
+  --color-delete-fg: #e88;
+  --color-delete-border: #633;
+  --color-delete-hover-bg: #422;
+  --color-error: #e88;
+  --color-required: #e88;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#app {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* Hide number input spinners (Chrome, Safari, Edge) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide number input spinners (Firefox) */
+input[type="number"] {
+  -moz-appearance: textfield;
+}

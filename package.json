@@ -1,0 +1,20 @@
+{
+  "name": "recipe-library",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "dev:backend": "npm --prefix backend run start",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "build": "npm run build --workspace frontend",
+    "start": "node backend/src/server.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

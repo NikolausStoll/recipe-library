@@ -1,0 +1,2 @@
+- Maintain README.md and AGENTS.md in everything you do.
+- Use English for all code, comments, and documentation.

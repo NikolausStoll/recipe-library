@@ -1,0 +1,19 @@
+{
+  "name": "recipe-library-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "evaluate-vision": "node scripts/evaluate-vision-quality.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "dotenv": "^16.4.1",
+    "express": "^4.19.2",
+    "multer": "^2.0.0",
+    "openai": "^4.73.0",
+    "sharp": "^0.33.0"
+  }
+}

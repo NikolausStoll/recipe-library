@@ -1,0 +1,38 @@
+name: "Recipe Library"
+slug: "recipe-library"
+description: "Personal recipe tracker frontend and backend"
+version: "1.0.1"
+repository: "https://github.com/NikolausStoll/recipe-library"
+arch:
+  - amd64
+  - aarch64
+  - armv7
+
+startup: application
+init: false
+
+ingress: true
+ingress_port: 8097
+
+ports:
+  8097/tcp: 8097
+ports_description:
+  8097/tcp: "Recipe Library Web UI (direct)"
+
+image: "ghcr.io/nikolausstoll/recipe-library"
+
+options:
+  port: 8097
+  db_path: "/data/recipe-library.db"
+  static_dir: "/app/public"
+  upload_dir: "/data/uploads"
+  image_quality: 80
+  image_max_dimension: 2400
+
+schema:
+  port: int(1024,65535)
+  db_path: str
+  static_dir: str
+  upload_dir: str
+  image_quality: int
+  image_max_dimension: int
