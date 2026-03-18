@@ -33,46 +33,93 @@
         <div class="form-section form-section--image">
           <h4 class="form-section__title">Recipe Image</h4>
           <div class="image-upload">
-            <div v-if="(currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview" class="image-upload__preview">
-              <img :src="imagePreview || currentImageUrl" alt="Recipe preview" />
-              <button
-                type="button"
-                class="image-upload__remove"
-                @click="removeImage"
-                title="Remove image"
-              >
+            <template v-if="showCropForExisting">
+              <div class="crop-editor">
+                <div ref="cropEditorRef" class="crop-editor__wrap" @click="onCropImageClick">
+                  <img ref="cropImageRef" :src="cropImageUrl" alt="Crop" class="crop-editor__img" @load="onCropImageLoad" />
+                  <div class="crop-editor__overlay">
+                    <svg v-if="cropPoints.length === 4 && cropDisplaySize.w > 0 && cropDisplaySize.h > 0" class="crop-editor__lines" :viewBox="`0 0 ${cropDisplaySize.w} ${cropDisplaySize.h}`" preserveAspectRatio="none">
+                      <polyline :points="cropPolylinePoints" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-dasharray="6 4" />
+                    </svg>
+                    <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @mousedown.stop="onCropPointMouseDown($event, i)">{{ i + 1 }}</span>
+                  </div>
+                </div>
+                <div class="crop-editor__actions">
+                  <button type="button" class="btn btn--primary" :disabled="cropPoints.length !== 4 || cropping" @click="applyCropExisting">{{ cropping ? 'Cropping…' : 'Apply crop' }}</button>
+                  <button type="button" class="btn btn--secondary" @click="cancelCropExisting">Cancel</button>
+                  <button type="button" class="btn btn--secondary" @click="resetCropPoints">Reset points</button>
+                </div>
+                <p v-if="cropError" class="crop-editor__error">{{ cropError }}</p>
+              </div>
+            </template>
+            <template v-else>
+              <div v-if="(currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview" class="image-upload__preview">
+                <img :src="imagePreview || currentImageUrl" alt="Recipe preview" />
+                <button
+                  type="button"
+                  class="image-upload__remove"
+                  @click="removeImage"
+                  title="Remove image"
+                >
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div v-else class="image-upload__placeholder">
                 <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M21 15L16 10L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-              </button>
+                <p>No image yet</p>
+              </div>
+              <input
+                ref="imageInputRef"
+                type="file"
+                accept="image/*"
+                class="image-upload__input"
+                @change="onImageSelected"
+              />
+              <div class="image-upload__actions">
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  @click="imageInputRef?.click()"
+                >
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M17 8L12 3L7 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 3V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  {{ (currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview ? 'Change Image' : 'Upload Image' }}
+                </button>
+                <button
+                  v-if="currentImageUrl && currentImageUrl !== '__DELETE__'"
+                  type="button"
+                  class="btn btn--secondary"
+                  @click="startCropExisting"
+                >
+                  Crop image (4 points)
+                </button>
+              </div>
+            </template>
+          </div>
+          <!-- 4-point crop for newly selected image (before submit) -->
+          <div v-if="imagePreview && imageFile && !showCropForExisting" class="crop-editor crop-editor--new">
+            <p class="crop-editor__hint">Optional: click four corners in order to correct perspective, then save the recipe. Points are sent with the upload.</p>
+            <div ref="newCropEditorRef" class="crop-editor__wrap" @click="onNewCropClick">
+              <img ref="newCropImageRef" :src="imagePreview" alt="Crop" class="crop-editor__img" @load="onNewCropImageLoad" />
+              <div class="crop-editor__overlay">
+                <svg v-if="cropPoints.length === 4 && cropDisplaySize.w > 0 && cropDisplaySize.h > 0" class="crop-editor__lines" :viewBox="`0 0 ${cropDisplaySize.w} ${cropDisplaySize.h}`" preserveAspectRatio="none">
+                  <polyline :points="cropPolylinePoints" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-dasharray="6 4" />
+                </svg>
+                <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @mousedown.stop="onCropPointMouseDown($event, i)">{{ i + 1 }}</span>
+              </div>
             </div>
-            <div v-else class="image-upload__placeholder">
-              <svg viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M21 15L16 10L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <p>No image yet</p>
+            <div class="crop-editor__actions">
+              <button type="button" class="btn btn--secondary" @click="resetCropPoints">Reset points</button>
             </div>
-            <input
-              ref="imageInputRef"
-              type="file"
-              accept="image/*"
-              class="image-upload__input"
-              @change="onImageSelected"
-            />
-            <button
-              type="button"
-              class="btn btn--secondary"
-              @click="imageInputRef?.click()"
-            >
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M17 8L12 3L7 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M12 3V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              {{ (currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview ? 'Change Image' : 'Upload Image' }}
-            </button>
           </div>
         </div>
 
@@ -241,6 +288,15 @@
                   <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
+            </div>
+            <div class="ingredient-additional">
+              <input
+                v-model="item.ing.additional_info"
+                type="text"
+                class="ingredient-additional__input"
+                placeholder="Additional info"
+                aria-label="Additional ingredient info"
+              />
             </div>
             <div v-if="item.ing.original_text !== undefined && item.ing.original_text !== null" class="ingredient-original">
               <label class="ingredient-original__label">Original:</label>
@@ -476,6 +532,10 @@ interface IngredientRow {
   original_text?: string | null
 }
 
+interface IngredientRowWithExtra extends IngredientRow {
+  additional_info?: string | null
+}
+
 const props = defineProps<{
   initial?: (Partial<RecipeFormPayload> & {
     parsed_recipe?: ParsedRecipeFromOcr | null
@@ -492,7 +552,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  submit: [payload: RecipeFormPayload, imageFile: File | null]
+  submit: [payload: RecipeFormPayload, imageFile: File | string | null, cropPoints?: Array<{ x: number; y: number }>]
   confirm: []
   cancel: []
 }>()
@@ -507,6 +567,149 @@ const imageInputRef = ref<HTMLInputElement | null>(null)
 const imageFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
 const currentImageUrl = ref<string | null>(null)
+
+// 4-point crop (shared for new image and existing image)
+const showCropForExisting = ref(false)
+const cropImageUrl = ref('')
+const cropImageRef = ref<HTMLImageElement | null>(null)
+const cropEditorRef = ref<HTMLDivElement | null>(null)
+const newCropImageRef = ref<HTMLImageElement | null>(null)
+const newCropEditorRef = ref<HTMLDivElement | null>(null)
+const cropPoints = ref<Array<{ x: number; y: number }>>([])
+const cropDisplaySize = ref({ w: 0, h: 0 })
+const cropping = ref(false)
+const cropError = ref('')
+
+const cropPolylinePoints = computed(() => {
+  if (cropPoints.value.length !== 4) return ''
+  const pts = cropPoints.value
+  return `${pts[0].x},${pts[0].y} ${pts[1].x},${pts[1].y} ${pts[2].x},${pts[2].y} ${pts[3].x},${pts[3].y} ${pts[0].x},${pts[0].y}`
+})
+
+function updateCropDisplaySize(wrap: HTMLDivElement | null) {
+  if (!wrap) return
+  const rect = wrap.getBoundingClientRect()
+  cropDisplaySize.value = { w: rect.width, h: rect.height }
+}
+
+function onCropImageLoad() {
+  cropPoints.value = []
+  updateCropDisplaySize(cropEditorRef.value)
+}
+
+function onNewCropImageLoad() {
+  cropPoints.value = []
+  updateCropDisplaySize(newCropEditorRef.value)
+}
+
+function onCropImageClick(e: MouseEvent) {
+  if (cropPoints.value.length >= 4 || !cropEditorRef.value) return
+  if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  const target = e.currentTarget as HTMLDivElement
+  const rect = target.getBoundingClientRect()
+  const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+  const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
+  cropPoints.value = [...cropPoints.value, { x, y }]
+  cropError.value = ''
+}
+
+function onNewCropClick(e: MouseEvent) {
+  if (cropPoints.value.length >= 4 || !newCropEditorRef.value) return
+  if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  const target = e.currentTarget as HTMLDivElement
+  const rect = target.getBoundingClientRect()
+  const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+  const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
+  cropPoints.value = [...cropPoints.value, { x, y }]
+}
+
+function onCropPointMouseDown(e: MouseEvent, index: number) {
+  const wrap = showCropForExisting.value ? cropEditorRef.value : newCropEditorRef.value
+  if (!wrap) return
+  const move = (ev: MouseEvent) => {
+    const r = wrap!.getBoundingClientRect()
+    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left))
+    const y = Math.max(0, Math.min(r.height, ev.clientY - r.top))
+    const next = [...cropPoints.value]
+    next[index] = { x, y }
+    cropPoints.value = next
+  }
+  const up = () => {
+    document.removeEventListener('mousemove', move)
+    document.removeEventListener('mouseup', up)
+  }
+  document.addEventListener('mousemove', move)
+  document.addEventListener('mouseup', up)
+}
+
+function resetCropPoints() {
+  cropPoints.value = []
+  cropError.value = ''
+}
+
+function startCropExisting() {
+  if (!currentImageUrl.value || currentImageUrl.value === '__DELETE__') return
+  cropImageUrl.value = currentImageUrl.value
+  cropPoints.value = []
+  cropError.value = ''
+  showCropForExisting.value = true
+}
+
+function cancelCropExisting() {
+  showCropForExisting.value = false
+  cropPoints.value = []
+  cropError.value = ''
+}
+
+async function applyCropExisting() {
+  const img = cropImageRef.value
+  const recipeId = props.editingId
+  if (!recipeId || !currentImageUrl.value || currentImageUrl.value === '__DELETE__' || cropPoints.value.length !== 4 || !img) return
+  const rect = img.getBoundingClientRect()
+  const nw = img.naturalWidth
+  const nh = img.naturalHeight
+  if (rect.width <= 0 || rect.height <= 0 || nw <= 0 || nh <= 0) {
+    cropError.value = 'Could not determine image size.'
+    return
+  }
+  const points = cropPoints.value.map((p) => ({
+    x: Math.round((p.x / rect.width) * nw),
+    y: Math.round((p.y / rect.height) * nh),
+  }))
+  cropping.value = true
+  cropError.value = ''
+  try {
+    const res = await fetch(`/api/recipes/${recipeId}/crop-perspective`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ points }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText)
+    const payload = data as { url?: string }
+    if (payload.url) currentImageUrl.value = payload.url
+    showCropForExisting.value = false
+    cropPoints.value = []
+  } catch (e) {
+    cropError.value = e instanceof Error ? e.message : 'Cropping failed'
+  } finally {
+    cropping.value = false
+  }
+}
+
+/** Get crop points in image coordinates for the newly selected image (for upload). Returns undefined if not 4 points. */
+function getNewImageCropPoints(): Array<{ x: number; y: number }> | undefined {
+  const img = newCropImageRef.value
+  if (!img || cropPoints.value.length !== 4) return undefined
+  const rect = img.getBoundingClientRect()
+  const nw = img.naturalWidth
+  const nh = img.naturalHeight
+  if (rect.width <= 0 || rect.height <= 0 || nw <= 0 || nh <= 0) return undefined
+  return cropPoints.value.map((p) => ({
+    x: Math.round((p.x / rect.width) * nw),
+    y: Math.round((p.y / rect.height) * nh),
+  }))
+}
 
 const steps = [
   { label: 'Basics', icon: 'info' },
@@ -524,7 +727,7 @@ const form = reactive({
   prep_time: null as number | null,
   cook_time: null as number | null,
   source_page: '',
-  ingredients: [] as IngredientRow[],
+  ingredients: [] as IngredientRowWithExtra[],
   recipe_steps: [] as { instruction: string }[],
 })
 
@@ -536,7 +739,7 @@ const extractConfidence = computed(() => props.initial?.extract_confidence ?? nu
 const extractMissingFields = computed(() => props.initial?.extract_missing_fields ?? null)
 
 const ingredientsBySection = computed(() => {
-  const groups = new Map<string, { heading: string; items: { ing: IngredientRow; flatIndex: number }[] }>()
+  const groups = new Map<string, { heading: string; items: { ing: IngredientRowWithExtra; flatIndex: number }[] }>()
   const defaultKey = '\0'
   form.ingredients.forEach((ing, flatIndex) => {
     const h = ing.section_heading?.trim() ?? ''
@@ -548,7 +751,7 @@ const ingredientsBySection = computed(() => {
 })
 
 function addIngredient() {
-  form.ingredients.push({ amount: '', unit: '', name: '' })
+  form.ingredients.push({ amount: '', unit: '', name: '', additional_info: '' })
 }
 
 function removeIngredient(index: number) {
@@ -598,8 +801,9 @@ function assignFromInitial() {
       name: ing.name ?? '',
       section_heading: (ing as IngredientRow).section_heading ?? null,
       original_text: ing.original_text ?? (ing as any).originalText ?? null,
+      additional_info: (ing as IngredientRow).additional_info ?? null,
     }))
-    if (form.ingredients.length === 0) form.ingredients = [{ amount: '', unit: '', name: '' }]
+    if (form.ingredients.length === 0) form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '' }]
     form.recipe_steps = (props.initial.recipe_steps ?? []).map((s) => ({
       instruction: s.instruction ?? '',
     }))
@@ -618,7 +822,7 @@ function assignFromInitial() {
     form.tips_notes = ''
     form.servings = null
     form.source_page = ''
-    form.ingredients = [{ amount: '', unit: '', name: '' }]
+    form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '' }]
     form.recipe_steps = [{ instruction: '' }]
     sourceType.value = 'none'
     selectedSourceId.value = null
@@ -677,6 +881,7 @@ function handleSubmit() {
       name: ing.name.trim(),
       position: i,
       original_text: ing.original_text ?? null,
+      additional_info: ing.additional_info?.trim() || null,
     }))
   const recipe_steps: RecipeStepInput[] = form.recipe_steps
     .filter((s) => s.instruction.trim() !== '')
@@ -698,9 +903,10 @@ function handleSubmit() {
     ...(tips != null ? { tips } : {}),
   }
 
-  // Pass image file or delete marker
+  // Pass image file or delete marker, and optional 4-point crop (for new image upload)
   const imageToUpload = imageFile.value || (currentImageUrl.value === '__DELETE__' ? 'DELETE' as any : null)
-  emit('submit', payload, imageToUpload)
+  const cropPointsForUpload = imageToUpload instanceof File ? getNewImageCropPoints() : undefined
+  emit('submit', payload, imageToUpload, cropPointsForUpload)
 }
 </script>
 
@@ -986,6 +1192,89 @@ function handleSubmit() {
   font-size: 0.75rem;
 }
 
+.image-upload__actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* 4-point crop editor */
+.crop-editor {
+  margin-top: var(--spacing-md);
+}
+.crop-editor--new {
+  padding: var(--spacing-md);
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+.crop-editor__hint {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+.crop-editor__wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  cursor: crosshair;
+}
+.crop-editor__img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  vertical-align: top;
+}
+.crop-editor__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.crop-editor__lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.crop-editor__point {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: grab;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.crop-editor__point:active {
+  cursor: grabbing;
+}
+.crop-editor__actions {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.crop-editor__error {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.875rem;
+  color: var(--color-error, #c00);
+}
+
 /* Radio Group */
 .form-radio-group {
   display: flex;
@@ -1119,6 +1408,21 @@ function handleSubmit() {
   grid-template-columns: 80px 100px 1fr 40px;
   gap: var(--spacing-sm);
   align-items: center;
+}
+
+.ingredient-additional {
+  padding-left: calc(80px + 100px + var(--spacing-sm) * 2);
+}
+
+.ingredient-additional__input {
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--color-input-bg);
+  color: var(--color-text);
 }
 
 .ingredient-input {

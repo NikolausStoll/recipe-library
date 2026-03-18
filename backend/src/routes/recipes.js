@@ -10,7 +10,18 @@ import { cropPerspective, cropPerspectiveBuffer } from '../services/cropPerspect
 
 const router = Router()
 const uploadDirRaw = process.env.UPLOAD_DIR || path.join(process.cwd(), 'data', 'uploads')
-const uploadDir = path.isAbsolute(uploadDirRaw) ? uploadDirRaw : path.resolve(process.cwd(), uploadDirRaw)
+const baseUploadDir = path.isAbsolute(uploadDirRaw) ? uploadDirRaw : path.resolve(process.cwd(), uploadDirRaw)
+const recipeUploadDir = path.join(baseUploadDir, 'recipe')
+const maxDimension = Number(process.env.IMAGE_MAX_DIMENSION) || 2400
+const quality = Number(process.env.IMAGE_QUALITY) || 80
+
+/** Resolve image_path (e.g. /uploads/recipe/x.webp or /uploads/x.webp) to absolute file path. */
+function resolveRecipeImagePath(imagePath) {
+  if (!imagePath || typeof imagePath !== 'string') return null
+  const relative = imagePath.replace(/^\/uploads\/?/, '')
+  return path.join(baseUploadDir, relative)
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
@@ -73,9 +84,8 @@ router.put('/:id', (req, res) => {
     if (body.image_path === null) {
       const existingRecipe = recipeService.getRecipeById(req.params.id)
       if (existingRecipe?.image_path) {
-        const oldFilename = path.basename(existingRecipe.image_path)
-        const oldFilepath = path.join(uploadDir, oldFilename)
-        if (fs.existsSync(oldFilepath)) {
+        const oldFilepath = resolveRecipeImagePath(existingRecipe.image_path)
+        if (oldFilepath && fs.existsSync(oldFilepath)) {
           try {
             fs.unlinkSync(oldFilepath)
           } catch (err) {
@@ -122,9 +132,8 @@ router.post('/:id/crop-perspective', async (req, res) => {
   if (!Array.isArray(points) || points.length !== 4) {
     return res.status(400).json({ error: 'Exactly 4 points {x, y} required' })
   }
-  const filename = path.basename(recipe.image_path)
-  const filepath = path.join(uploadDir, filename)
-  if (!fs.existsSync(filepath)) {
+  const filepath = resolveRecipeImagePath(recipe.image_path)
+  if (!filepath || !fs.existsSync(filepath)) {
     return res.status(404).json({ error: 'Image file not found' })
   }
   try {
@@ -139,8 +148,8 @@ router.post('/:id/crop-perspective', async (req, res) => {
 
 /**
  * POST /api/recipes/:id/image – Upload or update recipe image.
- * Body: multipart form with "image" (single file).
- * Resizes and saves the image, updates recipe.image_path.
+ * Body: multipart "image" (file), optional "points" (JSON array of 4 {x,y} for 4-point crop).
+ * Crop if 4 points, then resize only down (longest side <= IMAGE_MAX_DIMENSION), save as WebP in data/uploads/recipe.
  * Returns { recipe, url }.
  */
 router.post('/:id/image', (req, res, next) => {
@@ -154,42 +163,57 @@ router.post('/:id/image', (req, res, next) => {
   if (!recipe) return res.status(404).json({ error: 'Recipe not found' })
   if (!req.file) return res.status(400).json({ error: 'No image file provided' })
 
+  let buf = req.file.buffer
+  let points = req.body?.points
+  if (typeof points === 'string') {
+    try {
+      points = JSON.parse(points)
+    } catch {
+      points = undefined
+    }
+  }
+  if (Array.isArray(points) && points.length === 4) {
+    const ext = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg'
+    buf = await cropPerspectiveBuffer(buf, points, ext)
+  }
+
+  if (!fs.existsSync(recipeUploadDir)) {
+    fs.mkdirSync(recipeUploadDir, { recursive: true })
+  }
+
+  const timestamp = Date.now()
+  const filename = `recipe-${id}-${timestamp}.webp`
+  const filepath = path.join(recipeUploadDir, filename)
+
   try {
-    // Generate unique filename
-    const timestamp = Date.now()
-    const ext = path.extname(req.file.originalname) || '.jpg'
-    const filename = `recipe-${id}-${timestamp}${ext}`
-    const filepath = path.join(uploadDir, filename)
-
-    // Ensure upload directory exists
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
+    let pipeline = sharp(buf)
+    const meta = await pipeline.metadata()
+    const w = meta.width || 0
+    const h = meta.height || 0
+    if (w > maxDimension || h > maxDimension) {
+      const scale = maxDimension / Math.max(w, h)
+      pipeline = pipeline.resize(Math.round(w * scale), Math.round(h * scale), { fit: 'inside' })
     }
-
-    // Resize and save image
-    await sharp(req.file.buffer)
-      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 85 })
-      .toFile(filepath)
-
-    // Delete old image if exists
-    if (recipe.image_path) {
-      const oldFilename = path.basename(recipe.image_path)
-      const oldFilepath = path.join(uploadDir, oldFilename)
-      if (fs.existsSync(oldFilepath)) {
-        fs.unlinkSync(oldFilepath)
-      }
-    }
-
-    // Update recipe with new image path
-    const imagePath = `/uploads/${filename}`
-    const updated = recipeService.updateRecipe(id, { image_path: imagePath })
-
-    res.json({ recipe: updated, url: imagePath })
+    await pipeline.webp({ quality }).toFile(filepath)
   } catch (e) {
     console.error('Image upload failed:', e)
-    res.status(500).json({ error: e.message || 'Image upload failed' })
+    return res.status(500).json({ error: e.message || 'Image upload failed' })
   }
+
+  if (recipe.image_path) {
+    const oldFilepath = resolveRecipeImagePath(recipe.image_path)
+    if (oldFilepath && fs.existsSync(oldFilepath)) {
+      try {
+        fs.unlinkSync(oldFilepath)
+      } catch (err) {
+        console.error('Failed to delete old recipe image:', err)
+      }
+    }
+  }
+
+  const imagePath = `/uploads/recipe/${filename}`
+  const updated = recipeService.updateRecipe(id, { image_path: imagePath })
+  res.json({ recipe: updated, url: imagePath })
 })
 
 /**

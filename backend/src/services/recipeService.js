@@ -8,14 +8,17 @@ const RECIPE_COLUMNS = [
   'created_at', 'updated_at',
 ]
 
-const SOURCE_FIELDS = ['book_title', 'author', 'subtitle', 'year']
+const SOURCE_FIELDS = ['book_title', 'author', 'year']
 
 const SOURCE_KEYS = ['source_name', ...SOURCE_FIELDS]
 
 function hasSourceFields(body) {
   if (!body) return false
   if (body.source_name != null && String(body.source_name).trim() !== '') return true
-  return SOURCE_FIELDS.some(f => body[f] != null && String(body[f]).trim() !== '')
+  return SOURCE_FIELDS.some((field) => {
+    const value = body[field]
+    return value != null && String(value).trim() !== ''
+  })
 }
 
 function hasAnySourceKey(body) {

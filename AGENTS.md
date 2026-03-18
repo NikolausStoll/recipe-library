@@ -23,6 +23,11 @@
 - Use transactions for multi-step database operations
 - Enable foreign keys in SQLite
 
+### Image Uploads
+- Recipe images: stored in `data/uploads/recipe/`, WebP with `IMAGE_QUALITY` and `IMAGE_MAX_DIMENSION`, only downscale
+- Source (book) covers: stored in `data/uploads/source/`, same WebP/downscale rules
+- All image uploads support optional 4-point perspective crop (`points` in request body); use `cropPerspectiveBuffer` before resize
+
 ### Security
 - Never expose `.env` files or API keys
 - Validate and sanitize all user input
@@ -104,6 +109,11 @@ try {
 - High-level rules and standards
 - Quick reference for common patterns
 - Project conventions and principles
+
+### SDD.md
+- Architectural and design decisions (components, data models, merging user stories)
+- Update on every meaningful change alongside this AGENTS.md rule so the documented design stays aligned with the code
+- Mention new workflows, API additions, or data-model shifts in this file as well
 
 ### CLAUDE.md
 - Detailed technical context

@@ -14,6 +14,9 @@
           </svg>
           <span>Import from Image</span>
         </button>
+        <button type="button" class="btn btn--secondary" @click="openManualForm">
+          + Add Recipe Manually
+        </button>
       </div>
     </div>
 
@@ -134,6 +137,9 @@
       <p>Start building your collection by importing a recipe from an image</p>
       <button type="button" class="btn btn--primary" @click="showImportOverlay = true">
         Import Your First Recipe
+      </button>
+      <button type="button" class="btn btn--secondary" @click="openManualForm">
+        Create Recipe Manually
       </button>
     </div>
 
@@ -258,7 +264,7 @@
     </div>
 
     <!-- Edit Overlay -->
-    <div v-if="editingId" class="recipe-edit-overlay" @click.self="closeEdit">
+    <div v-if="showRecipeForm" class="recipe-edit-overlay" @click.self="closeEdit">
       <div class="recipe-edit-panel">
         <div class="recipe-edit-header">
           <h2>{{ editingId ? 'Edit Recipe' : 'New Recipe' }}</h2>
@@ -319,6 +325,7 @@ const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
 const showImportOverlay = ref(false)
+const showRecipeForm = ref(false)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
 
@@ -387,6 +394,7 @@ function onImportDone(recipe: Recipe) {
   editingId.value = recipe.id
   editingStatus.value = 'draft'
   formInitial.value = buildFormInitialFromImportedRecipe(recipe)
+  showRecipeForm.value = true
   loadList()
 }
 
@@ -495,6 +503,7 @@ function editFromDetail() {
 
 function startEdit(id: number) {
   editingId.value = id
+  showRecipeForm.value = true
   getRecipe(id).then((recipe) => {
     editingStatus.value = (recipe.status === 'draft' || recipe.status === 'confirmed') ? recipe.status : 'draft'
     formInitial.value = {
@@ -522,6 +531,7 @@ function startEdit(id: number) {
       nutrition_fat: recipe.nutrition_fat ?? null,
       tips: recipe.tips ?? [],
     }
+    showRecipeForm.value = true
   }).catch((e) => {
     error.value = e instanceof Error ? e.message : 'Failed to load recipe'
   })
@@ -531,9 +541,21 @@ function closeEdit() {
   editingId.value = null
   formInitial.value = null
   editingStatus.value = null
+  showRecipeForm.value = false
 }
 
-async function onFormSubmit(payload: RecipeFormPayload, imageFile: File | string | null) {
+function openManualForm() {
+  editingId.value = null
+  formInitial.value = null
+  editingStatus.value = null
+  showRecipeForm.value = true
+}
+
+async function onFormSubmit(
+  payload: RecipeFormPayload,
+  imageFile: File | string | null,
+  cropPoints?: Array<{ x: number; y: number }>
+) {
   error.value = ''
   try {
     let recipeId: number
@@ -548,12 +570,13 @@ async function onFormSubmit(payload: RecipeFormPayload, imageFile: File | string
     // Handle image upload or deletion
     if (imageFile && recipeId) {
       if (imageFile === 'DELETE') {
-        // Delete image by updating recipe with null image_path
         await updateRecipe(recipeId, { image_path: null } as any)
       } else if (imageFile instanceof File) {
-        // Upload new image
         const formData = new FormData()
         formData.append('image', imageFile)
+        if (cropPoints && cropPoints.length === 4) {
+          formData.append('points', JSON.stringify(cropPoints))
+        }
         const response = await fetch(`/api/recipes/${recipeId}/image`, {
           method: 'POST',
           body: formData,

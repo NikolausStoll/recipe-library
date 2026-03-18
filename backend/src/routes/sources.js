@@ -8,7 +8,8 @@ import { cropPerspective, cropPerspectiveBuffer } from '../services/cropPerspect
 
 const router = Router()
 const uploadDirRaw = process.env.UPLOAD_DIR || path.join(process.cwd(), 'data', 'uploads')
-const uploadDir = path.isAbsolute(uploadDirRaw) ? uploadDirRaw : path.resolve(process.cwd(), uploadDirRaw)
+const baseUploadDir = path.isAbsolute(uploadDirRaw) ? uploadDirRaw : path.resolve(process.cwd(), uploadDirRaw)
+const uploadDir = path.join(baseUploadDir, 'source')
 const maxDimension = Number(process.env.IMAGE_MAX_DIMENSION) || 2400
 const quality = Number(process.env.IMAGE_QUALITY) || 80
 
@@ -126,7 +127,7 @@ router.post('/:id/cover', ensureUploadDir, (req, res, next) => {
     console.error('Cover image failed:', err)
     return res.status(500).json({ error: 'Image processing failed' })
   }
-  const imageUrl = `/uploads/${filename}`
+  const imageUrl = `/uploads/source/${filename}`
   const updated = sourceService.updateSource(id, { image_path: imageUrl })
   res.json({ source: updated, url: imageUrl })
 })

@@ -103,10 +103,10 @@ Create a `.env` file in the **project root** based on [.env.example](.env.exampl
 
 ### Optional
 - `DB_PATH` – SQLite database path (default: `recipe-library.db`)
-- `UPLOAD_DIR` – Directory for uploaded images (default: `/data/uploads`)
+- `UPLOAD_DIR` – Base directory for uploads (default: `data/uploads`); recipe images in `UPLOAD_DIR/recipe/`, source covers in `UPLOAD_DIR/source/`
 - `STATIC_DIR` – Static files directory (default: `/app/public`)
-- `IMAGE_QUALITY` – WebP quality 0-100 (default: `80`)
-- `IMAGE_MAX_DIMENSION` – Max dimension for uploaded images in pixels (default: `2400`)
+- `IMAGE_QUALITY` – WebP quality 0–100 for recipe and source images (default: `80`)
+- `IMAGE_MAX_DIMENSION` – Max longest-side dimension for recipe and source images; images are only downscaled, never upscaled (default: `2400`)
 - `TEXT_IMAGE_MAX_DIMENSION` – Max dimension for OpenAI text images (default: `1400`)
 - `OPENAI_EXTRACT_MODEL` – OpenAI model for extraction (default: `gpt-4.1-mini`)
 - `OPENAI_EXTRACT_DETAIL` – Vision API detail level: `low` | `high` | `auto` (default: `high`)
@@ -177,9 +177,9 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 #### Step 1: Upload Recipe Photo (Optional)
 - **`POST /api/upload`** – Upload recipe image
-  - Body: `multipart/form-data` with `image` field
+  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point perspective crop)
   - Creates draft recipe with `image_path`
-  - Image resized to `IMAGE_MAX_DIMENSION` (longest side), saved as WebP
+  - Image: optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/recipe/`
   - Response: `{ url: string, recipe: { id, image_path, ... } }`
 
 #### Step 2: Extract Recipe from Text Images
@@ -209,13 +209,17 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Fails if recipes reference this source (foreign key constraint)
 
 - **`POST /api/sources/:id/cover`** – Upload book cover image
-  - Body: `multipart/form-data` with `image` field
-  - Optional: `points` field with 4-point crop coordinates (JSON array)
-  - Image resized to 2400px, saved as WebP
-  - Response: `{ image_path: string }`
+  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point crop)
+  - Image: optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/source/`
+  - Response: `{ source, url }`
+
+- **`POST /api/recipes/:id/image`** – Upload or replace recipe image
+  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point crop)
+  - Image: optional 4-point crop, then resize only down, saved as WebP in `data/uploads/recipe/`
+  - Response: `{ recipe, url }`
 
 ### Static Files
-- **`GET /uploads/*`** – Serve uploaded images (recipes, covers)
+- **`GET /uploads/*`** – Serve uploaded images; recipe images under `/uploads/recipe/`, source covers under `/uploads/source/`
 
 ## Development
 
