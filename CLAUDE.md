@@ -215,5 +215,6 @@ When making changes, update:
 - `README.md` - User-facing documentation, API reference, setup instructions
 - `AGENTS.md` - High-level project rules and standards
 - `CLAUDE.md` (this file) - Detailed technical context for AI assistants
+- `SDD.md` - Architectural and design decisions (components, data models, merging user stories)
 
 Keep all three files in sync with code changes.
