@@ -111,6 +111,10 @@ try {
 - Project conventions and principles
 
 ### SDD.md
+- Architectural and design decisions (components, data models, linking user stories to components)
+- Keep synchronized with every significant change so design documentation matches implementation
+
+### SDD.md
 - Architectural and design decisions (components, data models, merging user stories)
 - Update on every meaningful change alongside this AGENTS.md rule so the documented design stays aligned with the code
 - Mention new workflows, API additions, or data-model shifts in this file as well

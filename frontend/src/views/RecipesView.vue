@@ -28,26 +28,58 @@
 
     <!-- Search and Filter Toolbar -->
     <div class="recipes-toolbar">
-      <div class="search-box">
-        <svg class="search-box__icon" viewBox="0 0 24 24" fill="none">
-          <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <input
-          v-model="searchQuery"
-          type="search"
-          class="search-box__input"
-          placeholder="Search recipes by title..."
-          aria-label="Search recipes"
-        />
+      <div class="recipes-toolbar__searches">
+        <div class="search-box search-box--title">
+          <svg class="search-box__icon" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="search"
+            class="search-box__input"
+            placeholder="Search recipes by title..."
+            aria-label="Search recipes by title"
+          />
+        </div>
+        <div class="search-box search-box--ingredients">
+          <svg class="search-box__icon" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M7 3H17C17.5523 3 18 3.44772 18 4V20C18 20.5523 17.5523 21 17 21H7C6.44772 21 6 20.5523 6 20V4C6 3.44772 6.44772 3 7 3Z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M9 8H15"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <input
+            v-model="ingredientSearchQuery"
+            type="search"
+            class="search-box__input"
+            placeholder="Search ingredients (comma-separated)"
+            aria-label="Search recipes by ingredients"
+          />
+        </div>
       </div>
-      <div class="filter-group">
-        <select v-model="sortBy" class="filter-select" aria-label="Sort by">
-          <option value="updated-desc">Latest Updated</option>
-          <option value="updated-asc">Oldest Updated</option>
-          <option value="title-asc">Name (A–Z)</option>
-          <option value="title-desc">Name (Z–A)</option>
-        </select>
+      <div class="recipes-toolbar__meta">
+        <div class="filter-group">
+          <select v-model="sortBy" class="filter-select" aria-label="Sort by">
+            <option value="updated-desc">Latest Updated</option>
+            <option value="updated-asc">Oldest Updated</option>
+            <option value="title-asc">Name (A–Z)</option>
+            <option value="title-desc">Name (Z–A)</option>
+          </select>
+        </div>
+        <p class="recipes-toolbar__count" aria-live="polite">
+          {{ filteredAndSortedRecipes.length }} recipe{{ filteredAndSortedRecipes.length !== 1 ? 's' : '' }} shown
+        </p>
       </div>
     </div>
 
@@ -241,22 +273,22 @@
               Nutrition Information
             </h2>
             <div class="recipe-nutrition">
-              <div v-if="viewingRecipe.nutrition_kcal" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Calories</span>
-                <span class="recipe-nutrition-value">{{ viewingRecipe.nutrition_kcal }} kcal</span>
-              </div>
-              <div v-if="viewingRecipe.nutrition_protein" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Protein</span>
-                <span class="recipe-nutrition-value">{{ viewingRecipe.nutrition_protein }}g</span>
-              </div>
-              <div v-if="viewingRecipe.nutrition_carbs" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Carbs</span>
-                <span class="recipe-nutrition-value">{{ viewingRecipe.nutrition_carbs }}g</span>
-              </div>
-              <div v-if="viewingRecipe.nutrition_fat" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Fat</span>
-                <span class="recipe-nutrition-value">{{ viewingRecipe.nutrition_fat }}g</span>
-              </div>
+            <div v-if="nutritionPerServing.kcal != null" class="recipe-nutrition-item">
+              <span class="recipe-nutrition-label">Calories per serving</span>
+              <span class="recipe-nutrition-value">{{ nutritionPerServing.kcal }} kcal</span>
+            </div>
+            <div v-if="nutritionPerServing.protein != null" class="recipe-nutrition-item">
+              <span class="recipe-nutrition-label">Protein per serving</span>
+              <span class="recipe-nutrition-value">{{ nutritionPerServing.protein }} g</span>
+            </div>
+            <div v-if="nutritionPerServing.carbs != null" class="recipe-nutrition-item">
+              <span class="recipe-nutrition-label">Carbs per serving</span>
+              <span class="recipe-nutrition-value">{{ nutritionPerServing.carbs }} g</span>
+            </div>
+            <div v-if="nutritionPerServing.fat != null" class="recipe-nutrition-item">
+              <span class="recipe-nutrition-label">Fat per serving</span>
+              <span class="recipe-nutrition-value">{{ nutritionPerServing.fat }} g</span>
+            </div>
             </div>
           </div>
         </div>
@@ -305,29 +337,57 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import Fuse from 'fuse.js'
+import type { FuseOptions } from 'fuse.js'
 import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
 import RecipeImportOverlay from '../components/RecipeImportOverlay.vue'
 import {
-  listRecipes,
+  listRecipesWithIngredients,
   getRecipe,
   createRecipe,
   updateRecipe,
   deleteRecipe,
 } from '../api/recipes'
-import type { Recipe, RecipeListItem, RecipeFormPayload, ParsedRecipeFromOcr } from '../api/recipes'
+import type {
+  Recipe,
+  RecipeListItemWithIngredients,
+  RecipeFormPayload,
+  ParsedRecipeFromOcr,
+} from '../api/recipes'
+import { getPerServingValue } from '../utils/nutrition'
 
-const recipes = ref<RecipeListItem[]>([])
+const recipes = ref<RecipeListItemWithIngredients[]>([])
 const loading = ref(true)
 const error = ref('')
 const editingId = ref<number | null>(null)
 const formInitial = ref<(Partial<RecipeFormPayload> & { parsed_recipe?: ParsedRecipeFromOcr | null }) | null>(null)
 const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
+const ingredientSearchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
 const showImportOverlay = ref(false)
 const showRecipeForm = ref(false)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
+
+const fuseOptions: FuseOptions<RecipeListItemWithIngredients> = {
+  includeMatches: true,
+  threshold: 0.3,
+  ignoreLocation: true,
+  keys: [
+    { name: 'title', weight: 2 },
+    { name: 'ingredients.ingredient', weight: 1 },
+  ],
+}
+let fuseInstance: Fuse<RecipeListItemWithIngredients> | null = null
+
+function rebuildFuse() {
+  if (!recipes.value.length) {
+    fuseInstance = null
+    return
+  }
+  fuseInstance = new Fuse(recipes.value, fuseOptions)
+}
 
 function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeFormPayload> & {
   parsed_recipe?: ParsedRecipeFromOcr | null
@@ -398,9 +458,27 @@ function onImportDone(recipe: Recipe) {
   loadList()
 }
 
+const nutritionPerServing = computed(() => {
+  const recipe = viewingRecipe.value
+  if (!recipe) return { kcal: null, protein: null, carbs: null, fat: null }
+  const totals = {
+    kcal: recipe.nutrition_kcal ?? recipe.parsed_recipe?.nutritionTotal?.kcal ?? null,
+    protein: recipe.nutrition_protein ?? recipe.parsed_recipe?.nutritionTotal?.protein ?? null,
+    carbs: recipe.nutrition_carbs ?? recipe.parsed_recipe?.nutritionTotal?.carbs ?? null,
+    fat: recipe.nutrition_fat ?? recipe.parsed_recipe?.nutritionTotal?.fat ?? null,
+  }
+  const servings = recipe.servings ?? 1
+  return {
+    kcal: getPerServingValue(totals.kcal, servings),
+    protein: getPerServingValue(totals.protein, servings),
+    carbs: getPerServingValue(totals.carbs, servings),
+    fat: getPerServingValue(totals.fat, servings),
+  }
+})
+
 const hasNutrition = computed(() => {
-  const r = viewingRecipe.value
-  return r && (r.nutrition_kcal || r.nutrition_protein || r.nutrition_carbs || r.nutrition_fat)
+  const { kcal, protein, carbs, fat } = nutritionPerServing.value
+  return kcal != null || protein != null || carbs != null || fat != null
 })
 
 const scaledIngredients = computed(() => {
@@ -439,12 +517,56 @@ const scaledIngredients = computed(() => {
   })
 })
 
+const ingredientTokens = computed(() =>
+  ingredientSearchQuery.value
+    .split(',')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0)
+)
+
 const filteredAndSortedRecipes = computed(() => {
-  let list = recipes.value
-  const q = searchQuery.value.trim().toLowerCase()
-  if (q) {
-    list = list.filter((r) => r.title.toLowerCase().includes(q))
+  let list: RecipeListItemWithIngredients[] = recipes.value
+  const titleTerm = searchQuery.value.trim()
+  const ingredientTerms = ingredientTokens.value
+
+  if (titleTerm) {
+    if (!fuseInstance) return []
+    const titleResults = fuseInstance.search(titleTerm)
+    list = titleResults.map((res) => res.item)
   }
+
+  if (ingredientTerms.length) {
+    if (!fuseInstance) {
+      list = []
+    } else {
+      let ingredientMatchIds: Set<number> | null = null
+      for (const token of ingredientTerms) {
+        const ids = new Set<number>()
+        const matches = fuseInstance.search(token)
+        for (const match of matches) {
+          if (
+            match.matches?.some((m) => (m.key ?? '').startsWith('ingredients'))
+          ) {
+            ids.add(match.item.id)
+          }
+        }
+        if (ids.size === 0) {
+          ingredientMatchIds = new Set()
+          break
+        }
+        ingredientMatchIds = ingredientMatchIds
+          ? new Set([...ingredientMatchIds].filter((id) => ids.has(id)))
+          : ids
+        if (ingredientMatchIds.size === 0) break
+      }
+      if (ingredientMatchIds && ingredientMatchIds.size > 0) {
+        list = list.filter((recipe) => ingredientMatchIds.has(recipe.id))
+      } else if (ingredientMatchIds && ingredientMatchIds.size === 0) {
+        list = []
+      }
+    }
+  }
+
   const sorted = [...list]
   switch (sortBy.value) {
     case 'title-asc':
@@ -467,7 +589,9 @@ async function loadList() {
   loading.value = true
   error.value = ''
   try {
-    recipes.value = await listRecipes()
+    const data = await listRecipesWithIngredients()
+    recipes.value = data
+    rebuildFuse()
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load recipes'
   } finally {
@@ -701,12 +825,35 @@ onMounted(loadList)
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-xl);
   flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.recipes-toolbar__searches {
+  display: flex;
+  gap: var(--spacing-md);
+  flex: 1;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.recipes-toolbar__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-sm);
+}
+
+.recipes-toolbar__count {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
 }
 
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 250px;
+  min-width: 220px;
+  max-width: 420px;
 }
 
 .search-box__icon {
@@ -1425,6 +1572,28 @@ onMounted(loadList)
   .recipes-grid {
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: var(--spacing-md);
+  }
+
+  .recipes-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recipes-toolbar__searches {
+    flex-direction: column;
+  }
+
+  .recipes-toolbar__meta {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .recipes-toolbar__count {
+    align-self: flex-start;
+  }
+
+  .search-box {
+    max-width: none;
   }
 
   .recipe-detail-title {

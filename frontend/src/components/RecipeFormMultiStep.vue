@@ -26,9 +26,6 @@
     <form class="form-content" @submit.prevent="handleSubmit">
       <!-- Step 1: Basic Info -->
       <div v-if="currentStep === 0" class="form-step">
-        <h3 class="form-step__title">Basic Information</h3>
-        <p class="form-step__description">Let's start with the essentials</p>
-
         <!-- Recipe Image Upload -->
         <div class="form-section form-section--image">
           <h4 class="form-section__title">Recipe Image</h4>
@@ -244,9 +241,6 @@
 
       <!-- Step 2: Ingredients -->
       <div v-if="currentStep === 1" class="form-step">
-        <h3 class="form-step__title">Ingredients</h3>
-        <p class="form-step__description">Add all the ingredients you'll need</p>
-
         <div v-for="(group, sectionKey) in ingredientsBySection" :key="group.key" class="ingredient-section">
           <div v-if="group.heading" class="ingredient-section__header">
             <strong>{{ group.heading }}</strong>
@@ -335,9 +329,6 @@
 
       <!-- Step 3: Instructions -->
       <div v-if="currentStep === 2" class="form-step">
-        <h3 class="form-step__title">Instructions</h3>
-        <p class="form-step__description">Step-by-step preparation guide</p>
-
         <div
           v-for="(step, index) in form.recipe_steps"
           :key="index"
@@ -381,9 +372,6 @@
 
       <!-- Step 4: Review -->
       <div v-if="currentStep === 3" class="form-step">
-        <h3 class="form-step__title">Review & Save</h3>
-        <p class="form-step__description">Everything looks good?</p>
-
         <div class="review-section">
           <div class="review-card">
             <div class="review-card__header">

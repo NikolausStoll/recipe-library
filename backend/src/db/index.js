@@ -117,6 +117,7 @@ export function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_sections_recipe_id ON recipe_ingredient_sections(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
+    CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
     CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe_id ON recipe_steps(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_tips_recipe_id ON recipe_tips(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);
@@ -213,6 +214,7 @@ export function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_sections_recipe_id ON recipe_ingredient_sections(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
+      CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
       CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe_id ON recipe_steps(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_recipe_tips_recipe_id ON recipe_tips(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);

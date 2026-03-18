@@ -80,6 +80,10 @@ export interface RecipeListItem extends RecipeSourceInfo {
   updated_at: string
 }
 
+export interface RecipeListItemWithIngredients extends RecipeListItem {
+  ingredients: RecipeIngredient[]
+}
+
 /** Ingredient row from API (matches RECIPE_JSON_SCHEMA + list form) */
 export interface RecipeIngredient {
   id: number
@@ -142,6 +146,12 @@ export interface RecipeFormPayload {
 
 export function listRecipes(): Promise<RecipeListItem[]> {
   return fetch(`${API_BASE}/recipes`).then((res) => handleResponse<RecipeListItem[]>(res))
+}
+
+export function listRecipesWithIngredients(): Promise<RecipeListItemWithIngredients[]> {
+  return fetch(`${API_BASE}/recipes/with-ingredients`).then((res) =>
+    handleResponse<RecipeListItemWithIngredients[]>(res)
+  )
 }
 
 export function getRecipe(id: number): Promise<Recipe> {

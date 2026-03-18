@@ -46,6 +46,19 @@ router.get('/', (req, res) => {
 })
 
 /**
+ * GET /api/recipes/with-ingredients – list recipes with flattened ingredients for client filtering.
+ */
+router.get('/with-ingredients', (req, res) => {
+  try {
+    const recipes = recipeService.listRecipesWithIngredients()
+    res.json(recipes)
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to list recipes with ingredients' })
+  }
+})
+
+/**
  * GET /api/recipes/:id – get one recipe with ingredients and steps.
  */
 router.get('/:id', (req, res) => {

@@ -83,6 +83,46 @@ export function listRecipes() {
   }))
 }
 
+export function listRecipesWithIngredients() {
+  const db = getDb()
+  const recipes = listRecipes()
+  if (!recipes.length) return recipes.map((recipe) => ({ ...recipe, ingredients: [] }))
+
+  const ingredientRows = db.prepare(`
+    SELECT i.id, s.recipe_id, i.section_id, i.position, i.original_text, i.amount, i.amount_max,
+           i.unit, i.ingredient, i.additional_info, s.heading AS section_heading
+    FROM ingredients i
+    JOIN recipe_ingredient_sections s ON s.id = i.section_id
+    ORDER BY s.recipe_id, s.position, i.position, i.id
+  `).all()
+
+  const ingredientsByRecipe = new Map()
+  for (const row of ingredientRows) {
+    if (!ingredientsByRecipe.has(row.recipe_id)) {
+      ingredientsByRecipe.set(row.recipe_id, [])
+    }
+    ingredientsByRecipe.get(row.recipe_id).push({
+      id: row.id,
+      recipe_id: row.recipe_id,
+      section_id: row.section_id,
+      section_heading: row.section_heading ?? null,
+      position: row.position,
+      original_text: row.original_text ?? null,
+      amount: row.amount ?? null,
+      amount_max: row.amount_max ?? null,
+      unit: row.unit ?? null,
+      ingredient: row.ingredient ?? null,
+      name: row.ingredient ?? null,
+      additional_info: row.additional_info ?? null,
+    })
+  }
+
+  return recipes.map((recipe) => ({
+    ...recipe,
+    ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
+  }))
+}
+
 /**
  * Get one recipe by id with ingredients, steps, tips. Returns null if not found.
  * Builds parsed_recipe from normalized data for frontend display.

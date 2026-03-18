@@ -250,6 +250,7 @@ import type {
 } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
+import { getPerServingValue } from '../utils/nutrition'
 
 interface IngredientRow {
   amount: string
@@ -314,26 +315,37 @@ const ingredientsBySection = computed(() => {
   return Array.from(groups.entries()).map(([k, v]) => ({ key: k, heading: v.heading, items: v.items }))
 })
 
-const hasNutrition = computed(() => {
+const rawNutritionTotals = computed(() => {
   const i = props.initial
-  const kcal = i?.nutrition_kcal ?? i?.parsed_recipe?.nutritionTotal?.kcal
-  const protein = i?.nutrition_protein ?? i?.parsed_recipe?.nutritionTotal?.protein
-  const carbs = i?.nutrition_carbs ?? i?.parsed_recipe?.nutritionTotal?.carbs
-  const fat = i?.nutrition_fat ?? i?.parsed_recipe?.nutritionTotal?.fat
+  return {
+    kcal: i?.nutrition_kcal ?? i?.parsed_recipe?.nutritionTotal?.kcal ?? null,
+    protein: i?.nutrition_protein ?? i?.parsed_recipe?.nutritionTotal?.protein ?? null,
+    carbs: i?.nutrition_carbs ?? i?.parsed_recipe?.nutritionTotal?.carbs ?? null,
+    fat: i?.nutrition_fat ?? i?.parsed_recipe?.nutritionTotal?.fat ?? null,
+  }
+})
+const nutritionPerServing = computed(() => {
+  const totals = rawNutritionTotals.value
+  const servings = props.initial?.servings ?? 1
+  return {
+    kcal: getPerServingValue(totals.kcal, servings),
+    protein: getPerServingValue(totals.protein, servings),
+    carbs: getPerServingValue(totals.carbs, servings),
+    fat: getPerServingValue(totals.fat, servings),
+  }
+})
+const hasNutrition = computed(() => {
+  const { kcal, protein, carbs, fat } = nutritionPerServing.value
   return kcal != null || protein != null || carbs != null || fat != null
 })
 const nutritionText = computed(() => {
-  const i = props.initial
-  const kcal = i?.nutrition_kcal ?? i?.parsed_recipe?.nutritionTotal?.kcal
-  const protein = i?.nutrition_protein ?? i?.parsed_recipe?.nutritionTotal?.protein
-  const carbs = i?.nutrition_carbs ?? i?.parsed_recipe?.nutritionTotal?.carbs
-  const fat = i?.nutrition_fat ?? i?.parsed_recipe?.nutritionTotal?.fat
+  const { kcal, protein, carbs, fat } = nutritionPerServing.value
   const parts = []
   if (kcal != null) parts.push(`${kcal} kcal`)
   if (protein != null) parts.push(`${protein} g protein`)
   if (carbs != null) parts.push(`${carbs} g carbs`)
   if (fat != null) parts.push(`${fat} g fat`)
-  return parts.length ? parts.join(' · ') : ''
+  return parts.length ? `${parts.join(' · ')} per serving` : ''
 })
 
 function addIngredient() {
