@@ -67,7 +67,7 @@ Located in project root `.env`:
 - `IMAGE_MAX_DIMENSION` - Max dimension for uploaded images (default: 2400)
 - `TEXT_IMAGE_MAX_DIMENSION` - Max dimension for OpenAI text images (default: 1400)
 - `OPENAI_API_KEY` - **Required** for recipe extraction
-- `OPENAI_EXTRACT_MODEL` - Model for extraction (default: `gpt-4o-mini`)
+- `OPENAI_EXTRACT_MODEL` - Model for extraction (default: `gpt-4.1-mini`)
 - `OPENAI_EXTRACT_DETAIL` - Vision detail level (default: `high`)
 - `CROP_PYTHON` - Optional Python path for perspective crop (requires opencv-python + numpy)
 

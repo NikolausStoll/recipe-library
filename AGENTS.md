@@ -36,7 +36,7 @@
 - Token usage logged to `extract_usage` table
 - Strict JSON schema validation (`RECIPE_JSON_SCHEMA`)
 - Nutrition values estimated from ingredients (not extracted from image)
-- Model configurable via `OPENAI_EXTRACT_MODEL` (default: `gpt-4o-mini`)
+- Model configurable via `OPENAI_EXTRACT_MODEL` (default: `gpt-4.1-mini`)
 
 ## Development Workflow
 

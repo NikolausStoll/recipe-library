@@ -28,11 +28,13 @@ Rules:
 
 - Do not invent metadata that must come directly from the image (e.g. servings, times, titles).
 
-- nutritionTotal must be estimated based on the extracted ingredients and their amounts.
-- It is allowed and expected to approximate nutrition values using general knowledge about ingredients.
-- Do not leave nutritionTotal empty if ingredients are available.
-- If ingredients are too unclear or incomplete to estimate nutrition, set nutritionTotal fields to null and add a warning.
-- Nutrition values are not extracted from the image but derived from ingredients.
+- nutritionTotal must always represent the estimated nutrition for the full recipe, based on all extracted ingredients together.
+- Never calculate nutritionTotal per portion, per serving, or per person.
+- Do not divide or scale nutritionTotal based on recipe.servings.
+- recipe.servings must be extracted separately and only used as serving metadata.
+- It is allowed and expected to estimate nutrition values using general knowledge about ingredients and amounts.
+- If ingredients are available, nutritionTotal should be filled whenever reasonably possible.
+- If ingredients are too unclear or incomplete to estimate nutrition reliably, set nutritionTotal fields to null and add a warning.
 
 - Extract tips, hints, or variations into the tips array if they are clearly separate from steps or introText.
 
@@ -156,7 +158,7 @@ export async function extractRecipeFromImages(imageBuffers) {
   }))
 
   const response = await client.chat.completions.create({
-    model: process.env.OPENAI_EXTRACT_MODEL || 'gpt-4o-mini',
+    model: process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini',
     messages: [
       { role: 'system', content: EXTRACT_PROMPT },
       {

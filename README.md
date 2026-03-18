@@ -108,7 +108,7 @@ Create a `.env` file in the **project root** based on [.env.example](.env.exampl
 - `IMAGE_QUALITY` – WebP quality 0-100 (default: `80`)
 - `IMAGE_MAX_DIMENSION` – Max dimension for uploaded images in pixels (default: `2400`)
 - `TEXT_IMAGE_MAX_DIMENSION` – Max dimension for OpenAI text images (default: `1400`)
-- `OPENAI_EXTRACT_MODEL` – OpenAI model for extraction (default: `gpt-4o-mini`)
+- `OPENAI_EXTRACT_MODEL` – OpenAI model for extraction (default: `gpt-4.1-mini`)
 - `OPENAI_EXTRACT_DETAIL` – Vision API detail level: `low` | `high` | `auto` (default: `high`)
 - `CROP_PYTHON` – Python executable path for perspective crop (optional)
 
@@ -291,7 +291,7 @@ npm run start
 - Check OpenAI account has credits/active subscription
 - Review `extract_usage` table for error details
 - Ensure images don't exceed OpenAI size limits (currently 20MB per image)
-- Try different `OPENAI_EXTRACT_MODEL` (e.g., `gpt-4o` vs `gpt-4o-mini`)
+- Try different `OPENAI_EXTRACT_MODEL` (e.g., `gpt-4o` vs `gpt-4o-mini` vs `gpt-4.1-mini`)
 
 ### Database Errors
 
@@ -340,7 +340,7 @@ npm run start
 
 **Solutions**:
 - Monitor `extract_usage` table regularly
-- Use `gpt-4o-mini` instead of `gpt-4o` (set `OPENAI_EXTRACT_MODEL`)
+- Use `gpt-4.1-mini` instead of pricier models like `gpt-4o` (set `OPENAI_EXTRACT_MODEL`)
 - Reduce `TEXT_IMAGE_MAX_DIMENSION` to lower token usage
 - Set `OPENAI_EXTRACT_DETAIL=low` for lower quality but cheaper extraction
 

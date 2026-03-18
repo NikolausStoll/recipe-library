@@ -55,7 +55,7 @@
           <!-- Crop -->
           <section v-if="currentRecipe?.image_path" class="import-step">
             <h3 class="import-step__title">Correct Perspective</h3>
-            <p class="import-step__desc">Click four corners in sequence, then optionally “Crop Image”.</p>
+            <p class=”import-step__desc”>Click four corners in sequence, then optionally click Crop Image.</p>
             <div class="crop-editor">
               <div ref="cropEditorRef" class="crop-editor__wrap" @click="onCropImageClick">
                 <img ref="cropImageRef" :src="cropImageUrl" alt="Recipe Image" class="crop-editor__img" @load="onCropImageLoad" />

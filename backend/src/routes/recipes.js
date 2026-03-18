@@ -69,6 +69,22 @@ router.put('/:id', (req, res) => {
     return res.status(400).json({ error: 'title must not be empty' })
   }
   try {
+    // Handle image deletion: if image_path is explicitly null, delete the old image file
+    if (body.image_path === null) {
+      const existingRecipe = recipeService.getRecipeById(req.params.id)
+      if (existingRecipe?.image_path) {
+        const oldFilename = path.basename(existingRecipe.image_path)
+        const oldFilepath = path.join(uploadDir, oldFilename)
+        if (fs.existsSync(oldFilepath)) {
+          try {
+            fs.unlinkSync(oldFilepath)
+          } catch (err) {
+            console.error('Failed to delete old image file:', err)
+          }
+        }
+      }
+    }
+
     const recipe = recipeService.updateRecipe(req.params.id, body)
     if (!recipe) return res.status(404).json({ error: 'Recipe not found' })
     res.json(recipe)
@@ -118,6 +134,61 @@ router.post('/:id/crop-perspective', async (req, res) => {
   } catch (e) {
     console.error('Crop perspective failed:', e)
     res.status(500).json({ error: e.message || 'Crop failed' })
+  }
+})
+
+/**
+ * POST /api/recipes/:id/image – Upload or update recipe image.
+ * Body: multipart form with "image" (single file).
+ * Resizes and saves the image, updates recipe.image_path.
+ * Returns { recipe, url }.
+ */
+router.post('/:id/image', (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' })
+    next()
+  })
+}, async (req, res) => {
+  const id = req.params.id
+  const recipe = recipeService.getRecipeById(id)
+  if (!recipe) return res.status(404).json({ error: 'Recipe not found' })
+  if (!req.file) return res.status(400).json({ error: 'No image file provided' })
+
+  try {
+    // Generate unique filename
+    const timestamp = Date.now()
+    const ext = path.extname(req.file.originalname) || '.jpg'
+    const filename = `recipe-${id}-${timestamp}${ext}`
+    const filepath = path.join(uploadDir, filename)
+
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
+    }
+
+    // Resize and save image
+    await sharp(req.file.buffer)
+      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toFile(filepath)
+
+    // Delete old image if exists
+    if (recipe.image_path) {
+      const oldFilename = path.basename(recipe.image_path)
+      const oldFilepath = path.join(uploadDir, oldFilename)
+      if (fs.existsSync(oldFilepath)) {
+        fs.unlinkSync(oldFilepath)
+      }
+    }
+
+    // Update recipe with new image path
+    const imagePath = `/uploads/${filename}`
+    const updated = recipeService.updateRecipe(id, { image_path: imagePath })
+
+    res.json({ recipe: updated, url: imagePath })
+  } catch (e) {
+    console.error('Image upload failed:', e)
+    res.status(500).json({ error: e.message || 'Image upload failed' })
   }
 })
 

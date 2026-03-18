@@ -1,7 +1,7 @@
 <template>
   <div class="view view--sources">
     <h1>Book Sources</h1>
-    <p class="view__intro">Quellen (z. B. Kochbücher) verwalten. Rezepte können einer Quelle zugeordnet werden.</p>
+    <p class="view__intro">Manage sources like cookbooks. Recipes can be assigned to a source.</p>
 
     <!-- Form: add or edit -->
     <section v-if="formOpen" class="sources-form">
@@ -92,12 +92,12 @@
             <button
               type="button"
               class="btn btn--primary"
-              :disabled=”coverUploading || !editingId”
-              @click=”uploadCover”
+              :disabled="coverUploading || !editingId"
+              @click="uploadCover"
             >
-              {{ coverUploading ? 'Uploading…' : (editingId ? (coverCropPoints.length === 4 ? 'Save Cover (with crop)' : 'Save Cover (without crop)') : 'Click “Save” first') }}
+              {{ coverUploading ? 'Uploading…' : (editingId ? (coverCropPoints.length === 4 ? 'Save Cover (with crop)' : 'Save Cover (without crop)') : 'Click "Save" first') }}
             </button>
-            <button type=”button” class=”btn btn--secondary” @click=”clearCoverFile”>Cancel</button>
+            <button type="button" class="btn btn--secondary" @click="clearCoverFile">Cancel</button>
           </div>
           <p v-if="coverError" class="form__error">{{ coverError }}</p>
         </div>
@@ -133,7 +133,7 @@
         </button>
       </li>
     </ul>
-    <p v-if=”!loading && !sources.length” class=”empty”>No book sources yet. Click “New Book Source” to create one.</p>
+    <p v-if="!loading && !sources.length" class="empty">No book sources yet. Click the button above to create one.</p>
   </div>
 </template>
 
