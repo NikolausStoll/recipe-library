@@ -2,14 +2,14 @@ import { Router } from 'express'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
-import sharp from 'sharp'
 import { createRecipe } from '../services/recipeService.js'
 import { cropPerspectiveBuffer } from '../services/cropPerspectiveService.js'
+import { writeResizedWebp } from '../services/imageProcessingService.js'
+import { getBaseUploadDir } from '../utils/uploadPaths.js'
 
 const router = Router()
 
-const uploadDirRaw = process.env.UPLOAD_DIR || path.join(process.cwd(), 'data', 'uploads')
-const baseUploadDir = path.isAbsolute(uploadDirRaw) ? uploadDirRaw : path.resolve(process.cwd(), uploadDirRaw)
+const baseUploadDir = getBaseUploadDir()
 const uploadDir = path.join(baseUploadDir, 'recipe')
 const maxDimension = Number(process.env.IMAGE_MAX_DIMENSION) || 2400
 const quality = Number(process.env.IMAGE_QUALITY) || 80
@@ -71,22 +71,24 @@ router.post('/', ensureUploadDir, (req, res, next) => {
 
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.webp`
   const filepath = path.join(uploadDir, filename)
+  const thumbFilename = `${path.basename(filename, path.extname(filename))}_thumb.webp`
+  const thumbPath = path.join(uploadDir, thumbFilename)
   try {
-    let pipeline = sharp(buf)
-    const meta = await pipeline.metadata()
-    const w = meta.width || 0
-    const h = meta.height || 0
-    if (w > maxDimension || h > maxDimension) {
-      const scale = maxDimension / Math.max(w, h)
-      pipeline = pipeline.resize(Math.round(w * scale), Math.round(h * scale), { fit: 'inside' })
-    }
-    await pipeline.webp({ quality }).toFile(filepath)
+    await writeResizedWebp(buf, filepath, maxDimension, quality)
+    await writeResizedWebp(buf, thumbPath, 600, quality)
   } catch (err) {
     console.error('Image processing failed:', err)
+    try {
+      if (fs.existsSync(filepath)) fs.unlinkSync(filepath)
+    } catch {}
+    try {
+      if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath)
+    } catch {}
     return res.status(500).json({ error: 'Image processing failed' })
   }
 
   const imageUrl = `/uploads/recipe/${filename}`
+  const thumbUrl = `/uploads/recipe/${thumbFilename}`
   const recipe = await createRecipe({
     title: 'Rezept aus Bild',
     import_method: 'image',
@@ -94,7 +96,7 @@ router.post('/', ensureUploadDir, (req, res, next) => {
     extract_status: 'pending',
   })
 
-  res.status(201).json({ url: imageUrl, recipe })
+  res.status(201).json({ url: imageUrl, thumbUrl, recipe })
 })
 
 export default router

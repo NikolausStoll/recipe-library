@@ -11,13 +11,21 @@
           <span class="app-brand__text">Recipe Library</span>
         </router-link>
         <nav class="app-nav">
-          <router-link to="/" class="nav-link" active-class="nav-link--active" exact-active-class="nav-link--exact">
+          <router-link
+            to="/"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.name === 'dashboard' }"
+          >
             <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
               <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span>Dashboard</span>
           </router-link>
-          <router-link to="/recipes" class="nav-link" active-class="nav-link--active">
+          <router-link
+            to="/recipes"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.name === 'recipes' }"
+          >
             <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -25,14 +33,22 @@
             </svg>
             <span>Recipes</span>
           </router-link>
-          <router-link to="/sources" class="nav-link" active-class="nav-link--active">
+          <router-link
+            to="/sources"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.name === 'sources' }"
+          >
             <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
               <path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M6.5 2H20V22H6.5C5.83696 22 5.20107 21.7366 4.73223 21.2678C4.26339 20.7989 4 20.163 4 19.5V4.5C4 3.83696 4.26339 3.20107 4.73223 2.73223C5.20107 2.26339 5.83696 2 6.5 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span>Sources</span>
           </router-link>
-          <router-link to="/shopping" class="nav-link" active-class="nav-link--active">
+          <router-link
+            to="/shopping"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.name === 'shopping' }"
+          >
             <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
               <path d="M9 2L7 8H21L19 2H9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M7.5 8L6 18H18L16.5 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -51,6 +67,9 @@
 </template>
 
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
 </script>
 
 <style scoped>

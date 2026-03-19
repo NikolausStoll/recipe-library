@@ -1,4 +1,5 @@
 import { getDb } from '../db/index.js'
+import { getThumbnailPathIfExists } from '../utils/uploadPaths.js'
 
 const RECIPE_COLUMNS = [
   'id', 'source_id', 'source_page', 'import_method', 'extract_status', 'extract_confidence', 'extract_warnings', 'extract_missing_fields',
@@ -81,6 +82,24 @@ export function listRecipes() {
     source_page: row.source_page ?? null,
     source_image_path: row.source_image_path ?? null,
   }))
+}
+
+export function listRecipeHistory(recipeId) {
+  const db = getDb()
+  const rows = db
+    .prepare('SELECT cooked_date FROM recipe_history WHERE recipe_id = ? ORDER BY cooked_date DESC')
+    .all(Number(recipeId))
+  return rows.map((row) => row.cooked_date)
+}
+
+export function addRecipeHistoryEntry(recipeId) {
+  const db = getDb()
+  const cookedDate = new Date().toISOString().slice(0, 10)
+  db.prepare('INSERT OR IGNORE INTO recipe_history (recipe_id, cooked_date) VALUES (?, ?)').run(
+    Number(recipeId),
+    cookedDate
+  )
+  return listRecipeHistory(recipeId)
 }
 
 export function listRecipesWithIngredients() {
@@ -239,6 +258,48 @@ function buildParsedRecipeFromRow(row, sectionsWithItems, steps, tips) {
 }
 
 /**
+ * Group ingredients into sections in **list order**.
+ * - If any row has section_id, split on consecutive section_id changes; rows without id stay in the previous section.
+ * - Otherwise split when section_heading changes between consecutive rows (not a Map by heading — avoids merging
+ *   non-adjacent blocks and matches DB section order from GET).
+ */
+function groupIngredientsForSections(ingredients) {
+  if (!Array.isArray(ingredients) || !ingredients.length) return []
+  const hasSectionIds = ingredients.some((ing) => {
+    const v = ing.section_id
+    return v != null && v !== '' && !Number.isNaN(Number(v))
+  })
+
+  const groups = []
+  let prevKey = null
+
+  for (const ing of ingredients) {
+    let key
+    if (hasSectionIds) {
+      const sidRaw = ing.section_id
+      const sid = sidRaw != null && sidRaw !== '' ? Number(sidRaw) : NaN
+      if (!Number.isNaN(sid)) {
+        key = `id:${sid}`
+      } else {
+        key = prevKey ?? `h:${(ing.section_heading ?? ing.sectionHeading ?? '').trim() || '\0'}`
+      }
+    } else {
+      const h = (ing.section_heading ?? ing.sectionHeading ?? '').trim()
+      key = `h:${h || '\0'}`
+    }
+
+    const heading = (ing.section_heading ?? ing.sectionHeading ?? '').trim() || null
+    if (groups.length === 0 || prevKey !== key) {
+      groups.push({ heading, items: [ing] })
+      prevKey = key
+    } else {
+      groups[groups.length - 1].items.push(ing)
+    }
+  }
+  return groups
+}
+
+/**
  * Create a recipe. Optional body: ingredients[], recipe_steps[], source_page (recipe page in book), source_name and source fields (book_title, author, subtitle, year).
  */
 export function createRecipe(body) {
@@ -273,14 +334,15 @@ export function createRecipe(body) {
   )
 
   const id = result.lastInsertRowid
-
-  if (Array.isArray(body.ingredients) && body.ingredients.length) {
-    db.prepare('INSERT INTO recipe_ingredient_sections (recipe_id, position, heading) VALUES (?, 0, NULL)').run(id)
-    const sectionId = db.prepare('SELECT id FROM recipe_ingredient_sections WHERE recipe_id = ? ORDER BY position, id DESC LIMIT 1').get(id).id
-    const insertIng = db.prepare(`
-      INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    body.ingredients.forEach((ing, i) => {
+  const ingredientSections = groupIngredientsForSections(body.ingredients)
+  const insertIng = db.prepare(`
+    INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const insertSection = db.prepare('INSERT INTO recipe_ingredient_sections (recipe_id, position, heading) VALUES (?, ?, ?)')
+  ingredientSections.forEach((section, secIdx) => {
+    const sectionInsertResult = insertSection.run(id, secIdx, section.heading)
+    const sectionId = sectionInsertResult.lastInsertRowid
+    section.items.forEach((ing, i) => {
       const amount = ing.amount != null ? (typeof ing.amount === 'number' ? ing.amount : parseFloat(String(ing.amount))) : null
       const amountMax = ing.amount_max ?? ing.amountMax ?? amount
       insertIng.run(
@@ -294,7 +356,7 @@ export function createRecipe(body) {
         ing.additional_info ?? ing.additionalInfo ?? null
       )
     })
-  }
+  })
 
   if (Array.isArray(body.recipe_steps) && body.recipe_steps.length) {
     const insertStep = db.prepare(`
@@ -372,19 +434,23 @@ export function updateRecipe(id, body) {
     Number(id),
   )
 
+  // Replace ingredients: delete sections + rows, then re-insert from payload (new section/ingredient ids).
+  // Grouping uses list order + section_id when present so multiple sections are not collapsed by heading-only Maps.
   if (Array.isArray(body.ingredients)) {
     const sectionIds = db.prepare('SELECT id FROM recipe_ingredient_sections WHERE recipe_id = ?').all(Number(id))
     for (const s of sectionIds) {
       db.prepare('DELETE FROM ingredients WHERE section_id = ?').run(s.id)
     }
     db.prepare('DELETE FROM recipe_ingredient_sections WHERE recipe_id = ?').run(Number(id))
-    if (body.ingredients.length) {
-      db.prepare('INSERT INTO recipe_ingredient_sections (recipe_id, position, heading) VALUES (?, 0, NULL)').run(Number(id))
-      const sectionId = db.prepare('SELECT id FROM recipe_ingredient_sections WHERE recipe_id = ? ORDER BY position, id DESC LIMIT 1').get(Number(id)).id
-      const insertIng = db.prepare(`
-        INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      body.ingredients.forEach((ing, i) => {
+    const ingredientSections = groupIngredientsForSections(body.ingredients)
+    const insertIng = db.prepare(`
+      INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const insertSection = db.prepare('INSERT INTO recipe_ingredient_sections (recipe_id, position, heading) VALUES (?, ?, ?)')
+    ingredientSections.forEach((section, secIdx) => {
+      const insertSectionResult = insertSection.run(Number(id), secIdx, section.heading)
+      const sectionId = insertSectionResult.lastInsertRowid
+      section.items.forEach((ing, i) => {
         const amount = ing.amount != null ? (typeof ing.amount === 'number' ? ing.amount : parseFloat(String(ing.amount))) : null
         const amountMax = ing.amount_max ?? ing.amountMax ?? amount
         insertIng.run(
@@ -398,7 +464,7 @@ export function updateRecipe(id, body) {
           ing.additional_info ?? ing.additionalInfo ?? null
         )
       })
-    }
+    })
   }
 
   if (Array.isArray(body.recipe_steps)) {
@@ -485,8 +551,8 @@ export function setRecipeParsedRecipe(id, parsedRecipe, options = {}) {
       INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
     inner.ingredientsSections.forEach((sec, si) => {
-      insertSection.run(recipeId, si, sec.heading ?? null)
-      const sectionId = db.prepare('SELECT last_insert_rowid() as id').get().id
+      const ins = insertSection.run(recipeId, si, sec.heading ?? null)
+      const sectionId = ins.lastInsertRowid
       ;(sec.items ?? []).forEach((item, ii) => {
         insertIng.run(
           sectionId,
@@ -560,6 +626,7 @@ function rowToRecipe(row) {
     prep_time_min: row.prep_time_min,
     cook_time_min: row.cook_time_min,
     image_path: row.image_path,
+    image_thumb_path: getThumbnailPathIfExists(row.image_path),
     created_at: row.created_at,
     updated_at: row.updated_at,
   }

@@ -19,6 +19,7 @@ export interface RecipeSource {
   author: string | null
   year: number | null
   image_path: string | null
+  image_thumb_path?: string | null
   created_at: string
 }
 

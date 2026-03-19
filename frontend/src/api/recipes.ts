@@ -75,6 +75,7 @@ export interface RecipeListItem extends RecipeSourceInfo {
   prep_time_min: number | null
   cook_time_min: number | null
   image_path: string | null
+  image_thumb_path?: string | null
   parsed_recipe?: ParsedRecipeFromOcr | null
   created_at: string
   updated_at: string
@@ -112,12 +113,15 @@ export interface IngredientInput {
   name?: string | null
   ingredient?: string | null
   position?: number
+  /** When set (edit flow), backend groups consecutive rows by section_id so sections are not merged by heading alone. */
+  section_id?: number | null
   original_text?: string | null
   originalText?: string | null
   amount_max?: number | null
   amountMax?: number | null
   additional_info?: string | null
   additionalInfo?: string | null
+  section_heading?: string | null
 }
 
 export interface RecipeStepInput {
@@ -185,6 +189,18 @@ export interface ExtractRecipeResult {
   usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null
 }
 
+export interface NutritionEstimateResult {
+  nutritionTotal: {
+    kcal?: number | null
+    protein_g?: number | null
+    carbs_g?: number | null
+    fat_g?: number | null
+  }
+  notes: string[]
+  model: string
+  tokenUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null
+}
+
 /** Points in original image coords; null = no crop for that image */
 export type CropPoints = Array<{ x: number; y: number }> | null
 
@@ -202,4 +218,26 @@ export function extractRecipeFromImages(
     method: 'POST',
     body: form,
   }).then((res) => handleResponse<ExtractRecipeResult>(res))
+}
+
+export function estimateRecipeNutrition(recipeId: number): Promise<NutritionEstimateResult> {
+  return fetch(`${API_BASE}/recipes/${recipeId}/estimate-nutrition`, {
+    method: 'POST',
+  }).then((res) => handleResponse<NutritionEstimateResult>(res))
+}
+
+export interface RecipeHistoryResponse {
+  history: string[]
+}
+
+export function postRecipeCooked(recipeId: number): Promise<RecipeHistoryResponse> {
+  return fetch(`${API_BASE}/recipes/${recipeId}/cook`, { method: 'POST' }).then((res) =>
+    handleResponse<RecipeHistoryResponse>(res)
+  )
+}
+
+export function getRecipeHistory(recipeId: number): Promise<RecipeHistoryResponse> {
+  return fetch(`${API_BASE}/recipes/${recipeId}/history`).then((res) =>
+    handleResponse<RecipeHistoryResponse>(res)
+  )
 }

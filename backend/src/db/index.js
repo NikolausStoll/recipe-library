@@ -115,6 +115,14 @@ export function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS recipe_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+      cooked_date TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(recipe_id, cooked_date)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_sections_recipe_id ON recipe_ingredient_sections(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
     CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
@@ -122,6 +130,7 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_recipe_tips_recipe_id ON recipe_tips(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);
     CREATE INDEX IF NOT EXISTS idx_extract_usage_recipe_id ON extract_usage(recipe_id);
+    CREATE INDEX IF NOT EXISTS idx_recipe_history_recipe_id ON recipe_history(recipe_id);
   `)
 
   // Migrations for existing DBs
@@ -212,6 +221,13 @@ export function initDb() {
         response_json TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
+      CREATE TABLE recipe_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        cooked_date TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(recipe_id, cooked_date)
+      );
       CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_sections_recipe_id ON recipe_ingredient_sections(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
       CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
@@ -219,6 +235,7 @@ export function initDb() {
       CREATE INDEX IF NOT EXISTS idx_recipe_tips_recipe_id ON recipe_tips(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);
       CREATE INDEX IF NOT EXISTS idx_extract_usage_recipe_id ON extract_usage(recipe_id);
+      CREATE INDEX IF NOT EXISTS idx_recipe_history_recipe_id ON recipe_history(recipe_id);
     `)
   }
 }

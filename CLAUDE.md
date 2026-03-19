@@ -105,6 +105,11 @@ python3 -m venv venv
 ### Static Files
 - `GET /uploads/*` - Serve uploaded images
 
+### Recipe ingredient persistence
+- `PUT /api/recipes/:id` **replaces** all `recipe_ingredient_sections` and `ingredients` (delete then insert). Section and ingredient primary keys are always new after save; this keeps the handler simple and matches “full replace” semantics.
+- Grouping for insert uses `groupIngredientsForSections()` in `recipeService.js`: **list order**, not a Map keyed only by heading. If the client sends `section_id` on each line (from `GET`), consecutive rows with the same `section_id` become one section; lines without `section_id` stay with the previous section. If no `section_id` is sent, a new section starts when `section_heading` changes between consecutive rows.
+- `setRecipeParsedRecipe()` must use `insertSection.run(...).lastInsertRowid` (or equivalent) per section so ingredients attach to the correct section row.
+
 ## AI Recipe Extraction
 
 The recipe extraction uses OpenAI's vision API with a strict JSON schema (`RECIPE_JSON_SCHEMA` in `extractRecipeService.js`).
@@ -208,6 +213,7 @@ docker run -p 8097:8097 --env-file .env -v $(pwd)/data:/data recipe-library
 - Verify Sharp can process the image format
 - Check `IMAGE_MAX_DIMENSION` settings
 - For perspective crop: ensure Python venv is set up
+- List/detail APIs derive `image_thumb_path` via `uploadPaths.getThumbnailPathIfExists`; `resolveUploadedFilePath` maps `/uploads/...` URLs to files under `UPLOAD_DIR` (must strip the `uploads/` segment so paths are not doubled)
 
 ## Documentation Maintenance
 

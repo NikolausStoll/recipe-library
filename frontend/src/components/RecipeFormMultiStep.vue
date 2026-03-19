@@ -242,6 +242,17 @@
       <!-- Step 2: Ingredients -->
       <div v-if="currentStep === 1" class="form-step">
         <div v-for="(group, sectionKey) in ingredientsBySection" :key="group.key" class="ingredient-section">
+          <div class="ingredient-heading-input">
+            <label>
+              Section Heading
+              <input
+                type="text"
+                :value="group.heading ?? ''"
+                placeholder="Optional heading"
+                @input="updateSectionHeading(group.key, $event.target.value)"
+              />
+            </label>
+          </div>
           <div v-if="group.heading" class="ingredient-section__header">
             <strong>{{ group.heading }}</strong>
           </div>
@@ -481,6 +492,14 @@
           {{ editingId ? 'Save Changes' : 'Create Recipe' }}
         </button>
         <button
+          v-if="currentStep === steps.length - 1"
+          type="button"
+          class="btn btn--secondary"
+          @click="handleSubmit({ estimateNutrition: true })"
+        >
+          Estimate nutrition
+        </button>
+        <button
           v-if="currentStep < steps.length - 1"
           type="button"
           class="btn btn--secondary"
@@ -516,6 +535,7 @@ interface IngredientRow {
   amount: string
   unit: string
   name: string
+  section_id?: number | null
   section_heading?: string | null
   original_text?: string | null
 }
@@ -540,7 +560,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  submit: [payload: RecipeFormPayload, imageFile: File | string | null, cropPoints?: Array<{ x: number; y: number }>]
+  submit: [
+    payload: RecipeFormPayload,
+    imageFile: File | string | null,
+    cropPoints?: Array<{ x: number; y: number }>,
+    options?: { estimateNutrition?: boolean }
+  ]
   confirm: []
   cancel: []
 }>()
@@ -738,8 +763,28 @@ const ingredientsBySection = computed(() => {
   return Array.from(groups.entries()).map(([k, v]) => ({ key: k, heading: v.heading, items: v.items }))
 })
 
+function updateSectionHeading(key: string, value: string) {
+  const defaultKey = '\0'
+  const normalizedKey = key === defaultKey ? '' : (key ?? '')
+  const heading = value.trim() || null
+  form.ingredients.forEach((ing) => {
+    const currentKey = (ing.section_heading?.trim() ?? '')
+    if ((currentKey || '') === normalizedKey) {
+      ing.section_heading = heading
+    }
+  })
+}
+
 function addIngredient() {
-  form.ingredients.push({ amount: '', unit: '', name: '', additional_info: '' })
+  const last = form.ingredients[form.ingredients.length - 1]
+  form.ingredients.push({
+    amount: '',
+    unit: '',
+    name: '',
+    additional_info: '',
+    section_heading: last?.section_heading ?? '',
+    section_id: last?.section_id ?? null,
+  })
 }
 
 function removeIngredient(index: number) {
@@ -787,11 +832,14 @@ function assignFromInitial() {
       amount: ing.amount != null ? String(ing.amount) : '',
       unit: ing.unit ?? '',
       name: ing.name ?? '',
+      section_id: (ing as IngredientRow & { section_id?: number }).section_id ?? null,
       section_heading: (ing as IngredientRow).section_heading ?? null,
       original_text: ing.original_text ?? (ing as any).originalText ?? null,
       additional_info: (ing as IngredientRow).additional_info ?? null,
     }))
-    if (form.ingredients.length === 0) form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '' }]
+    if (form.ingredients.length === 0) {
+      form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '', section_heading: '', section_id: null }]
+    }
     form.recipe_steps = (props.initial.recipe_steps ?? []).map((s) => ({
       instruction: s.instruction ?? '',
     }))
@@ -810,7 +858,7 @@ function assignFromInitial() {
     form.tips_notes = ''
     form.servings = null
     form.source_page = ''
-    form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '' }]
+    form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '', section_heading: '', section_id: null }]
     form.recipe_steps = [{ instruction: '' }]
     sourceType.value = 'none'
     selectedSourceId.value = null
@@ -860,7 +908,7 @@ onMounted(async () => {
   }
 })
 
-function handleSubmit() {
+function handleSubmit(options?: { estimateNutrition?: boolean }) {
   const ingredients: IngredientInput[] = form.ingredients
     .filter((ing) => ing.name.trim() !== '')
     .map((ing, i) => ({
@@ -868,8 +916,10 @@ function handleSubmit() {
       unit: ing.unit.trim() || null,
       name: ing.name.trim(),
       position: i,
+      section_id: ing.section_id != null ? ing.section_id : null,
       original_text: ing.original_text ?? null,
       additional_info: ing.additional_info?.trim() || null,
+      section_heading: ing.section_heading?.trim() || null,
     }))
   const recipe_steps: RecipeStepInput[] = form.recipe_steps
     .filter((s) => s.instruction.trim() !== '')
@@ -892,9 +942,9 @@ function handleSubmit() {
   }
 
   // Pass image file or delete marker, and optional 4-point crop (for new image upload)
-  const imageToUpload = imageFile.value || (currentImageUrl.value === '__DELETE__' ? 'DELETE' as any : null)
+  const imageToUpload = imageFile.value || (currentImageUrl.value === '__DELETE__' ? ('DELETE' as any) : null)
   const cropPointsForUpload = imageToUpload instanceof File ? getNewImageCropPoints() : undefined
-  emit('submit', payload, imageToUpload, cropPointsForUpload)
+  emit('submit', payload, imageToUpload, cropPointsForUpload, options)
 }
 </script>
 
@@ -1383,6 +1433,21 @@ function handleSubmit() {
   font-weight: 600;
   color: var(--color-text);
   margin-top: var(--spacing-sm);
+}
+
+.ingredient-heading-input {
+  margin-bottom: var(--spacing-xs);
+}
+
+.ingredient-heading-input input {
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.9rem;
+  background: var(--color-input-bg);
+  color: var(--color-text);
 }
 
 .ingredient-item {

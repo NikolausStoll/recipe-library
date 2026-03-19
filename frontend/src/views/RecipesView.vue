@@ -97,7 +97,7 @@
         <div class="recipe-card__image">
           <img
             v-if="recipe.image_path"
-            :src="recipe.image_path"
+            :src="recipe.image_thumb_path ?? recipe.image_path"
             :alt="recipe.title"
             loading="lazy"
           />
@@ -116,21 +116,18 @@
           <h3 class="recipe-card__title">{{ recipe.title }}</h3>
           <p v-if="recipe.subtitle" class="recipe-card__subtitle">{{ recipe.subtitle }}</p>
           <div class="recipe-card__meta">
-            <span v-if="recipe.servings" class="recipe-card__meta-item">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M23 21V19C22.9993 18.1137 22.7044 17.2528 22.1614 16.5523C21.6184 15.8519 20.8581 15.3516 20 15.13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89318 18.7122 8.75608 18.1676 9.45769C17.623 10.1593 16.8604 10.6597 16 10.88" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              {{ recipe.servings }}
-            </span>
-            <span v-if="recipe.source_name" class="recipe-card__meta-item">
+            <span
+              v-if="recipe.source_name"
+              class="recipe-card__meta-item recipe-card__source"
+              @click.stop="showCoverOverlay($event, recipe)"
+            >
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M6.5 2H20V22H6.5C5.83696 22 5.20107 21.7366 4.73223 21.2678C4.26339 20.7989 4 20.163 4 19.5V4.5C4 3.83696 4.26339 3.20107 4.73223 2.73223C5.20107 2.26339 5.83696 2 6.5 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              {{ recipe.source_name }}
+              <span class="recipe-card__source-label">
+                {{ recipe.source_name }}<span v-if="recipe.source_page"> · Page {{ recipe.source_page }}</span>
+              </span>
             </span>
           </div>
         </div>
@@ -243,11 +240,21 @@
                 </svg>
                 Ingredients
               </h2>
-              <ul class="recipe-ingredients-list">
-                <li v-for="(ing, idx) in scaledIngredients" :key="idx" class="recipe-ingredient">
-                  <span class="recipe-ingredient-text">{{ ing.text }}</span>
-                </li>
-              </ul>
+              <div
+                v-for="(section, sidx) in ingredientSections"
+                :key="sidx"
+                class="recipe-ingredient-section"
+                :class="{ 'recipe-ingredient-section--with-heading': section.heading }"
+              >
+                <div v-if="section.heading" class="recipe-ingredient-section__heading">
+                  {{ section.heading }}
+                </div>
+                <ul class="recipe-ingredients-list">
+                  <li v-for="(text, idx) in section.items" :key="`${sidx}-${idx}`" class="recipe-ingredient">
+                    <span class="recipe-ingredient-text">{{ text }}</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
 
@@ -291,6 +298,38 @@
             </div>
             </div>
           </div>
+        <div class="recipe-detail-history" v-if="viewingRecipe">
+          <div class="recipe-detail-history__header">
+            <h2>Cook History</h2>
+            <button
+              type="button"
+              class="btn btn--secondary"
+              :disabled="hasCookedToday(viewingRecipe.id)"
+              @click="markCookedToday(viewingRecipe.id)"
+            >
+              {{ hasCookedToday(viewingRecipe.id) ? 'Cooked today' : 'Mark cooked today' }}
+            </button>
+          </div>
+          <p v-if="historySummary(viewingRecipe.id)" class="recipe-detail-history__summary">
+            {{ historySummary(viewingRecipe.id) }}
+          </p>
+          <ul class="recipe-detail-history__list">
+            <li v-for="date in recipeHistories[viewingRecipe.id] ?? []" :key="date">
+              {{ date }}
+            </li>
+          </ul>
+        </div>
+          <div v-if="viewingRecipe" class="recipe-detail-nutrition-cta">
+            <button
+              type="button"
+              class="btn btn--secondary"
+              @click="requestDetailNutritionEstimate"
+              :disabled="nutritionLoading"
+            >
+              {{ nutritionLoading ? 'Estimating nutrition…' : hasNutrition ? 'Recalculate nutrition' : 'Estimate nutrition' }}
+            </button>
+            <span v-if="nutritionLoading" class="recipe-detail-nutrition-cta__status">Updating nutrition…</span>
+          </div>
         </div>
       </div>
     </div>
@@ -333,10 +372,24 @@
       </div>
     </div>
   </div>
+
+  <div
+    v-if="coverOverlay.visible"
+    class="recipe-cover-overlay"
+    :style="{ top: coverOverlay.y + 'px', left: coverOverlay.x + 'px' }"
+    @click.stop
+  >
+    <div class="recipe-cover-overlay__frame">
+      <img :src="coverOverlay.src" :alt="coverOverlay.title ?? 'Book cover'" />
+      <div v-if="coverOverlay.title" class="recipe-cover-overlay__title">
+        {{ coverOverlay.title }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import Fuse from 'fuse.js'
 import type { FuseOptions } from 'fuse.js'
 import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
@@ -347,6 +400,9 @@ import {
   createRecipe,
   updateRecipe,
   deleteRecipe,
+  estimateRecipeNutrition,
+  postRecipeCooked,
+  getRecipeHistory,
 } from '../api/recipes'
 import type {
   Recipe,
@@ -369,6 +425,53 @@ const showImportOverlay = ref(false)
 const showRecipeForm = ref(false)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
+const coverOverlay = ref<{ visible: boolean; x: number; y: number; src?: string | null; title?: string | null }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  src: null,
+  title: null,
+})
+const recipeHistories = ref<Record<number, string[]>>({})
+const nutritionLoading = ref(false)
+
+async function loadRecipeHistories(recipeIds: number[]) {
+  const map: Record<number, string[]> = {}
+  await Promise.all(
+    recipeIds.map(async (id) => {
+      try {
+        const res = await getRecipeHistory(id)
+        map[id] = res.history
+      } catch (err) {
+        console.error('Failed to load history for', id, err)
+        map[id] = []
+      }
+    })
+  )
+  recipeHistories.value = map
+}
+
+async function markCookedToday(recipeId: number) {
+  if (!recipeId) return
+  try {
+    const res = await postRecipeCooked(recipeId)
+    recipeHistories.value = { ...recipeHistories.value, [recipeId]: res.history }
+  } catch (err) {
+    console.error('Failed to mark recipe cooked:', err)
+  }
+}
+
+function hasCookedToday(recipeId: number) {
+  const history = recipeHistories.value[recipeId] ?? []
+  const today = new Date().toISOString().slice(0, 10)
+  return history.includes(today)
+}
+
+function historySummary(recipeId: number) {
+  const history = recipeHistories.value[recipeId] ?? []
+  if (!history.length) return ''
+  return `Cooked: ${history.slice(0, 2).join(', ')}${history.length > 2 ? ' …' : ''}`
+}
 
 const fuseOptions: FuseOptions<RecipeListItemWithIngredients> = {
   includeMatches: true,
@@ -399,7 +502,14 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
   nutrition_fat?: number | null
 }) {
   const pr = recipe.parsed_recipe
-  type Ing = { amount: string; unit: string; name: string; section_heading?: string | null; original_text?: string | null }
+  type Ing = {
+    amount: string
+    unit: string
+    name: string
+    section_id?: number | null
+    section_heading?: string | null
+    original_text?: string | null
+  }
   const ingredients: Ing[] = []
   if (recipe.ingredients?.length) {
     for (const ing of recipe.ingredients) {
@@ -407,6 +517,7 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
         amount: ing.amount != null ? String(ing.amount) : '',
         unit: ing.unit ?? '',
         name: ing.name ?? ing.ingredient ?? '',
+        section_id: ing.section_id ?? null,
         section_heading: ing.section_heading ?? null,
         original_text: ing.original_text ?? null,
       })
@@ -481,40 +592,61 @@ const hasNutrition = computed(() => {
   return kcal != null || protein != null || carbs != null || fat != null
 })
 
-const scaledIngredients = computed(() => {
+const ingredientSections = computed(() => {
   const recipe = viewingRecipe.value
-  if (!recipe || !recipe.ingredients) return []
+  if (!recipe) return []
 
   const originalServings = recipe.servings || 1
   const scale = displayServings.value / originalServings
   const servingsChanged = displayServings.value !== originalServings
 
-  return recipe.ingredients.map(ing => {
-    // If servings haven't changed and original_text exists, use it
-    if (!servingsChanged && ing.original_text) {
-      return { text: ing.original_text }
+  const sections: { heading: string | null; key: string; items: string[] }[] = []
+  const pushToSection = (heading: string | null, key: string, text: string) => {
+    let section = sections.length ? sections[sections.length - 1] : null
+    if (!section || section.key !== key) {
+      sections.push({ heading, key, items: [] })
+      section = sections[sections.length - 1]
     }
+    section.items.push(text)
+  }
 
-    // Otherwise calculate scaled amounts
-    let text = ''
-    if (ing.amount) {
-      const scaledAmount = parseFloat(String(ing.amount)) * scale
-      // Round to reasonable precision
-      const rounded = Math.round(scaledAmount * 100) / 100
-      text = `${rounded} `
+  if (recipe.ingredients?.length) {
+    for (const ing of recipe.ingredients) {
+      let text = ''
+      if (!servingsChanged && ing.original_text) {
+        text = ing.original_text
+      } else {
+        if (ing.amount) {
+          const scaledAmount = parseFloat(String(ing.amount)) * scale
+          const rounded = Math.round(scaledAmount * 100) / 100
+          text = `${rounded} `
+        }
+        if (ing.unit) text += `${ing.unit} `
+        text += ing.name || ing.ingredient || ''
+        if (ing.additional_info) text += ` (${ing.additional_info})`
+        text = text.trim()
+      }
+      if (text) {
+        const key = `section-${ing.section_id ?? 'manual'}-${ing.section_heading ?? 'no-heading'}`
+        pushToSection(ing.section_heading ?? null, key, text)
+      }
     }
-    if (ing.unit) {
-      text += `${ing.unit} `
-    }
-    text += ing.name || ing.ingredient || ''
+  } else if (recipe.parsed_recipe?.ingredientsSections?.length) {
+    recipe.parsed_recipe.ingredientsSections.forEach((section, idx) => {
+      const sectionKey = `parsed-${idx}-${section.heading ?? 'no-heading'}`
+      for (const item of section.items ?? []) {
+        const text = [item.amount, item.unit, item.ingredient || item.originalText]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+        if (text) {
+          pushToSection(section.heading ?? null, sectionKey, text)
+        }
+      }
+    })
+  }
 
-    // Append additional_info if available
-    if (ing.additional_info) {
-      text += ` (${ing.additional_info})`
-    }
-
-    return { text: text.trim() }
-  })
+  return sections
 })
 
 const ingredientTokens = computed(() =>
@@ -592,6 +724,7 @@ async function loadList() {
     const data = await listRecipesWithIngredients()
     recipes.value = data
     rebuildFuse()
+    await loadRecipeHistories(data.map((recipe) => recipe.id))
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load recipes'
   } finally {
@@ -606,6 +739,49 @@ async function viewRecipe(id: number) {
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load recipe'
   }
+}
+
+async function runNutritionEstimate(recipeId: number, options?: { refreshList?: boolean }) {
+  if (!recipeId || nutritionLoading.value) return
+  nutritionLoading.value = true
+  try {
+    const result = await estimateRecipeNutrition(recipeId)
+    console.log('[nutrition] estimate notes (recipe', recipeId, '):', result.notes)
+    if (options?.refreshList ?? false) {
+      await loadList()
+    }
+    if (viewingRecipe.value?.id === recipeId) {
+      await viewRecipe(recipeId)
+    }
+  } catch (e) {
+    console.error('Nutrition estimate failed:', e)
+  } finally {
+    nutritionLoading.value = false
+  }
+}
+
+function showCoverOverlay(event: MouseEvent, recipe: RecipeListItemWithIngredients) {
+  if (!recipe.source_image_path) return
+  event.stopPropagation()
+  const overlayHeight = 300
+  const yPosition = Math.max(event.clientY - overlayHeight - 16, 12)
+  coverOverlay.value = {
+    visible: true,
+    x: event.clientX + 12,
+    y: yPosition,
+    src: recipe.source_image_path,
+    title: recipe.source_name ?? null,
+  }
+}
+
+function hideCoverOverlay() {
+  coverOverlay.value.visible = false
+}
+
+function requestDetailNutritionEstimate() {
+  const id = viewingRecipe.value?.id
+  if (!id) return
+  runNutritionEstimate(id, { refreshList: true })
 }
 
 function closeDetailView() {
@@ -642,6 +818,7 @@ function startEdit(id: number) {
         amount: ing.amount != null ? String(ing.amount) : '',
         unit: ing.unit ?? '',
         name: ing.name ?? ing.ingredient ?? '',
+        section_id: ing.section_id ?? null,
         section_heading: ing.section_heading ?? null,
         original_text: ing.original_text ?? null,
       })),
@@ -678,7 +855,8 @@ function openManualForm() {
 async function onFormSubmit(
   payload: RecipeFormPayload,
   imageFile: File | string | null,
-  cropPoints?: Array<{ x: number; y: number }>
+  cropPoints?: Array<{ x: number; y: number }>,
+  options?: { estimateNutrition?: boolean }
 ) {
   error.value = ''
   try {
@@ -712,7 +890,11 @@ async function onFormSubmit(
     }
 
     closeEdit()
-    await loadList()
+    if (options?.estimateNutrition && recipeId) {
+      await runNutritionEstimate(recipeId, { refreshList: true })
+    } else {
+      await loadList()
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to save recipe'
   }
@@ -743,7 +925,14 @@ async function onDeleteFromEdit() {
   }
 }
 
-onMounted(loadList)
+onMounted(() => {
+  loadList()
+  document.addEventListener('click', hideCoverOverlay)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', hideCoverOverlay)
+})
 </script>
 
 <style scoped>
@@ -911,14 +1100,14 @@ onMounted(loadList)
 /* Recipe Grid */
 .recipes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--spacing-lg);
 }
 
 .recipe-card {
   background: var(--color-bg-elevated);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: var(--shadow-card);
   transition: all var(--transition-base);
   cursor: pointer;
@@ -933,7 +1122,7 @@ onMounted(loadList)
 .recipe-card__image {
   position: relative;
   width: 100%;
-  height: 200px;
+  height: 300px;
   overflow: hidden;
   background: var(--color-bg-muted);
 }
@@ -983,6 +1172,8 @@ onMounted(loadList)
 
 .recipe-card__content {
   padding: var(--spacing-lg);
+  padding-top: 1rem;
+  padding-bottom: 1rem;
 }
 
 .recipe-card__title {
@@ -1013,6 +1204,23 @@ onMounted(loadList)
   flex-wrap: wrap;
 }
 
+.recipe-card__source {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.recipe-card__source-label {
+  display: inline-flex;
+}
+
+.recipe-card__source-label>span {
+  font-size: 0.65rem;
+  line-height: 1.1rem;
+  padding-left: 5px;
+}
+
 .recipe-card__meta-item {
   display: flex;
   align-items: center;
@@ -1025,6 +1233,31 @@ onMounted(loadList)
   width: 16px;
   height: 16px;
   stroke-width: 2;
+}
+
+.recipe-ingredient-section {
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  background: var(--color-bg-elevated);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  margin-bottom: var(--spacing-md);
+}
+
+.recipe-ingredient-section--with-heading {
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-subtle);
+}
+
+.recipe-ingredient-section__heading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .recipe-card__actions {
@@ -1433,6 +1666,83 @@ onMounted(loadList)
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--spacing-lg);
+}
+
+.recipe-detail-nutrition-cta {
+  margin-top: var(--spacing-md);
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.recipe-detail-nutrition-cta__status {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.recipe-detail-history {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.recipe-detail-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.recipe-detail-history__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.recipe-detail-history__summary {
+  margin: var(--spacing-sm) 0 0;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+}
+
+.recipe-detail-history__list {
+  margin: var(--spacing-sm) 0 0;
+  padding-left: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.recipe-cover-overlay {
+  position: fixed;
+  z-index: 300;
+}
+
+.recipe-cover-overlay__frame {
+  background: var(--color-bg);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.recipe-cover-overlay__frame img {
+  width: 220px;
+  height: 260px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
+.recipe-cover-overlay__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+  max-width: 220px;
+  text-align: center;
 }
 
 .recipe-nutrition-item {

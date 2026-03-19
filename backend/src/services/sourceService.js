@@ -1,4 +1,5 @@
 import { getDb } from '../db/index.js'
+import { getThumbnailPathIfExists } from '../utils/uploadPaths.js'
 
 const SOURCE_TYPES = ['book', 'url', 'manual', 'other']
 
@@ -108,6 +109,7 @@ function rowToSource(row) {
     author: row.author ?? null,
     year: row.year ?? null,
     image_path: row.image_path ?? null,
+    image_thumb_path: getThumbnailPathIfExists(row.image_path),
     created_at: row.created_at,
   }
 }

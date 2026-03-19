@@ -132,7 +132,7 @@
           <div class="recipe-mini-card__image">
             <img
               v-if="recipe.image_path"
-              :src="recipe.image_path"
+              :src="recipe.image_thumb_path ?? recipe.image_path"
               :alt="recipe.title"
               loading="lazy"
             />

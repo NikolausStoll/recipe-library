@@ -5,8 +5,10 @@ import fs from 'fs'
 import sharp from 'sharp'
 import * as recipeService from '../services/recipeService.js'
 import { extractRecipeFromImages, logExtractUsage } from '../services/extractRecipeService.js'
-import { prepareTextImage } from '../services/imageProcessingService.js'
+import { prepareTextImage, writeResizedWebp } from '../services/imageProcessingService.js'
 import { cropPerspective, cropPerspectiveBuffer } from '../services/cropPerspectiveService.js'
+import { estimateRecipeNutrition } from '../services/nutritionService.js'
+import { buildThumbnailPath } from '../utils/uploadPaths.js'
 
 const router = Router()
 const uploadDirRaw = process.env.UPLOAD_DIR || path.join(process.cwd(), 'data', 'uploads')
@@ -42,6 +44,46 @@ router.get('/', (req, res) => {
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Failed to list recipes' })
+  }
+})
+
+/**
+ * POST /api/recipes/:id/estimate-nutrition – estimate nutrition values via AI.
+ */
+router.post('/:id/estimate-nutrition', async (req, res) => {
+  const { id } = req.params
+  try {
+    const estimation = await estimateRecipeNutrition(id)
+    res.json(estimation)
+  } catch (e) {
+    console.error('Failed to estimate nutrition:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to estimate nutrition' })
+  }
+})
+
+/**
+ * POST /api/recipes/:id/cook – record that the recipe was cooked today.
+ */
+router.post('/:id/cook', (req, res) => {
+  try {
+    const history = recipeService.addRecipeHistoryEntry(req.params.id)
+    res.json({ history })
+  } catch (e) {
+    console.error('Failed to add recipe history:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to record cooking history' })
+  }
+})
+
+/**
+ * GET /api/recipes/:id/history – list cooking dates.
+ */
+router.get('/:id/history', (req, res) => {
+  try {
+    const history = recipeService.listRecipeHistory(req.params.id)
+    res.json({ history })
+  } catch (e) {
+    console.error('Failed to fetch recipe history:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to load cooking history' })
   }
 })
 
@@ -105,6 +147,14 @@ router.put('/:id', (req, res) => {
             console.error('Failed to delete old image file:', err)
           }
         }
+        const oldThumbPath = resolveRecipeImagePath(buildThumbnailPath(existingRecipe.image_path))
+        if (oldThumbPath && fs.existsSync(oldThumbPath)) {
+          try {
+            fs.unlinkSync(oldThumbPath)
+          } catch (err) {
+            console.error('Failed to delete old thumbnail file:', err)
+          }
+        }
       }
     }
 
@@ -151,6 +201,18 @@ router.post('/:id/crop-perspective', async (req, res) => {
   }
   try {
     await cropPerspective(filepath, filepath, points)
+    try {
+      const thumbImagePath = buildThumbnailPath(recipe.image_path)
+      if (thumbImagePath) {
+        const thumbFullPath = resolveRecipeImagePath(thumbImagePath)
+        if (thumbFullPath) {
+          const buffer = await fs.promises.readFile(filepath)
+          await writeResizedWebp(buffer, thumbFullPath, 600, quality)
+        }
+      }
+    } catch (thumbErr) {
+      console.error('Failed to refresh thumbnail after cropping:', thumbErr)
+    }
     const url = `${recipe.image_path}?v=${Date.now()}`
     res.json({ recipe, url })
   } catch (e) {
@@ -197,19 +259,20 @@ router.post('/:id/image', (req, res, next) => {
   const timestamp = Date.now()
   const filename = `recipe-${id}-${timestamp}.webp`
   const filepath = path.join(recipeUploadDir, filename)
+  const thumbFilename = `${path.basename(filename, path.extname(filename))}_thumb.webp`
+  const thumbFilepath = path.join(recipeUploadDir, thumbFilename)
 
   try {
-    let pipeline = sharp(buf)
-    const meta = await pipeline.metadata()
-    const w = meta.width || 0
-    const h = meta.height || 0
-    if (w > maxDimension || h > maxDimension) {
-      const scale = maxDimension / Math.max(w, h)
-      pipeline = pipeline.resize(Math.round(w * scale), Math.round(h * scale), { fit: 'inside' })
-    }
-    await pipeline.webp({ quality }).toFile(filepath)
+    await writeResizedWebp(buf, filepath, maxDimension, quality)
+    await writeResizedWebp(buf, thumbFilepath, 600, quality)
   } catch (e) {
     console.error('Image upload failed:', e)
+    try {
+      if (fs.existsSync(filepath)) fs.unlinkSync(filepath)
+    } catch {}
+    try {
+      if (fs.existsSync(thumbFilepath)) fs.unlinkSync(thumbFilepath)
+    } catch {}
     return res.status(500).json({ error: e.message || 'Image upload failed' })
   }
 
@@ -222,11 +285,20 @@ router.post('/:id/image', (req, res, next) => {
         console.error('Failed to delete old recipe image:', err)
       }
     }
+    const oldThumbPath = resolveRecipeImagePath(buildThumbnailPath(recipe.image_path))
+    if (oldThumbPath && fs.existsSync(oldThumbPath)) {
+      try {
+        fs.unlinkSync(oldThumbPath)
+      } catch (err) {
+        console.error('Failed to delete old recipe thumbnail:', err)
+      }
+    }
   }
 
   const imagePath = `/uploads/recipe/${filename}`
   const updated = recipeService.updateRecipe(id, { image_path: imagePath })
-  res.json({ recipe: updated, url: imagePath })
+  const thumbUrl = `/uploads/recipe/${thumbFilename}`
+  res.json({ recipe: updated, url: imagePath, thumbUrl })
 })
 
 /**

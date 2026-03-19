@@ -113,7 +113,7 @@
     <ul v-else class="sources-list">
       <li v-for="s in sources" :key="s.id" class="sources-list__item">
         <div class="sources-list__thumb" @click="startEdit(s.id)">
-          <img v-if="s.image_path" :src="s.image_path" :alt="s.name" class="sources-list__img" />
+          <img v-if="s.image_path" :src="s.image_thumb_path ?? s.image_path" :alt="s.name" class="sources-list__img" />
           <span v-else class="sources-list__no-img">No Cover</span>
         </div>
         <div class="sources-list__main" @click="startEdit(s.id)">

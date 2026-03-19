@@ -2,7 +2,7 @@
 
 A full-stack recipe management application with AI-powered recipe extraction from images.
 
-**Stack**: Vue 3 + Vite + TypeScript frontend, Node.js + Express backend, SQLite database (better-sqlite3), OpenAI GPT-4o vision API.
+**Stack**: Vue 3 + Vite + TypeScript frontend, Node.js + Express backend, SQLite database (better-sqlite3), OpenAI gpt-4.1-mini vision API.
 
 ## Features
 
@@ -107,9 +107,11 @@ Create a `.env` file in the **project root** based on [.env.example](.env.exampl
 - `STATIC_DIR` – Static files directory (default: `/app/public`)
 - `IMAGE_QUALITY` – WebP quality 0–100 for recipe and source images (default: `80`)
 - `IMAGE_MAX_DIMENSION` – Max longest-side dimension for recipe and source images; images are only downscaled, never upscaled (default: `2400`)
+- `THUMBNAIL_MAX_DIMENSION` – Max longest-side dimension for thumbnails shown on overview lists (default: `600`)
 - `TEXT_IMAGE_MAX_DIMENSION` – Max dimension for OpenAI text images (default: `1400`)
 - `OPENAI_EXTRACT_MODEL` – OpenAI model for extraction (default: `gpt-4.1-mini`)
 - `OPENAI_EXTRACT_DETAIL` – Vision API detail level: `low` | `high` | `auto` (default: `high`)
+- `OPENAI_NUTRITION_MODEL` – Model for nutrition estimation (default: `gpt-4o-mini`)
 - `CROP_PYTHON` – Python executable path for perspective crop (optional)
 
 ### Python Setup (Optional 4-Point Crop)
@@ -139,7 +141,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 - **better-sqlite3** – Fast, synchronous SQLite driver
 - **Sharp** – High-performance image processing
 - **Multer** – File upload handling
-- **OpenAI SDK** – GPT-4o vision API integration
+- **OpenAI SDK** – gpt-4.1-mini vision API integration
 
 ### Optional
 - **Python 3** – For perspective crop feature
@@ -167,6 +169,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 - **`PUT /api/recipes/:id`** – Update existing recipe
   - Body: Any recipe fields, `ingredients[]`, `recipe_steps[]` (replace existing)
+  - Ingredients are **replaced** (sections and ingredient rows deleted and re-inserted; IDs change). When each line includes `section_id` from `GET`, sections are grouped in list order by that id so multiple sections are not collapsed. Without `section_id`, grouping follows consecutive `section_heading` changes.
   - Set `status: 'confirmed'` to mark as final
   - Response: Updated recipe object
 

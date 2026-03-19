@@ -6,7 +6,7 @@
 import OpenAI from 'openai'
 import { getDb } from '../db/index.js'
 
-export const EXTRACT_PROMPT = `You are a recipe extractor. The user will provide one or more images containing recipe text
+export const EXTRACT_PROMPT = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
 Rules:
 - Extract only information that is actually visible in the image.
@@ -25,16 +25,14 @@ Rules:
 - For exact amounts, set amountMax equal to amount.
 
 - Keep step texts concise but faithful to the visible text.
+- Group closely related actions into one step when they belong to the same preparation phase and happen consecutively.
+- Do not create a separate step for every single verb.
+- Prefer fewer, more useful cooking steps over overly atomic action splitting.
+- Split steps only when there is a meaningful change in phase, tool, vessel, timing, or cooking process.
+- Keep ingredient prep for the same component together in one step where reasonable.
+- A step should represent a practical unit a cook would perform, not a grammatical clause.
 
 - Do not invent metadata that must come directly from the image (e.g. servings, times, titles).
-
-- nutritionTotal must always represent the estimated nutrition for the full recipe, based on all extracted ingredients together.
-- Never calculate nutritionTotal per portion, per serving, or per person.
-- Do not divide or scale nutritionTotal based on recipe.servings.
-- recipe.servings must be extracted separately and only used as serving metadata.
-- It is allowed and expected to estimate nutrition values using general knowledge about ingredients and amounts.
-- If ingredients are available, nutritionTotal should be filled whenever reasonably possible.
-- If ingredients are too unclear or incomplete to estimate nutrition reliably, set nutritionTotal fields to null and add a warning.
 
 - Extract tips, hints, or variations into the tips array if they are clearly separate from steps or introText.
 
@@ -60,7 +58,7 @@ export const RECIPE_JSON_SCHEMA = {
     recipe: {
       type: ['object', 'null'],
       additionalProperties: false,
-      required: ['title', 'subtitle', 'introText', 'language', 'servings', 'ingredientsSections', 'steps', 'nutritionTotal', 'tips'],
+      required: ['title', 'subtitle', 'introText', 'language', 'servings', 'ingredientsSections', 'steps', 'tips'],
       properties: {
         title: { type: ['string', 'null'] },
         subtitle: { type: ['string', 'null'] },
@@ -122,18 +120,6 @@ export const RECIPE_JSON_SCHEMA = {
           type: 'array',
           items: { type: 'string' },
           description: 'Tips, notes, variations, or cooking advice not part of steps',
-        },
-
-        nutritionTotal: {
-          type: ['object', 'null'],
-          additionalProperties: false,
-          required: ['kcal', 'protein', 'carbs', 'fat'],
-          properties: {
-            kcal: { type: ['number', 'null'] },
-            protein: { type: ['number', 'null'] },
-            carbs: { type: ['number', 'null'] },
-            fat: { type: ['number', 'null'] },
-          },
         },
       },
     },
