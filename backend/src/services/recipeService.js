@@ -5,7 +5,7 @@ const RECIPE_COLUMNS = [
   'id', 'source_id', 'source_page', 'import_method', 'extract_status', 'extract_confidence', 'extract_warnings', 'extract_missing_fields',
   'status', 'title', 'subtitle', 'description', 'language', 'servings_value', 'servings_unit_text',
   'nutrition_kcal', 'nutrition_protein', 'nutrition_carbs', 'nutrition_fat',
-  'prep_time_min', 'cook_time_min', 'image_path',
+  'prep_time_min', 'cook_time_min', 'image_path', 'image_urls_json',
   'created_at', 'updated_at',
 ]
 
@@ -313,8 +313,13 @@ export function createRecipe(body) {
   }
 
   const result = db.prepare(`
-    INSERT INTO recipes (source_id, source_page, import_method, extract_status, status, title, subtitle, description, language, servings_value, servings_unit_text, prep_time_min, cook_time_min, image_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO recipes (
+      source_id, source_page, import_method, extract_status, status,
+      title, subtitle, description, language, servings_value, servings_unit_text,
+      prep_time_min, cook_time_min, image_path, image_urls_json,
+      created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     sourceId,
     (recipe.source_page ?? '').trim() || null,
@@ -329,6 +334,7 @@ export function createRecipe(body) {
     recipe.prep_time_min ?? null,
     recipe.cook_time_min ?? null,
     recipe.image_path ?? null,
+    recipe.image_urls_json ?? null,
     now,
     now,
   )
@@ -404,6 +410,7 @@ export function updateRecipe(id, body) {
   const prep_time_min = (body && 'prep_time_min' in body) ? recipe.prep_time_min : existingRow.prep_time_min
   const cook_time_min = (body && 'cook_time_min' in body) ? recipe.cook_time_min : existingRow.cook_time_min
   const image_path = (body && 'image_path' in body) ? recipe.image_path : existingRow.image_path
+  const image_urls_json = (body && 'image_urls_json' in body) ? recipe.image_urls_json : existingRow.image_urls_json
   const import_method = (body && 'import_method' in body) ? (recipe.import_method ?? 'manual') : existingRow.import_method
   const extract_status = (body && 'extract_status' in body) ? recipe.extract_status : existingRow.extract_status
   const source_page = (body && 'source_page' in body) ? ((recipe.source_page ?? '').trim() || null) : (existingRow.source_page ?? null)
@@ -412,7 +419,7 @@ export function updateRecipe(id, body) {
     UPDATE recipes SET
       source_id = ?, source_page = ?, import_method = ?, extract_status = ?, status = ?,
       title = ?, subtitle = ?, description = ?, language = ?, servings_value = ?, servings_unit_text = ?,
-      prep_time_min = ?, cook_time_min = ?, image_path = ?,
+      prep_time_min = ?, cook_time_min = ?, image_path = ?, image_urls_json = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -430,6 +437,7 @@ export function updateRecipe(id, body) {
     prep_time_min ?? null,
     cook_time_min ?? null,
     image_path ?? null,
+    image_urls_json ?? null,
     now,
     Number(id),
   )
@@ -626,6 +634,7 @@ function rowToRecipe(row) {
     prep_time_min: row.prep_time_min,
     cook_time_min: row.cook_time_min,
     image_path: row.image_path,
+    image_urls_json: row.image_urls_json ?? null,
     image_thumb_path: getThumbnailPathIfExists(row.image_path),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -636,7 +645,7 @@ function sanitizeRecipeInput(body) {
   const allowed = [
     'source_id', 'source_page', 'import_method', 'extract_status', 'status',
     'title', 'subtitle', 'description', 'language', 'servings', 'servings_value', 'servings_unit_text',
-    'prep_time_min', 'cook_time_min', 'image_path',
+    'prep_time_min', 'cook_time_min', 'image_path', 'image_urls_json',
   ]
   const out = {}
   for (const key of allowed) {

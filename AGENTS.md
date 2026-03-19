@@ -37,6 +37,7 @@
 
 ## AI Integration
 
+- Raw recipe URL extraction (`recipeUrlExtractService.js`) uses JSON-LD and HTML only; optional LLM normalization (`recipeNormalizationService.js`, `normalizeRecipeWithLLM`) when `POST /api/recipes/extract-from-url` includes `normalize: true`
 - OpenAI vision API used for recipe extraction
 - Token usage logged to `extract_usage` table
 - Strict JSON schema validation (`RECIPE_JSON_SCHEMA`)
@@ -59,7 +60,7 @@
 
 ### Modifying OpenAI Extraction
 - Changes to `EXTRACT_PROMPT` or `RECIPE_JSON_SCHEMA` require testing
-- Monitor token usage in `extract_usage` table
+- Monitor token usage in `extract_usage` table (web UI: **Admin** → extract usage, or `GET /api/admin/extract-usage`)
 - Consider cost implications of prompt/schema changes
 
 ## Common Patterns

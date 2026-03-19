@@ -12,6 +12,12 @@ const router = createRouter({
         { path: 'recipes', name: 'recipes', component: () => import('../views/RecipesView.vue'), meta: { title: 'Recipes' } },
         { path: 'sources', name: 'sources', component: () => import('../views/SourcesView.vue'), meta: { title: 'Buchquellen' } },
         { path: 'shopping', name: 'shopping', component: () => import('../views/ShoppingView.vue'), meta: { title: 'Shopping' } },
+        {
+          path: 'admin/extract-usage',
+          name: 'admin-extract-usage',
+          component: () => import('../views/AdminExtractUsageView.vue'),
+          meta: { title: 'Admin · Extract usage' },
+        },
       ],
     },
   ],

@@ -180,21 +180,36 @@ export async function extractRecipeFromImages(imageBuffers) {
 
 /**
  * Log token usage and optional full JSON response for an extract run to extract_usage table (for debugging).
+ * @param {number|null|undefined} recipeId
+ * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number }|null|undefined} usage
+ * @param {unknown} responseJson
+ * @param {{ model?: string|null, extract_kind?: string|null, request_json?: string|null }} [meta] - request_json: input JSON sent to the model (URL normalize); null for vision
  */
-export function logExtractUsage(recipeId, usage, responseJson = null) {
+export function logExtractUsage(recipeId, usage, responseJson = null, meta = {}) {
   if (!usage && !responseJson) return
   const db = getDb()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
   const responseStr = responseJson != null ? (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson)) : null
+  const requestStr =
+    meta.request_json != null && String(meta.request_json).trim() !== ''
+      ? typeof meta.request_json === 'string'
+        ? meta.request_json
+        : JSON.stringify(meta.request_json)
+      : null
+  const model = meta.model != null ? String(meta.model) : null
+  const extract_kind = meta.extract_kind != null ? String(meta.extract_kind) : null
   db.prepare(`
-    INSERT INTO extract_usage (recipe_id, prompt_tokens, completion_tokens, total_tokens, response_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO extract_usage (recipe_id, prompt_tokens, completion_tokens, total_tokens, response_json, request_json, model, extract_kind, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     recipeId,
     usage?.prompt_tokens ?? null,
     usage?.completion_tokens ?? null,
     usage?.total_tokens ?? null,
     responseStr,
+    requestStr,
+    model,
+    extract_kind,
     now
   )
 }

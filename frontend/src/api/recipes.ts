@@ -158,6 +158,76 @@ export function listRecipesWithIngredients(): Promise<RecipeListItemWithIngredie
   )
 }
 
+/** Raw scrape from a webpage (JSON-LD / HTML); no LLM. */
+export type RecipeUrlExtractSource = 'jsonld' | 'jsonld+html' | 'html' | 'none'
+
+export interface RawRecipeFromUrl {
+  title: string | null
+  description: string | null
+  servings_raw: string | null
+  prep_time_min: number | null
+  cook_time_min: number | null
+  total_time_min: number | null
+  ingredient_lines: string[]
+  steps: string[]
+  image_urls: string[]
+}
+
+export interface RecipeUrlExtractResult {
+  source: RecipeUrlExtractSource
+  warnings: string[]
+  fetched_url: string
+  recipe: RawRecipeFromUrl
+}
+
+/** Same envelope as vision extract: status, confidence, inner recipe for DB/parsed_recipe flows */
+export interface NormalizedUrlRecipeEnvelope {
+  status: 'success' | 'partial' | 'failed'
+  confidence: number
+  warnings: string[]
+  missingFields: string[]
+  recipe: ParsedRecipeFromOcr | null
+}
+
+export interface RecipeUrlExtractResultWithNormalize extends RecipeUrlExtractResult {
+  structured: NormalizedUrlRecipeEnvelope
+  normalize_model: string
+  normalize_usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  } | null
+}
+
+export function extractRecipeFromUrl(
+  url: string,
+  options?: { normalize?: boolean }
+): Promise<RecipeUrlExtractResult | RecipeUrlExtractResultWithNormalize> {
+  return fetch(`${API_BASE}/recipes/extract-from-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, normalize: options?.normalize === true }),
+  }).then((res) => handleResponse<RecipeUrlExtractResult | RecipeUrlExtractResultWithNormalize>(res))
+}
+
+/** Scrape + LLM normalize + create draft recipe; usage logged server-side in extract_usage. */
+export interface RecipeUrlImportResult {
+  recipe: Recipe
+  scrape: {
+    source: RecipeUrlExtractSource
+    warnings: string[]
+    fetched_url: string
+  }
+}
+
+export function importRecipeFromUrl(url: string): Promise<RecipeUrlImportResult> {
+  return fetch(`${API_BASE}/recipes/import-from-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  }).then((res) => handleResponse<RecipeUrlImportResult>(res))
+}
+
 export function getRecipe(id: number): Promise<Recipe> {
   return fetch(`${API_BASE}/recipes/${id}`).then((res) => handleResponse<Recipe>(res))
 }

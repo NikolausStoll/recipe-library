@@ -5,6 +5,9 @@
       <button type="button" class="btn btn--secondary" @click="showImportOverlay = true">
         Add Recipe from Image
       </button>
+      <button type="button" class="btn btn--secondary" @click="showUrlImportOverlay = true">
+        Import from URL
+      </button>
     </div>
     <RecipeForm
       :initial="formInitial"
@@ -18,6 +21,11 @@
       v-if="showImportOverlay"
       @done="onImportDone"
       @close="showImportOverlay = false"
+    />
+    <RecipeUrlImportOverlay
+      v-if="showUrlImportOverlay"
+      @done="onImportDone"
+      @close="showUrlImportOverlay = false"
     />
     <div class="recipe-list-toolbar">
       <input
@@ -70,6 +78,7 @@
 import { ref, computed, onMounted } from 'vue'
 import RecipeForm from '../components/RecipeForm.vue'
 import RecipeImportOverlay from '../components/RecipeImportOverlay.vue'
+import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
 import {
   listRecipes,
   getRecipe,
@@ -88,6 +97,7 @@ const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
 const showImportOverlay = ref(false)
+const showUrlImportOverlay = ref(false)
 
 function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeFormPayload> & {
   parsed_recipe?: ParsedRecipeFromOcr | null
@@ -151,6 +161,7 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
 
 function onImportDone(recipe: Recipe) {
   showImportOverlay.value = false
+  showUrlImportOverlay.value = false
   editingId.value = recipe.id
   editingStatus.value = 'draft'
   formInitial.value = buildFormInitialFromImportedRecipe(recipe)

@@ -6,14 +6,23 @@
         <p class="recipes-subtitle">{{ recipes.length }} recipe{{ recipes.length !== 1 ? 's' : '' }} in your collection</p>
       </div>
       <div class="recipes-header__actions">
-        <button type="button" class="btn btn--primary btn--with-icon" @click="showImportOverlay = true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span>Import from Image</span>
-        </button>
+        <div class="recipes-header__import-group">
+          <button type="button" class="btn btn--primary btn--with-icon" @click="showImportOverlay = true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Import from Image</span>
+          </button>
+          <button type="button" class="btn btn--secondary btn--with-icon" @click="showUrlImportOverlay = true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Import from URL</span>
+          </button>
+        </div>
         <button type="button" class="btn btn--secondary" @click="openManualForm">
           + Add Recipe Manually
         </button>
@@ -24,6 +33,11 @@
       v-if="showImportOverlay"
       @done="onImportDone"
       @close="showImportOverlay = false"
+    />
+    <RecipeUrlImportOverlay
+      v-if="showUrlImportOverlay"
+      @done="onImportDone"
+      @close="showUrlImportOverlay = false"
     />
 
     <!-- Search and Filter Toolbar -->
@@ -163,13 +177,18 @@
         <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <h3>No recipes yet</h3>
-      <p>Start building your collection by importing a recipe from an image</p>
-      <button type="button" class="btn btn--primary" @click="showImportOverlay = true">
-        Import Your First Recipe
-      </button>
-      <button type="button" class="btn btn--secondary" @click="openManualForm">
-        Create Recipe Manually
-      </button>
+      <p>Start by importing from an image, a URL, or create a recipe manually</p>
+      <div class="empty-state__actions">
+        <button type="button" class="btn btn--primary" @click="showImportOverlay = true">
+          Import from Image
+        </button>
+        <button type="button" class="btn btn--secondary" @click="showUrlImportOverlay = true">
+          Import from URL
+        </button>
+        <button type="button" class="btn btn--secondary" @click="openManualForm">
+          Create Manually
+        </button>
+      </div>
     </div>
 
     <!-- Recipe Detail View -->
@@ -394,6 +413,7 @@ import Fuse from 'fuse.js'
 import type { FuseOptions } from 'fuse.js'
 import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
 import RecipeImportOverlay from '../components/RecipeImportOverlay.vue'
+import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
 import {
   listRecipesWithIngredients,
   getRecipe,
@@ -422,6 +442,7 @@ const searchQuery = ref('')
 const ingredientSearchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
 const showImportOverlay = ref(false)
+const showUrlImportOverlay = ref(false)
 const showRecipeForm = ref(false)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
@@ -562,6 +583,7 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
 
 function onImportDone(recipe: Recipe) {
   showImportOverlay.value = false
+  showUrlImportOverlay.value = false
   editingId.value = recipe.id
   editingStatus.value = 'draft'
   formInitial.value = buildFormInitialFromImportedRecipe(recipe)
@@ -599,6 +621,7 @@ const ingredientSections = computed(() => {
   const originalServings = recipe.servings || 1
   const scale = displayServings.value / originalServings
   const servingsChanged = displayServings.value !== originalServings
+  const isUrlRecipe = recipe.import_method === 'url' || recipe.source_type === 'url'
 
   const sections: { heading: string | null; key: string; items: string[] }[] = []
   const pushToSection = (heading: string | null, key: string, text: string) => {
@@ -610,21 +633,30 @@ const ingredientSections = computed(() => {
     section.items.push(text)
   }
 
+  const formatAmountRange = (amount: number | null | undefined, amountMax: number | null | undefined) => {
+    if (amount == null) return ''
+    const scaledMin = parseFloat(String(amount)) * scale
+    const roundedMin = Math.round(scaledMin * 100) / 100
+
+    if (amountMax != null && amountMax !== amount) {
+      const scaledMax = parseFloat(String(amountMax)) * scale
+      const roundedMax = Math.round(scaledMax * 100) / 100
+      return `${roundedMin}-${roundedMax}`
+    }
+    return `${roundedMin}`
+  }
+
   if (recipe.ingredients?.length) {
     for (const ing of recipe.ingredients) {
       let text = ''
-      if (!servingsChanged && ing.original_text) {
-        text = ing.original_text
+      const shouldShowOriginalText = !isUrlRecipe && !servingsChanged && ing.original_text
+      if (shouldShowOriginalText) {
+        text = ing.original_text ?? ''
       } else {
-        if (ing.amount) {
-          const scaledAmount = parseFloat(String(ing.amount)) * scale
-          const rounded = Math.round(scaledAmount * 100) / 100
-          text = `${rounded} `
-        }
-        if (ing.unit) text += `${ing.unit} `
-        text += ing.name || ing.ingredient || ''
-        if (ing.additional_info) text += ` (${ing.additional_info})`
-        text = text.trim()
+        const amountText = formatAmountRange(ing.amount ?? null, ing.amount_max ?? null)
+        const ingredientName = (ing.name || ing.ingredient || '').trim()
+        const additional = ing.additional_info ? ` (${ing.additional_info})` : ''
+        text = ([amountText, ing.unit ?? null, ingredientName].filter(Boolean).join(' ').trim() + additional).trim()
       }
       if (text) {
         const key = `section-${ing.section_id ?? 'manual'}-${ing.section_heading ?? 'no-heading'}`
@@ -635,13 +667,20 @@ const ingredientSections = computed(() => {
     recipe.parsed_recipe.ingredientsSections.forEach((section, idx) => {
       const sectionKey = `parsed-${idx}-${section.heading ?? 'no-heading'}`
       for (const item of section.items ?? []) {
-        const text = [item.amount, item.unit, item.ingredient || item.originalText]
+        const amountText = formatAmountRange(item.amount ?? null, (item as any).amountMax ?? null)
+        const ingredientName = (item.ingredient ?? '').trim()
+        const additional = (item as any).additionalInfo ? ` (${(item as any).additionalInfo})` : ''
+
+        let text = [amountText, item.unit ?? null, ingredientName]
           .filter(Boolean)
           .join(' ')
           .trim()
-        if (text) {
-          pushToSection(section.heading ?? null, sectionKey, text)
+
+        if (!isUrlRecipe && (!text || text === '')) {
+          text = (item.originalText ?? item.ingredient ?? '').trim()
         }
+
+        if (text || additional) pushToSection(section.heading ?? null, sectionKey, (text + additional).trim())
       }
     })
   }
@@ -971,7 +1010,16 @@ onBeforeUnmount(() => {
 
 .recipes-header__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.recipes-header__import-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
 }
 
 .btn {
@@ -1349,6 +1397,14 @@ onBeforeUnmount(() => {
   font-size: 1rem;
   color: var(--color-text-muted);
   margin: 0 0 var(--spacing-lg) 0;
+}
+
+.empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  align-items: center;
 }
 
 /* Recipe Detail View */

@@ -68,6 +68,7 @@ export function initDb() {
       prep_time_min INTEGER,
       cook_time_min INTEGER,
       image_path TEXT,
+      image_urls_json TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -112,6 +113,9 @@ export function initDb() {
       completion_tokens INTEGER,
       total_tokens INTEGER,
       response_json TEXT,
+      request_json TEXT,
+      model TEXT,
+      extract_kind TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -142,7 +146,11 @@ export function initDb() {
   addCol('recipe_sources', 'subtitle', 'TEXT')
   addCol('recipe_sources', 'year', 'INTEGER')
   addCol('recipe_sources', 'image_path', 'TEXT')
+  addCol('recipes', 'image_urls_json', 'TEXT')
   addCol('extract_usage', 'response_json', 'TEXT')
+  addCol('extract_usage', 'model', 'TEXT')
+  addCol('extract_usage', 'extract_kind', 'TEXT')
+  addCol('extract_usage', 'request_json', 'TEXT')
 
   // One-time migration: if old recipe schema (parsed_recipe_json, ingredients.name) exists, replace with RECIPE_JSON_SCHEMA-aligned schema
   const tableInfo = database.prepare('PRAGMA table_info(recipes)').all()
@@ -180,6 +188,7 @@ export function initDb() {
         prep_time_min INTEGER,
         cook_time_min INTEGER,
         image_path TEXT,
+        image_urls_json TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
@@ -219,6 +228,9 @@ export function initDb() {
         completion_tokens INTEGER,
         total_tokens INTEGER,
         response_json TEXT,
+        request_json TEXT,
+        model TEXT,
+        extract_kind TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
       CREATE TABLE recipe_history (

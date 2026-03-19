@@ -25,9 +25,11 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 ### Backend (`backend/src/`)
 - **Server**: Express.js on port 8097
 - **Database**: SQLite with better-sqlite3, schema in `db/index.js`
-- **Routes**: Organized in `routes/` (recipes, sources, upload, health)
+- **Routes**: Organized in `routes/` (recipes, sources, upload, health, admin)
 - **Services**:
   - `extractRecipeService.js` - OpenAI vision integration with structured JSON schema extraction
+  - `recipeUrlExtractService.js` - Fetch recipe HTML, extract raw fields from JSON-LD Recipe + HTML fallbacks (no LLM)
+  - `recipeNormalizationService.js` - LLM normalization of scraped raw recipe (`normalizeRecipeWithLLM`, `isLowQuality`); same JSON schema as vision extract; optional after `extract-from-url` when `normalize: true`
   - `recipeService.js` - Recipe CRUD operations
   - `sourceService.js` - Book source management
   - `imageProcessingService.js` - Image resizing, format conversion (Sharp)
@@ -66,6 +68,8 @@ Located in project root `.env`:
 - `IMAGE_QUALITY` - WebP quality (default: 80)
 - `IMAGE_MAX_DIMENSION` - Max dimension for uploaded images (default: 2400)
 - `TEXT_IMAGE_MAX_DIMENSION` - Max dimension for OpenAI text images (default: 1400)
+- `RECIPE_URL_FETCH_TIMEOUT_MS`, `RECIPE_URL_MAX_BYTES`, `RECIPE_URL_USER_AGENT` - Optional tuning for `POST /api/recipes/extract-from-url`
+- `OPENAI_NORMALIZE_MODEL_PRIMARY`, `OPENAI_NORMALIZE_MODEL_FALLBACK`, `OPENAI_NORMALIZE_TEMPERATURE` - Optional URL normalization (`extract-from-url` + `normalize: true`)
 - `OPENAI_API_KEY` - **Required** for recipe extraction
 - `OPENAI_EXTRACT_MODEL` - Model for extraction (default: `gpt-4.1-mini`)
 - `OPENAI_EXTRACT_DETAIL` - Vision detail level (default: `high`)
@@ -89,10 +93,15 @@ python3 -m venv venv
 - `POST /api/recipes` - Create recipe (stored as draft)
 - `PUT /api/recipes/:id` - Update recipe (can change status to confirmed)
 - `DELETE /api/recipes/:id` - Delete recipe (cascades)
+- `POST /api/recipes/extract-from-url` - Body `{ url, normalize? }`; returns raw `{ source, warnings, fetched_url, recipe }`; if `normalize: true`, adds `structured`, `normalize_model`, `normalize_usage` (OpenAI, primary `gpt-4o-mini` / fallback `gpt-4.1-mini` on low-quality heuristics)
+- `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `extract_usage` with `model` and `extract_kind: url_normalize`
 
 ### Image Import (Two-step process)
 1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`
 2. `POST /api/recipes/:id/extract-from-images` - Extract recipe text from images via OpenAI
+
+### Admin
+- `GET /api/admin/extract-usage` - List `extract_usage` with recipe title join and per-row cost estimate (see `extractUsagePricing.js`)
 
 ### Sources
 - `GET /api/sources` - List all sources
@@ -122,7 +131,7 @@ The recipe extraction uses OpenAI's vision API with a strict JSON schema (`RECIP
 - **Nutrition**: Estimated from ingredients (not extracted from image)
 
 ### Token Usage Tracking
-All OpenAI API calls log token usage to the `extract_usage` table for cost monitoring.
+All OpenAI API calls log token usage to the `extract_usage` table for cost monitoring (`model`, `extract_kind`: `vision` | `url_normalize`, `response_json`, and `request_json` when the model input is JSON—URL normalization stores the scraped raw recipe payload).
 
 ## Code Style Guidelines
 

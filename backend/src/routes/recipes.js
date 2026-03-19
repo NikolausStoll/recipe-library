@@ -8,6 +8,8 @@ import { extractRecipeFromImages, logExtractUsage } from '../services/extractRec
 import { prepareTextImage, writeResizedWebp } from '../services/imageProcessingService.js'
 import { cropPerspective, cropPerspectiveBuffer } from '../services/cropPerspectiveService.js'
 import { estimateRecipeNutrition } from '../services/nutritionService.js'
+import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
+import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
 import { buildThumbnailPath } from '../utils/uploadPaths.js'
 
 const router = Router()
@@ -97,6 +99,115 @@ router.get('/with-ingredients', (req, res) => {
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Failed to list recipes with ingredients' })
+  }
+})
+
+/**
+ * POST /api/recipes/extract-from-url – fetch HTML, extract raw recipe (JSON-LD first, HTML heuristics as fallback).
+ * Body: { url: string, normalize?: boolean }. If normalize is true, runs LLM normalization after scrape (requires OPENAI_API_KEY).
+ * Returns { source, warnings, fetched_url, recipe } and when normalize: { structured, normalize_model, normalize_usage }.
+ */
+router.post('/extract-from-url', async (req, res) => {
+  const rawUrl = req.body?.url
+  const url = rawUrl != null ? String(rawUrl).trim() : ''
+  if (!url) {
+    return res.status(400).json({ error: 'url is required' })
+  }
+  const wantNormalize = req.body?.normalize === true || req.body?.normalize === 'true'
+  try {
+    const result = await extractRecipeFromUrl(url)
+    if (!wantNormalize) {
+      return res.json(result)
+    }
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({
+        error: 'normalize requires OPENAI_API_KEY',
+        ...result,
+      })
+    }
+    try {
+      const { recipe: structured, usage: normalize_usage, model: normalize_model } =
+        await normalizeRecipeWithLLM(result.recipe)
+      return res.json({
+        ...result,
+        structured,
+        normalize_model,
+        normalize_usage: normalize_usage ?? null,
+      })
+    } catch (normErr) {
+      console.error('normalize-from-url failed:', normErr)
+      return res.status(500).json({
+        error: normErr instanceof Error ? normErr.message : 'Normalization failed',
+        ...result,
+      })
+    }
+  } catch (e) {
+    console.error('extract-from-url failed:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Extraction failed' })
+  }
+})
+
+/**
+ * POST /api/recipes/import-from-url – scrape URL, normalize with OpenAI, create draft recipe, log each LLM call to extract_usage.
+ * Body: { url: string }. Returns { recipe, scrape: { source, warnings, fetched_url } }.
+ */
+router.post('/import-from-url', async (req, res) => {
+  const rawUrl = req.body?.url
+  const url = rawUrl != null ? String(rawUrl).trim() : ''
+  if (!url) {
+    return res.status(400).json({ error: 'url is required' })
+  }
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(400).json({ error: 'OPENAI_API_KEY is required for URL import' })
+  }
+
+  let createdId = null
+  try {
+    const scraped = await extractRecipeFromUrl(url)
+    const draftTitle = scraped.recipe?.title?.trim() || 'Imported recipe'
+    const draft = recipeService.createRecipe({
+      title: draftTitle,
+      import_method: 'url',
+      description: scraped.fetched_url ? `Imported from ${scraped.fetched_url}` : null,
+    })
+    createdId = draft.id
+
+    // Store time and image URL metadata directly on the recipe row (not sent to the LLM).
+    const imageUrls = Array.isArray(scraped.recipe?.image_urls) ? scraped.recipe.image_urls : []
+    recipeService.updateRecipe(createdId, {
+      prep_time_min: scraped.recipe?.prep_time_min ?? null,
+      cook_time_min: scraped.recipe?.cook_time_min ?? null,
+      image_urls_json: JSON.stringify(imageUrls),
+    })
+
+    const { recipe: structured, attempts } = await normalizeRecipeWithLLM(scraped.recipe)
+    for (const a of attempts) {
+      if (a.usage || a.recipe) {
+        logExtractUsage(createdId, a.usage, a.recipe, {
+          model: a.model,
+          extract_kind: 'url_normalize',
+          request_json: a.request_json,
+        })
+      }
+    }
+
+    const updated = recipeService.setRecipeParsedRecipe(createdId, structured, { updateTitle: true })
+    res.status(201).json({
+      recipe: updated,
+      scrape: {
+        source: scraped.source,
+        warnings: scraped.warnings,
+        fetched_url: scraped.fetched_url,
+      },
+    })
+  } catch (e) {
+    if (createdId != null) {
+      try {
+        recipeService.deleteRecipe(createdId)
+      } catch (_) {}
+    }
+    console.error('import-from-url failed:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Import failed' })
   }
 })
 
@@ -367,7 +478,10 @@ router.post('/:id/extract-from-images', (req, res, next) => {
     )
     const { recipe: parsedRecipe, usage } = await extractRecipeFromImages(buffers)
     const updated = recipeService.setRecipeParsedRecipe(id, parsedRecipe, { updateTitle: true })
-    if (usage || parsedRecipe) logExtractUsage(id, usage, parsedRecipe)
+    const visionModel = process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini'
+    if (usage || parsedRecipe) {
+      logExtractUsage(id, usage, parsedRecipe, { model: visionModel, extract_kind: 'vision' })
+    }
     res.json({ recipe: updated, usage: usage || null })
   } catch (e) {
     console.error('Extract from images failed:', e)

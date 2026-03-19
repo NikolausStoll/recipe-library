@@ -57,6 +57,20 @@
             </svg>
             <span>Shopping</span>
           </router-link>
+          <router-link
+            to="/admin/extract-usage"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.name === 'admin-extract-usage' }"
+          >
+            <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M4 19H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M8 16V11" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M12 16V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M16 16V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span>Admin</span>
+          </router-link>
         </nav>
       </div>
     </header>

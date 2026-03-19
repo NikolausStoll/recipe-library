@@ -10,8 +10,11 @@ A full-stack recipe management application with AI-powered recipe extraction fro
 - **AI Recipe Import**: Two-step overlay workflow
   1. Optional: Upload recipe photo
   2. Upload recipe text image(s) → OpenAI vision extraction with structured JSON schema
+- **Recipe URL scrape**: `POST /api/recipes/extract-from-url` fetches HTML and extracts raw fields (JSON-LD + HTML heuristics). Optional `normalize: true` chains OpenAI (`gpt-4o-mini`, fallback `gpt-4.1-mini`) to structured JSON matching the vision-extract schema (German, metric-friendly units)
+- **Recipe URL import (full flow)**: `POST /api/recipes/import-from-url` creates a draft recipe, scrapes + normalizes with OpenAI, writes each LLM call to `extract_usage` (with `model` and `extract_kind`), then returns the recipe for editing in the UI
 - **Book Source Management**: Track recipes from cookbooks with metadata and cover images
 - **4-Point Perspective Crop**: Optional Python-based image perspective correction
+- **Admin · Extract usage**: Table of OpenAI token usage with per-request cost estimate (¢) for supported models
 - **Light/Dark Mode**: CSS custom properties for full theme support
 - **Token Usage Tracking**: Monitor OpenAI API costs via `extract_usage` table
 
@@ -50,7 +53,7 @@ recipe-library/
 - **ingredients**: Individual ingredients (amount, unit, ingredient, additional_info)
 - **recipe_steps**: Preparation steps
 - **recipe_tips**: Cooking tips and variations
-- **extract_usage**: OpenAI token usage log
+- **extract_usage**: OpenAI token usage log (`response_json`, optional `request_json` for JSON-in requests, `model`, `extract_kind`)
 
 ## Quick Start
 
@@ -113,6 +116,12 @@ Create a `.env` file in the **project root** based on [.env.example](.env.exampl
 - `OPENAI_EXTRACT_DETAIL` – Vision API detail level: `low` | `high` | `auto` (default: `high`)
 - `OPENAI_NUTRITION_MODEL` – Model for nutrition estimation (default: `gpt-4o-mini`)
 - `CROP_PYTHON` – Python executable path for perspective crop (optional)
+- `RECIPE_URL_FETCH_TIMEOUT_MS` – Max wait for URL fetch (default: `25000`)
+- `RECIPE_URL_MAX_BYTES` – Max HTML response size for URL extraction (default: `2000000`)
+- `RECIPE_URL_USER_AGENT` – `User-Agent` header for URL fetch (optional)
+- `OPENAI_NORMALIZE_MODEL_PRIMARY` – URL normalization LLM (default: `gpt-4o-mini`)
+- `OPENAI_NORMALIZE_MODEL_FALLBACK` – Retry model when quality heuristics fail (default: `gpt-4.1-mini`)
+- `OPENAI_NORMALIZE_TEMPERATURE` – 0–0.3 (default: `0.2`)
 
 ### Python Setup (Optional 4-Point Crop)
 
@@ -153,6 +162,9 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 ### Health Check
 - **`GET /api/health`** – Server health status
 
+### Admin
+- **`GET /api/admin/extract-usage`** – All `extract_usage` rows with joined recipe title, token counts, `response_json`, optional **`request_json`** (input JSON for URL normalization calls), `model`, `extract_kind`, plus estimated **`cost_usd`** / **`cost_cents`** (US cents) from built-in pricing for `gpt-4o-mini` and `gpt-4.1-mini` only; other models return `cost_cents: null`. Used by **Admin → Extract usage** in the web UI.
+
 ### Recipes
 
 #### List & Retrieve
@@ -175,6 +187,18 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 - **`DELETE /api/recipes/:id`** – Delete recipe
   - Cascades to ingredients, steps, tips, sections
+
+#### URL (raw extraction, no LLM)
+- **`POST /api/recipes/extract-from-url`** – Fetch a public recipe page and return raw extracted fields
+  - Body: `{ url: string, normalize?: boolean }` (http/https only; localhost and private IPs are rejected). Set `normalize: true` to run LLM normalization after scraping (requires `OPENAI_API_KEY`).
+  - Parses `application/ld+json` for schema.org `Recipe`, then fills gaps from HTML heuristics (e.g. WP Recipe Maker, common heading + list patterns)
+  - Response (scrape only): `{ source, warnings, fetched_url, recipe }` with stable empty fields when nothing is found
+  - Response (with `normalize: true`): same fields plus `structured` (same shape as vision extract: `status`, `confidence`, `warnings`, `missingFields`, `recipe`), `normalize_model`, `normalize_usage`. Uses `gpt-4o-mini` first; retries with `gpt-4.1-mini` if heuristics mark the first pass as low quality. No DB write; no nutrition in this step
+
+- **`POST /api/recipes/import-from-url`** – End-to-end URL import (same as app “Import from URL”)
+  - Body: `{ url: string }` (requires `OPENAI_API_KEY`)
+  - Creates a draft recipe (`import_method: url`), scrapes the page, normalizes with OpenAI; **each** LLM request is appended to `extract_usage` with `model` and `extract_kind: url_normalize` (fallback retry = second row)
+  - Response: `{ recipe, scrape: { source, warnings, fetched_url } }` with HTTP 201
 
 ### AI Import (Two-Step Process)
 

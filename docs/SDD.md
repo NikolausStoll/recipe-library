@@ -6,6 +6,7 @@
 Recipe Library is a full-stack web application for managing and digitizing recipes. The system enables users to:
 - Manually enter recipes with structured data (ingredients, steps, tips, nutrition)
 - Import recipes from images using AI-powered text extraction (OpenAI gpt-4.1-mini vision API)
+- Scrape raw recipe fields from public recipe URLs (JSON-LD / HTML heuristics, no LLM in this step)
 - Manage cookbook sources with metadata and cover images
 - Organize recipes by source, status (draft/confirmed), and servings
 - View and scale recipes with automatic ingredient amount calculation
@@ -59,6 +60,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 │  │  - /api/sources                                      │   │
 │  │  - /api/upload                                       │   │
 │  │  - /api/health                                       │   │
+│  │  - /api/admin                                        │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                            │                                 │
 │  ┌─────────────────────────────────────────────────────┐   │
@@ -66,6 +68,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 │  │  - recipeService.js                                  │   │
 │  │  - sourceService.js                                  │   │
 │  │  - extractRecipeService.js                           │   │
+│  │  - recipeUrlExtractService.js (URL → raw fields)       │   │
 │  │  - imageProcessingService.js                         │   │
 │  │  - cropPerspectiveService.js                         │   │
 │  └─────────────────────────────────────────────────────┘   │
@@ -180,6 +183,8 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | `RecipesView.vue` | Recipe list, detail view, edit overlay | Card grid, search/sort, servings adjustment, ingredient scaling |
 | `RecipeFormMultiStep.vue` | 4-step recipe form | Progress indicator, image upload, ingredients, steps, review |
 | `RecipeImportOverlay.vue` | AI import workflow | Camera/file upload, 4-point crop UI, OpenAI extraction |
+| `RecipeUrlImportOverlay.vue` | URL import | Paste URL, `POST /import-from-url`, opens same edit flow as image import |
+| `AdminExtractUsageView.vue` | Token / cost admin | Table of `extract_usage`, JSON expand, sums |
 | `SourcesView.vue` | Book source management | CRUD operations, cover upload with crop |
 | `DashboardView.vue` | Statistics and quick actions | Recipe counts, recent recipes, quick links |
 | `AppLayout.vue` | Main layout with navigation | Sticky header, route links, responsive design |
@@ -189,18 +194,24 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | Component | Responsibility | Inputs/Interfaces | Key Dependencies |
 |-----------|---------------|-------------------|------------------|
 | **Routes Layer** |
-| `recipes.js` | Recipe API endpoints | GET/POST/PUT/DELETE /api/recipes | recipeService, extractRecipeService |
+| `recipes.js` | Recipe API endpoints | GET/POST/PUT/DELETE /api/recipes, POST /extract-from-url, /import-from-url | recipeService, extractRecipeService, recipeUrlExtractService, recipeNormalizationService |
 | `sources.js` | Source API endpoints | GET/POST/PUT/DELETE /api/sources | sourceService |
 | `upload.js` | Recipe image upload | POST /api/upload | recipeService, Sharp |
 | `health.js` | Health check | GET /api/health | Database connection |
+| `admin.js` | Admin API | GET /admin/extract-usage | extractUsageAdminService |
 | **Service Layer** |
+| `extractUsageAdminService.js` | extract_usage listing | Join recipes for title | better-sqlite3, extractUsagePricing |
 | `recipeService.js` | Recipe CRUD operations | createRecipe, updateRecipe, getRecipeById, listRecipes | Database (better-sqlite3) |
 | `sourceService.js` | Source CRUD operations | createSource, updateSource, getSourceById, listSources | Database |
 | `extractRecipeService.js` | OpenAI vision integration | extractRecipeFromImages, logExtractUsage | OpenAI SDK, Database |
+| `recipeUrlExtractService.js` | URL → raw recipe fields | extractRecipeFromUrl (JSON-LD + HTML) | fetch, cheerio |
+| `recipeNormalizationService.js` | Raw URL recipe → structured JSON | normalizeRecipeWithLLM, isLowQuality | OpenAI SDK, RECIPE_JSON_SCHEMA |
 | `imageProcessingService.js` | Image resize/convert | prepareTextImage, resizeImage | Sharp |
 | `cropPerspectiveService.js` | 4-point perspective crop | cropPerspective, cropPerspectiveBuffer | Python subprocess, OpenCV |
 | **Database Layer** |
 | `db/index.js` | Database initialization | getDb, initDb | better-sqlite3 |
+| **Utils** |
+| `extractUsagePricing.js` | Token cost estimate | gpt-4o-mini / gpt-4.1-mini USD per 1M tokens | — |
 
 ## 4. Data Model (Core Entities)
 
@@ -302,11 +313,13 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 **Key Fields**:
 - `id` (PK) - Auto-increment ID
 - `recipe_id` (FK) - References recipes.id
-- `model` - OpenAI model used (gpt-4.1-mini)
 - `prompt_tokens` - Input tokens
 - `completion_tokens` - Output tokens
 - `total_tokens` - Sum of prompt + completion
-- `api_response` - Full API response (JSON)
+- `response_json` - Parsed recipe / response payload (JSON text)
+- `request_json` - JSON sent to the model when the call is text-based (e.g. URL scrape payload for `url_normalize`); null for vision-only calls
+- `model` - OpenAI model id used for that call (e.g. gpt-4.1-mini, gpt-4o-mini)
+- `extract_kind` - Operation type: `vision` (image extract) or `url_normalize` (URL scrape normalization); null for legacy rows
 - `created_at` - Timestamp
 
 **Relationships**:
@@ -317,7 +330,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | Story ID | Title | Affected Components | Affected Entities | NFR Notes |
 |----------|-------|---------------------|-------------------|-----------|
 | US-001 | Manual recipe entry | RecipeFormMultiStep, recipeService, recipes.js | recipes, recipe_ingredient_sections, ingredients, recipe_steps, recipe_tips | Validation: Required title, min 1 ingredient |
-| US-002 | AI recipe import | RecipeImportOverlay, extractRecipeService, recipes.js, upload.js | recipes, ingredients, recipe_steps, extract_usage | Performance: Image resize before API call; Cost: Token tracking |
+| US-002 | AI recipe import | RecipeImportOverlay, RecipeUrlImportOverlay, extractRecipeService, recipeNormalizationService, recipes.js, upload.js | recipes, ingredients, recipe_steps, extract_usage | Performance: Image resize before API call; Cost: Token tracking |
 | US-003 | View recipe list | RecipesView, recipeService | recipes, recipe_sources | Performance: No ingredients/steps in list query |
 | US-004 | View recipe detail | RecipesView, recipeService | recipes, ingredients, recipe_steps, recipe_tips | UI: Servings adjustment with ingredient scaling |
 | US-005 | Edit recipe | RecipeFormMultiStep, recipeService | All recipe-related entities | Data: Preserve original_text for OCR imports |
