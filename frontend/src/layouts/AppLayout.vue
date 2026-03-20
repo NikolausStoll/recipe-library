@@ -34,6 +34,21 @@
             <span>Recipes</span>
           </router-link>
           <router-link
+            to="/favorites"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.name === 'favorites' }"
+          >
+            <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 17.27L18.18 21L16.54 13.97L22 9.24L14.81 8.63L12 2L9.19 8.63L2 9.24L7.46 13.97L5.82 21L12 17.27Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span>Favorites</span>
+          </router-link>
+          <router-link
             to="/sources"
             class="nav-link"
             :class="{ 'nav-link--active': route.name === 'sources' }"

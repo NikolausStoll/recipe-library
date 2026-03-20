@@ -148,6 +148,23 @@
         <div class="recipe-card__actions">
           <button
             type="button"
+            class="recipe-card__action-btn recipe-card__action-btn--favorite"
+            :class="{ 'recipe-card__action-btn--favorite-active': recipe.favorite }"
+            :title="recipe.favorite ? 'Unfavorite' : 'Favorite'"
+            @click.stop="toggleFavorite(recipe.id)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 17.27L18.18 21L16.54 13.97L22 9.24L14.81 8.63L12 2L9.19 8.63L2 9.24L7.46 13.97L5.82 21L12 17.27Z"
+                :fill="recipe.favorite ? 'currentColor' : 'none'"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
             class="recipe-card__action-btn recipe-card__action-btn--edit"
             title="Edit recipe"
             @click.stop="startEdit(recipe.id)"
@@ -202,15 +219,14 @@
 
         <div class="recipe-detail-content">
           <!-- Hero Image -->
-          <div v-if="viewingRecipe.image_path" class="recipe-detail-hero">
+          <div v-if="viewingRecipe.image_path" class="recipe-detail-hero note-block note-block--image">
             <img :src="viewingRecipe.image_path" :alt="viewingRecipe.title" />
           </div>
 
           <!-- Header -->
-          <div class="recipe-detail-header">
+          <div class="recipe-detail-header note-block note-block--header">
             <h1 class="recipe-detail-title">{{ viewingRecipe.title }}</h1>
             <p v-if="viewingRecipe.subtitle" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
-            <p v-if="viewingRecipe.description" class="recipe-detail-description">{{ viewingRecipe.description }}</p>
 
             <div class="recipe-detail-meta">
               <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
@@ -233,52 +249,71 @@
             </div>
           </div>
 
-          <!-- Two Column Layout -->
-          <div class="recipe-detail-body">
-            <!-- Left: Steps -->
-            <div class="recipe-detail-section">
-              <h2 class="recipe-detail-section-title">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Instructions
-              </h2>
-              <ol class="recipe-steps-list">
-                <li v-for="(step, idx) in viewingRecipe.recipe_steps" :key="idx" class="recipe-step">
-                  <span class="recipe-step-number">{{ idx + 1 }}</span>
-                  <p class="recipe-step-text">{{ step.instruction }}</p>
-                </li>
-              </ol>
-            </div>
+          <!-- Description -->
+          <div v-if="viewingRecipe.description" class="note-block note-block--description">
+            <h2 class="note-block__title">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 4H20V20H4V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M8 8H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M8 12H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M8 16H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Description
+            </h2>
+            <p class="note-block__content">{{ viewingRecipe.description }}</p>
+          </div>
 
-            <!-- Right: Ingredients -->
-            <div class="recipe-detail-section recipe-detail-section--sticky">
-              <h2 class="recipe-detail-section-title">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Ingredients
-              </h2>
-              <div
-                v-for="(section, sidx) in ingredientSections"
-                :key="sidx"
-                class="recipe-ingredient-section"
-                :class="{ 'recipe-ingredient-section--with-heading': section.heading }"
-              >
-                <div v-if="section.heading" class="recipe-ingredient-section__heading">
-                  {{ section.heading }}
-                </div>
-                <ul class="recipe-ingredients-list">
-                  <li v-for="(text, idx) in section.items" :key="`${sidx}-${idx}`" class="recipe-ingredient">
-                    <span class="recipe-ingredient-text">{{ text }}</span>
-                  </li>
-                </ul>
+          <!-- Steps -->
+          <div class="note-block note-block--steps">
+            <h2 class="recipe-detail-section-title">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Instructions
+            </h2>
+            <ol class="recipe-steps-list">
+              <li v-for="(step, idx) in viewingRecipe.recipe_steps" :key="idx" class="recipe-step">
+                <span class="recipe-step-number">{{ idx + 1 }}</span>
+                <p class="recipe-step-text">{{ step.instruction }}</p>
+              </li>
+            </ol>
+          </div>
+
+          <!-- Ingredients -->
+          <div class="note-block note-block--ingredients">
+            <h2 class="recipe-detail-section-title">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Ingredients
+            </h2>
+            <div
+              v-for="(section, sidx) in ingredientSections"
+              :key="sidx"
+              class="recipe-ingredient-section"
+              :class="{ 'recipe-ingredient-section--with-heading': section.heading }"
+            >
+              <div v-if="section.heading" class="recipe-ingredient-section__heading">
+                {{ section.heading }}
               </div>
+              <ul class="recipe-ingredients-list">
+                <li v-for="(line, idx) in section.items" :key="`${sidx}-${idx}`" class="recipe-ingredient">
+                  <span
+                    v-if="line.category?.trim()"
+                    class="recipe-ingredient-category"
+                    :title="line.category"
+                  >
+                    <span class="recipe-ingredient-category__de">{{ getIngredientCategoryLabelDe(line.category) }}</span>
+                    <span class="recipe-ingredient-category__key">({{ line.category }})</span>
+                  </span>
+                  <span class="recipe-ingredient-text">{{ line.text }}</span>
+                </li>
+              </ul>
             </div>
           </div>
 
           <!-- Tips -->
-          <div v-if="viewingRecipe.tips?.length" class="recipe-detail-section recipe-detail-section--full">
+          <div v-if="viewingRecipe.tips?.length" class="note-block note-block--tips">
             <h2 class="recipe-detail-section-title">
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -291,64 +326,95 @@
           </div>
 
           <!-- Nutrition -->
-          <div v-if="hasNutrition" class="recipe-detail-section recipe-detail-section--full">
+          <div v-if="viewingRecipe" class="note-block note-block--nutrition">
             <h2 class="recipe-detail-section-title">
               <svg viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
               Nutrition Information
             </h2>
-            <div class="recipe-nutrition">
-            <div v-if="nutritionPerServing.kcal != null" class="recipe-nutrition-item">
-              <span class="recipe-nutrition-label">Calories per serving</span>
-              <span class="recipe-nutrition-value">{{ nutritionPerServing.kcal }} kcal</span>
+            <div v-if="hasNutrition" class="recipe-nutrition">
+              <div v-if="nutritionPerServing.kcal != null" class="recipe-nutrition-item">
+                <span class="recipe-nutrition-label">Calories per serving</span>
+                <span class="recipe-nutrition-value">{{ nutritionPerServing.kcal }} kcal</span>
+              </div>
+              <div v-if="nutritionPerServing.protein != null" class="recipe-nutrition-item">
+                <span class="recipe-nutrition-label">Protein per serving</span>
+                <span class="recipe-nutrition-value">{{ nutritionPerServing.protein }} g</span>
+              </div>
+              <div v-if="nutritionPerServing.carbs != null" class="recipe-nutrition-item">
+                <span class="recipe-nutrition-label">Carbs per serving</span>
+                <span class="recipe-nutrition-value">{{ nutritionPerServing.carbs }} g</span>
+              </div>
+              <div v-if="nutritionPerServing.fat != null" class="recipe-nutrition-item">
+                <span class="recipe-nutrition-label">Fat per serving</span>
+                <span class="recipe-nutrition-value">{{ nutritionPerServing.fat }} g</span>
+              </div>
             </div>
-            <div v-if="nutritionPerServing.protein != null" class="recipe-nutrition-item">
-              <span class="recipe-nutrition-label">Protein per serving</span>
-              <span class="recipe-nutrition-value">{{ nutritionPerServing.protein }} g</span>
-            </div>
-            <div v-if="nutritionPerServing.carbs != null" class="recipe-nutrition-item">
-              <span class="recipe-nutrition-label">Carbs per serving</span>
-              <span class="recipe-nutrition-value">{{ nutritionPerServing.carbs }} g</span>
-            </div>
-            <div v-if="nutritionPerServing.fat != null" class="recipe-nutrition-item">
-              <span class="recipe-nutrition-label">Fat per serving</span>
-              <span class="recipe-nutrition-value">{{ nutritionPerServing.fat }} g</span>
-            </div>
+
+            <div class="recipe-detail-nutrition-cta">
+              <button
+                type="button"
+                class="btn btn--secondary"
+                @click="requestDetailNutritionEstimate"
+                :disabled="nutritionLoading"
+              >
+                {{ nutritionLoading ? 'Estimating nutrition…' : hasNutrition ? 'Recalculate nutrition' : 'Estimate nutrition' }}
+              </button>
+              <span v-if="nutritionLoading" class="recipe-detail-nutrition-cta__status">Updating nutrition…</span>
             </div>
           </div>
-        <div class="recipe-detail-history" v-if="viewingRecipe">
-          <div class="recipe-detail-history__header">
-            <h2>Cook History</h2>
-            <button
-              type="button"
-              class="btn btn--secondary"
-              :disabled="hasCookedToday(viewingRecipe.id)"
-              @click="markCookedToday(viewingRecipe.id)"
-            >
-              {{ hasCookedToday(viewingRecipe.id) ? 'Cooked today' : 'Mark cooked today' }}
-            </button>
+
+          <!-- Cooking history -->
+          <div class="note-block note-block--history" v-if="viewingRecipe">
+            <div class="recipe-detail-history__header">
+              <h2 class="recipe-detail-section-title" style="margin: 0;">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M12 8V12L14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Cook History
+              </h2>
+              <button
+                type="button"
+                class="btn btn--secondary"
+                :disabled="hasCookedToday(viewingRecipe.id)"
+                @click="markCookedToday(viewingRecipe.id)"
+              >
+                {{ hasCookedToday(viewingRecipe.id) ? 'Cooked today' : 'Mark cooked today' }}
+              </button>
+            </div>
+            <p v-if="historySummary(viewingRecipe.id)" class="recipe-detail-history__summary">
+              {{ historySummary(viewingRecipe.id) }}
+            </p>
+            <ul class="recipe-detail-history__list">
+              <li v-for="date in recipeHistories[viewingRecipe.id] ?? []" :key="date">
+                {{ date }}
+              </li>
+            </ul>
           </div>
-          <p v-if="historySummary(viewingRecipe.id)" class="recipe-detail-history__summary">
-            {{ historySummary(viewingRecipe.id) }}
-          </p>
-          <ul class="recipe-detail-history__list">
-            <li v-for="date in recipeHistories[viewingRecipe.id] ?? []" :key="date">
-              {{ date }}
-            </li>
-          </ul>
         </div>
-          <div v-if="viewingRecipe" class="recipe-detail-nutrition-cta">
-            <button
-              type="button"
-              class="btn btn--secondary"
-              @click="requestDetailNutritionEstimate"
-              :disabled="nutritionLoading"
-            >
-              {{ nutritionLoading ? 'Estimating nutrition…' : hasNutrition ? 'Recalculate nutrition' : 'Estimate nutrition' }}
-            </button>
-            <span v-if="nutritionLoading" class="recipe-detail-nutrition-cta__status">Updating nutrition…</span>
-          </div>
+      </div>
+    </div>
+
+    <!-- Would cook again prompt (shown once after first "Mark cooked today") -->
+    <div
+      v-if="showWouldCookAgainPrompt"
+      class="would-cook-again-overlay"
+      @click.self="showWouldCookAgainPrompt = false"
+    >
+      <div class="would-cook-again-panel">
+        <h3>Would you cook this again?</h3>
+        <p class="would-cook-again-subtitle">Select one option. You can always change it later in Edit Recipe.</p>
+        <div class="would-cook-again-actions">
+          <button type="button" class="btn btn--primary" @click="setWouldCookAgain('yes')">Yes</button>
+          <button type="button" class="btn btn--secondary" @click="setWouldCookAgain('maybe')">Maybe</button>
+          <button type="button" class="btn btn--secondary" @click="setWouldCookAgain('no')">No</button>
+        </div>
+        <div class="would-cook-again-close">
+          <button type="button" class="btn btn--secondary btn--block" @click="showWouldCookAgainPrompt = false">
+            Not now
+          </button>
         </div>
       </div>
     </div>
@@ -408,7 +474,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Fuse from 'fuse.js'
 import type { FuseOptions } from 'fuse.js'
 import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
@@ -416,6 +482,7 @@ import RecipeImportOverlay from '../components/RecipeImportOverlay.vue'
 import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
 import {
   listRecipesWithIngredients,
+  listRecipesWithIngredientsFiltered,
   getRecipe,
   createRecipe,
   updateRecipe,
@@ -423,7 +490,9 @@ import {
   estimateRecipeNutrition,
   postRecipeCooked,
   getRecipeHistory,
+  setRecipeFavorite,
 } from '../api/recipes'
+import { getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 import type {
   Recipe,
   RecipeListItemWithIngredients,
@@ -431,6 +500,8 @@ import type {
   ParsedRecipeFromOcr,
 } from '../api/recipes'
 import { getPerServingValue } from '../utils/nutrition'
+
+const props = defineProps<{ favoritesOnly?: boolean }>()
 
 const recipes = ref<RecipeListItemWithIngredients[]>([])
 const loading = ref(true)
@@ -456,6 +527,10 @@ const coverOverlay = ref<{ visible: boolean; x: number; y: number; src?: string 
 const recipeHistories = ref<Record<number, string[]>>({})
 const nutritionLoading = ref(false)
 
+const showWouldCookAgainPrompt = ref(false)
+const wouldCookAgainRecipeId = ref<number | null>(null)
+const wouldCookAgainValue = ref<'yes' | 'maybe' | 'no' | null>(null)
+
 async function loadRecipeHistories(recipeIds: number[]) {
   const map: Record<number, string[]> = {}
   await Promise.all(
@@ -477,8 +552,37 @@ async function markCookedToday(recipeId: number) {
   try {
     const res = await postRecipeCooked(recipeId)
     recipeHistories.value = { ...recipeHistories.value, [recipeId]: res.history }
+
+    const current = viewingRecipe.value?.id === recipeId ? viewingRecipe.value : null
+    const would = current?.would_cook_again ?? null
+    if (would == null) {
+      wouldCookAgainRecipeId.value = recipeId
+      wouldCookAgainValue.value = null
+      showWouldCookAgainPrompt.value = true
+    }
   } catch (err) {
     console.error('Failed to mark recipe cooked:', err)
+  }
+}
+
+async function setWouldCookAgain(value: 'yes' | 'maybe' | 'no') {
+  const recipeId = wouldCookAgainRecipeId.value
+  if (!recipeId) return
+
+  try {
+    const updated = await updateRecipe(recipeId, { would_cook_again: value } as any)
+    showWouldCookAgainPrompt.value = false
+    wouldCookAgainRecipeId.value = null
+    wouldCookAgainValue.value = value
+
+    if (viewingRecipe.value?.id === recipeId) {
+      ;(viewingRecipe.value as any).would_cook_again = updated?.would_cook_again ?? value
+    }
+    if (editingId.value === recipeId && formInitial.value) {
+      ;(formInitial.value as any).would_cook_again = updated?.would_cook_again ?? value
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to update would cook again'
   }
 }
 
@@ -527,9 +631,11 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
     amount: string
     unit: string
     name: string
+    category?: string | null
     section_id?: number | null
     section_heading?: string | null
     original_text?: string | null
+    additional_info?: string | null
   }
   const ingredients: Ing[] = []
   if (recipe.ingredients?.length) {
@@ -538,9 +644,11 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
         amount: ing.amount != null ? String(ing.amount) : '',
         unit: ing.unit ?? '',
         name: ing.name ?? ing.ingredient ?? '',
+        category: ing.category ?? null,
         section_id: ing.section_id ?? null,
         section_heading: ing.section_heading ?? null,
         original_text: ing.original_text ?? null,
+        additional_info: ing.additional_info ?? (ing as { additionalInfo?: string | null }).additionalInfo ?? null,
       })
     }
   } else if (pr?.ingredientsSections?.length) {
@@ -550,13 +658,15 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
           amount: item.amount != null ? String(item.amount) : '',
           unit: (item as any).unit ?? '',
           name: (item as any).ingredient ?? (item as any).originalText ?? '',
+          category: (item as any).category ?? null,
           section_heading: section.heading ?? null,
           original_text: (item as any).originalText ?? null,
+          additional_info: (item as any).additionalInfo ?? null,
         })
       }
     }
   }
-  if (ingredients.length === 0) ingredients.push({ amount: '', unit: '', name: '' })
+  if (ingredients.length === 0) ingredients.push({ amount: '', unit: '', name: '', additional_info: null })
 
   const recipe_steps = (pr?.steps ?? []).map((s) => ({ instruction: s?.text?.trim() ?? '' }))
   if (recipe_steps.length === 0) recipe_steps.push({ instruction: '' })
@@ -621,16 +731,18 @@ const ingredientSections = computed(() => {
   const originalServings = recipe.servings || 1
   const scale = displayServings.value / originalServings
   const servingsChanged = displayServings.value !== originalServings
-  const isUrlRecipe = recipe.import_method === 'url' || recipe.source_type === 'url'
+  const isImageBookRecipe = recipe.import_method === 'image' && recipe.source_id != null && recipe.source_type === 'book'
+  const shouldShowOriginalText = isImageBookRecipe && !servingsChanged
 
-  const sections: { heading: string | null; key: string; items: string[] }[] = []
-  const pushToSection = (heading: string | null, key: string, text: string) => {
+  type IngredientLine = { text: string; category: string | null }
+  const sections: { heading: string | null; key: string; items: IngredientLine[] }[] = []
+  const pushToSection = (heading: string | null, key: string, text: string, category: string | null = null) => {
     let section = sections.length ? sections[sections.length - 1] : null
     if (!section || section.key !== key) {
       sections.push({ heading, key, items: [] })
       section = sections[sections.length - 1]
     }
-    section.items.push(text)
+    section.items.push({ text, category })
   }
 
   const formatAmountRange = (amount: number | null | undefined, amountMax: number | null | undefined) => {
@@ -649,8 +761,8 @@ const ingredientSections = computed(() => {
   if (recipe.ingredients?.length) {
     for (const ing of recipe.ingredients) {
       let text = ''
-      const shouldShowOriginalText = !isUrlRecipe && !servingsChanged && ing.original_text
-      if (shouldShowOriginalText) {
+      const cat = ing.category?.trim() ? ing.category.trim() : null
+      if (shouldShowOriginalText && ing.original_text) {
         text = ing.original_text ?? ''
       } else {
         const amountText = formatAmountRange(ing.amount ?? null, ing.amount_max ?? null)
@@ -660,7 +772,7 @@ const ingredientSections = computed(() => {
       }
       if (text) {
         const key = `section-${ing.section_id ?? 'manual'}-${ing.section_heading ?? 'no-heading'}`
-        pushToSection(ing.section_heading ?? null, key, text)
+        pushToSection(ing.section_heading ?? null, key, text, cat)
       }
     }
   } else if (recipe.parsed_recipe?.ingredientsSections?.length) {
@@ -668,19 +780,23 @@ const ingredientSections = computed(() => {
       const sectionKey = `parsed-${idx}-${section.heading ?? 'no-heading'}`
       for (const item of section.items ?? []) {
         const amountText = formatAmountRange(item.amount ?? null, (item as any).amountMax ?? null)
-        const ingredientName = (item.ingredient ?? '').trim()
-        const additional = (item as any).additionalInfo ? ` (${(item as any).additionalInfo})` : ''
+      const ingredientName = (item.ingredient ?? '').trim()
+      const additional = (item as any).additionalInfo ? ` (${(item as any).additionalInfo})` : ''
+      const catRaw = (item as { category?: string | null }).category
+      const cat = catRaw?.trim() ? catRaw.trim() : null
 
-        let text = [amountText, item.unit ?? null, ingredientName]
+      let text = ''
+      if (shouldShowOriginalText && item.originalText?.trim()) {
+        text = item.originalText.trim()
+      } else {
+        text = [amountText, item.unit ?? null, ingredientName]
           .filter(Boolean)
           .join(' ')
           .trim()
+        text = (text + additional).trim()
+      }
 
-        if (!isUrlRecipe && (!text || text === '')) {
-          text = (item.originalText ?? item.ingredient ?? '').trim()
-        }
-
-        if (text || additional) pushToSection(section.heading ?? null, sectionKey, (text + additional).trim())
+      if (text) pushToSection(section.heading ?? null, sectionKey, text, cat)
       }
     })
   }
@@ -760,7 +876,7 @@ async function loadList() {
   loading.value = true
   error.value = ''
   try {
-    const data = await listRecipesWithIngredients()
+    const data = props.favoritesOnly ? await listRecipesWithIngredientsFiltered({ favoriteOnly: true }) : await listRecipesWithIngredients()
     recipes.value = data
     rebuildFuse()
     await loadRecipeHistories(data.map((recipe) => recipe.id))
@@ -768,6 +884,27 @@ async function loadList() {
     error.value = e instanceof Error ? e.message : 'Failed to load recipes'
   } finally {
     loading.value = false
+  }
+}
+
+async function toggleFavorite(recipeId: number) {
+  const current = recipes.value.find((r) => r.id === recipeId)
+  if (!current) return
+  const nextFavorite = !current.favorite
+
+  try {
+    const updated = await setRecipeFavorite(recipeId, nextFavorite)
+    // Keep UI in sync quickly; if we are on favorites-only page, refresh list to apply server filter.
+    const updatedFav = updated?.recipe?.favorite ?? nextFavorite
+    current.favorite = updatedFav
+    if (viewingRecipe.value?.id === recipeId) {
+      ;(viewingRecipe.value as any).favorite = updatedFav
+    }
+    if (props.favoritesOnly && !updatedFav) {
+      await loadList()
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to update favorite'
   }
 }
 
@@ -853,13 +990,16 @@ function startEdit(id: number) {
       source_id: recipe.source_id ?? null,
       source_page: recipe.source_page ?? '',
       image_path: recipe.image_path ?? null,
+      would_cook_again: recipe.would_cook_again ?? null,
       ingredients: recipe.ingredients.map((ing) => ({
         amount: ing.amount != null ? String(ing.amount) : '',
         unit: ing.unit ?? '',
         name: ing.name ?? ing.ingredient ?? '',
+        category: ing.category ?? null,
         section_id: ing.section_id ?? null,
         section_heading: ing.section_heading ?? null,
         original_text: ing.original_text ?? null,
+        additional_info: ing.additional_info ?? (ing as any).additionalInfo ?? null,
       })),
       recipe_steps: recipe.recipe_steps.map((s) => ({ instruction: s.instruction ?? '' })),
       parsed_recipe: recipe.parsed_recipe ?? null,
@@ -928,7 +1068,13 @@ async function onFormSubmit(
       }
     }
 
-    closeEdit()
+    // Keep the edit overlay open after saving.
+    // We refresh data so the form reflects what was persisted.
+    if (recipeId) {
+      // Refresh form data without closing overlay
+      startEdit(recipeId)
+    }
+
     if (options?.estimateNutrition && recipeId) {
       await runNutritionEstimate(recipeId, { refreshList: true })
     } else {
@@ -968,6 +1114,20 @@ onMounted(() => {
   loadList()
   document.addEventListener('click', hideCoverOverlay)
 })
+
+watch(
+  () => props.favoritesOnly,
+  async () => {
+    await loadList()
+    // Avoid showing stale detail/edit state from the previous listing filter.
+    viewingRecipe.value = null
+    editingId.value = null
+    formInitial.value = null
+    editingStatus.value = null
+    showRecipeForm.value = false
+    displayServings.value = 1
+  }
+)
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', hideCoverOverlay)
@@ -1350,6 +1510,18 @@ onBeforeUnmount(() => {
   color: white;
 }
 
+.recipe-card__action-btn--favorite {
+  color: var(--color-text-muted);
+}
+
+.recipe-card__action-btn--favorite:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.recipe-card__action-btn--favorite-active {
+  color: var(--color-primary);
+}
+
 /* Messages */
 .error-message,
 .loading-message {
@@ -1681,6 +1853,10 @@ onBeforeUnmount(() => {
 }
 
 .recipe-ingredient {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
   padding: var(--spacing-sm) 0;
   border-bottom: 1px solid var(--color-border);
 }
@@ -1689,7 +1865,38 @@ onBeforeUnmount(() => {
   border-bottom: none;
 }
 
+.recipe-ingredient-category {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.35rem;
+  max-width: 100%;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  background: var(--color-bg-muted);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.recipe-ingredient-category__de {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.recipe-ingredient-category__key {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  font-family: ui-monospace, monospace;
+}
+
 .recipe-ingredient-text {
+  flex: 1;
+  min-width: 0;
   color: var(--color-text);
   font-size: 0.95rem;
   line-height: 1.5;
@@ -1918,6 +2125,139 @@ onBeforeUnmount(() => {
   padding: var(--spacing-xl);
 }
 
+/* Would Cook Again prompt */
+.would-cook-again-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  background: var(--color-bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  backdrop-filter: blur(4px);
+}
+
+.would-cook-again-panel {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 520px;
+  width: 100%;
+  padding: var(--spacing-xl);
+  border: 1px solid var(--color-border);
+}
+
+.would-cook-again-panel h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.would-cook-again-subtitle {
+  margin: 0 0 var(--spacing-lg) 0;
+  color: var(--color-text-muted);
+}
+
+.would-cook-again-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.would-cook-again-actions .btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+.would-cook-again-close {
+  margin-top: var(--spacing-lg);
+}
+
+/* Note/Paper blocks (recipe detail) */
+.note-block {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-xl);
+  position: relative;
+  overflow: hidden;
+  transform-origin: center;
+}
+
+.note-block::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(0, 0, 0, 0.06), transparent 35%),
+    radial-gradient(circle at 80% 10%, rgba(0, 0, 0, 0.05), transparent 40%),
+    radial-gradient(circle at 30% 90%, rgba(0, 0, 0, 0.04), transparent 45%),
+    repeating-linear-gradient(
+      25deg,
+      rgba(0, 0, 0, 0.03),
+      rgba(0, 0, 0, 0.03) 2px,
+      transparent 2px,
+      transparent 7px
+    );
+  opacity: 0.35;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.note-block--image {
+  padding: 0;
+  transform: rotate(-0.6deg);
+}
+
+.note-block--header {
+  transform: rotate(0.35deg);
+  padding: 0 var(--spacing-xl);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.note-block--description {
+  transform: rotate(-0.2deg);
+}
+
+.note-block--steps {
+  transform: rotate(0.2deg);
+}
+
+.note-block--ingredients {
+  transform: rotate(-0.15deg);
+}
+
+.note-block--tips {
+  transform: rotate(0.1deg);
+}
+
+.note-block--nutrition {
+  transform: rotate(-0.1deg);
+}
+
+.note-block--history {
+  transform: rotate(0.2deg);
+}
+
+.note-block__title,
+.recipe-detail-section-title {
+  position: relative;
+  z-index: 1;
+}
+
+.note-block__content {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
 @media (max-width: 768px) {
   .recipes-title {
     font-size: 1.75rem;
@@ -2016,10 +2356,6 @@ onBeforeUnmount(() => {
     right: var(--spacing-sm);
     width: 40px;
     height: 40px;
-  }
-
-  .recipe-ingredient {
-    grid-template-columns: 80px 1fr;
   }
 
   .recipe-nutrition {

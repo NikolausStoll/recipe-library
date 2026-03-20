@@ -94,11 +94,42 @@ router.get('/:id/history', (req, res) => {
  */
 router.get('/with-ingredients', (req, res) => {
   try {
-    const recipes = recipeService.listRecipesWithIngredients()
+    const favoriteOnly =
+      req.query.favorite === '1' ||
+      req.query.favorite === 'true' ||
+      req.query.favorite === 1 ||
+      req.query.favorite === true
+
+    const recipes = recipeService.listRecipesWithIngredients({ favoriteOnly })
     res.json(recipes)
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Failed to list recipes with ingredients' })
+  }
+})
+
+/**
+ * POST /api/recipes/:id/favorite – mark/unmark recipe as favorite.
+ * Body: { favorite: boolean }
+ */
+router.post('/:id/favorite', (req, res) => {
+  const id = Number(req.params.id)
+  const favoriteRaw = req.body?.favorite
+  const favorite =
+    favoriteRaw === true ||
+    favoriteRaw === 1 ||
+    favoriteRaw === '1' ||
+    favoriteRaw === 'true'
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' })
+  }
+  try {
+    const updated = recipeService.setRecipeFavorite(id, favorite)
+    res.json({ recipe: updated })
+  } catch (e) {
+    console.error('setRecipeFavorite failed:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to set favorite' })
   }
 })
 

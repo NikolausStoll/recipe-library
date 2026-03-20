@@ -237,6 +237,8 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - `source_id` (FK) - References recipe_sources.id
 - `source_page` - Page number in cookbook
 - `import_method` - Enum: 'manual' | 'url' | 'image'
+- `favorite` - Boolean flag (0/1) for marking a recipe as favorite
+- `would_cook_again` - User rating for "would you cook this again?" (`yes` | `maybe` | `no`)
 - `extract_status` - Enum: 'pending' | 'done' | 'failed' (nullable)
 - `extract_confidence` - AI extraction confidence score (0-1)
 - `status` - Enum: 'draft' | 'confirmed'
@@ -341,6 +343,8 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | US-010 | Search/filter recipes | RecipesView | recipes | Performance: Add index on title for search |
 | US-011 | Recipe status (draft/confirmed) | RecipeFormMultiStep, recipeService | recipes.status | Workflow: Draft → Confirmed (one-way) |
 | US-012 | Token usage monitoring | extractRecipeService | extract_usage | Cost: Log all OpenAI API calls |
+| US-013 | Favorite recipes | RecipesView, AppLayout, recipes.js | recipes.favorite | UI: Star toggle + favorites-only listing |
+| US-014 | Would cook again rating | RecipesView, RecipeFormMultiStep, recipes.js | recipes.would_cook_again | UI: prompt after first "Mark cooked today" + selectable in Edit Recipe |
 
 ## 6. Important Design Rules
 

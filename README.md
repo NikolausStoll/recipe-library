@@ -50,7 +50,7 @@ recipe-library/
 - **recipe_sources**: Book/URL/manual sources (type, name, author, year, image_path)
 - **recipes**: Main recipe table (title, description, servings, nutrition, extract metadata, status: draft|confirmed)
 - **recipe_ingredient_sections**: Ingredient groupings with headings
-- **ingredients**: Individual ingredients (amount, unit, ingredient, additional_info)
+- **ingredients**: Individual ingredients (amount, unit, ingredient, additional_info, optional **category** – must be one of the canonical keys in `backend/src/constants/ingredientCategories.js`; the recipe form uses German labels mapped to those keys)
 - **recipe_steps**: Preparation steps
 - **recipe_tips**: Cooking tips and variations
 - **extract_usage**: OpenAI token usage log (`response_json`, optional `request_json` for JSON-in requests, `model`, `extract_kind`)
@@ -169,10 +169,19 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 #### List & Retrieve
 - **`GET /api/recipes`** – List all recipes (excludes ingredients/steps for performance)
-  - Response: `[{ id, title, subtitle, image_path, status, ... }]`
+  - Response: `[{ id, title, subtitle, image_path, status, favorite, would_cook_again, ... }]`
 
 - **`GET /api/recipes/:id`** – Get single recipe with full details
-  - Response: `{ id, title, ..., ingredients: [...], recipe_steps: [...], recipe_tips: [...] }`
+  - Response: `{ id, title, ..., favorite, would_cook_again, ingredients: [...], recipe_steps: [...], recipe_tips: [...] }`
+
+#### Favorites
+- **`POST /api/recipes/:id/favorite`** – Mark/unmark a recipe as favorite
+  - Body: `{ favorite: boolean }`
+  - Response: `{ recipe: { ..., favorite } }`
+
+- **`GET /api/recipes/with-ingredients?favorite=1`** – List recipes including flattened ingredients for filtering
+  - When `favorite=1`, returns only favorite recipes
+  - Response: `[{ ..., ingredients: [...], favorite }]`
 
 #### Create & Update
 - **`POST /api/recipes`** – Create new recipe (stored as `draft`)
@@ -182,6 +191,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 - **`PUT /api/recipes/:id`** – Update existing recipe
   - Body: Any recipe fields, `ingredients[]`, `recipe_steps[]` (replace existing)
   - Ingredients are **replaced** (sections and ingredient rows deleted and re-inserted; IDs change). When each line includes `section_id` from `GET`, sections are grouped in list order by that id so multiple sections are not collapsed. Without `section_id`, grouping follows consecutive `section_heading` changes.
+  - Set `would_cook_again` to one of `yes` | `maybe` | `no`
   - Set `status: 'confirmed'` to mark as final
   - Response: Updated recipe object
 

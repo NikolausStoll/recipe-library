@@ -191,6 +191,18 @@
           </div>
         </div>
 
+        <div class="form-row">
+          <div class="form-field">
+            <label for="would-cook-again">Would you cook this again?</label>
+            <select id="would-cook-again" v-model="form.would_cook_again" class="form-input">
+              <option :value="null">— Not set —</option>
+              <option value="yes">Yes</option>
+              <option value="maybe">Maybe</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+
         <!-- Source Selection -->
         <div class="form-section">
           <h4 class="form-section__title">Source</h4>
@@ -237,10 +249,35 @@
             </div>
           </div>
         </div>
+
+        <!-- AI Extraction Info (moved from Review step) -->
+        <div v-if="hasExtractionFeedback" class="review-card review-card--info">
+          <div class="review-card__header">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h4>AI Extraction Info</h4>
+          </div>
+          <dl class="review-list">
+            <div v-if="extractConfidence != null">
+              <dt>Confidence:</dt>
+              <dd>{{ Math.round(extractConfidence * 100) }}%</dd>
+            </div>
+            <div v-if="extractMissingFields?.length">
+              <dt>Missing:</dt>
+              <dd>{{ extractMissingFields.join(', ') }}</dd>
+            </div>
+          </dl>
+        </div>
       </div>
 
       <!-- Step 2: Ingredients -->
       <div v-if="currentStep === 1" class="form-step">
+        <p class="ingredient-category-hint">
+          Only the canonical keys in parentheses are saved (e.g. <code>produce</code>, <code>pantry</code>). The German name is for display.
+        </p>
         <div v-for="(group, sectionKey) in ingredientsBySection" :key="group.key" class="ingredient-section">
           <div class="ingredient-heading-input">
             <label>
@@ -293,6 +330,24 @@
                   <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
+            </div>
+            <div class="ingredient-category">
+              <label class="ingredient-category__label">Category</label>
+              <select
+                :value="item.ing.category ?? ''"
+                class="ingredient-category__select"
+                aria-label="Ingredient category"
+                @change="setIngredientCategorySelect(item.ing, ($event.target as HTMLSelectElement).value)"
+              >
+                <option value="">— No category —</option>
+                <option
+                  v-for="opt in INGREDIENT_CATEGORY_OPTIONS"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ opt.labelDe }} ({{ opt.value }})
+                </option>
+              </select>
             </div>
             <div class="ingredient-additional">
               <input
@@ -381,91 +436,6 @@
         </div>
       </div>
 
-      <!-- Step 4: Review -->
-      <div v-if="currentStep === 3" class="form-step">
-        <div class="review-section">
-          <div class="review-card">
-            <div class="review-card__header">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <h4>Basic Info</h4>
-            </div>
-            <dl class="review-list">
-              <div>
-                <dt>Title:</dt>
-                <dd>{{ form.title || '—' }}</dd>
-              </div>
-              <div v-if="form.subtitle">
-                <dt>Subtitle:</dt>
-                <dd>{{ form.subtitle }}</dd>
-              </div>
-              <div v-if="form.servings">
-                <dt>Servings:</dt>
-                <dd>{{ form.servings }}</dd>
-              </div>
-              <div v-if="form.prep_time || form.cook_time">
-                <dt>Time:</dt>
-                <dd>
-                  <span v-if="form.prep_time">{{ form.prep_time }}min prep</span>
-                  <span v-if="form.prep_time && form.cook_time"> + </span>
-                  <span v-if="form.cook_time">{{ form.cook_time }}min cook</span>
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          <div class="review-card">
-            <div class="review-card__header">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <h4>Ingredients</h4>
-            </div>
-            <ul class="review-ingredient-list">
-              <li v-for="(ing, idx) in form.ingredients.filter(i => i.name.trim())" :key="idx">
-                {{ ing.amount }} {{ ing.unit }} {{ ing.name }}
-              </li>
-            </ul>
-          </div>
-
-          <div class="review-card">
-            <div class="review-card__header">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <h4>Steps</h4>
-            </div>
-            <ol class="review-steps-list">
-              <li v-for="(step, idx) in form.recipe_steps.filter(s => s.instruction.trim())" :key="idx">
-                {{ step.instruction }}
-              </li>
-            </ol>
-          </div>
-
-          <div v-if="hasExtractionFeedback" class="review-card review-card--info">
-            <div class="review-card__header">
-              <svg viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <h4>AI Extraction Info</h4>
-            </div>
-            <dl class="review-list">
-              <div v-if="extractConfidence != null">
-                <dt>Confidence:</dt>
-                <dd>{{ Math.round(extractConfidence * 100) }}%</dd>
-              </div>
-              <div v-if="extractMissingFields?.length">
-                <dt>Missing:</dt>
-                <dd>{{ extractMissingFields.join(', ') }}</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-      </div>
-
       <!-- Navigation -->
       <div class="form-actions">
         <button
@@ -492,7 +462,7 @@
           {{ editingId ? 'Save Changes' : 'Create Recipe' }}
         </button>
         <button
-          v-if="currentStep === steps.length - 1"
+          v-if="currentStep === 1"
           type="button"
           class="btn btn--secondary"
           @click="handleSubmit({ estimateNutrition: true })"
@@ -530,17 +500,16 @@ import type {
 } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
+import { INGREDIENT_CATEGORY_OPTIONS } from '../constants/ingredientCategories'
 
 interface IngredientRow {
   amount: string
   unit: string
   name: string
+  category?: string | null
   section_id?: number | null
   section_heading?: string | null
   original_text?: string | null
-}
-
-interface IngredientRowWithExtra extends IngredientRow {
   additional_info?: string | null
 }
 
@@ -728,7 +697,6 @@ const steps = [
   { label: 'Basics', icon: 'info' },
   { label: 'Ingredients', icon: 'list' },
   { label: 'Instructions', icon: 'steps' },
-  { label: 'Review', icon: 'check' },
 ]
 
 const form = reactive({
@@ -739,8 +707,9 @@ const form = reactive({
   servings: null as number | null,
   prep_time: null as number | null,
   cook_time: null as number | null,
+  would_cook_again: null as 'yes' | 'maybe' | 'no' | null,
   source_page: '',
-  ingredients: [] as IngredientRowWithExtra[],
+  ingredients: [] as IngredientRow[],
   recipe_steps: [] as { instruction: string }[],
 })
 
@@ -752,7 +721,7 @@ const extractConfidence = computed(() => props.initial?.extract_confidence ?? nu
 const extractMissingFields = computed(() => props.initial?.extract_missing_fields ?? null)
 
 const ingredientsBySection = computed(() => {
-  const groups = new Map<string, { heading: string; items: { ing: IngredientRowWithExtra; flatIndex: number }[] }>()
+  const groups = new Map<string, { heading: string; items: { ing: IngredientRow; flatIndex: number }[] }>()
   const defaultKey = '\0'
   form.ingredients.forEach((ing, flatIndex) => {
     const h = ing.section_heading?.trim() ?? ''
@@ -775,12 +744,18 @@ function updateSectionHeading(key: string, value: string) {
   })
 }
 
+function setIngredientCategorySelect(ing: IngredientRow, value: string) {
+  const v = value.trim()
+  ing.category = v ? v : null
+}
+
 function addIngredient() {
   const last = form.ingredients[form.ingredients.length - 1]
   form.ingredients.push({
     amount: '',
     unit: '',
     name: '',
+    category: last?.category ?? null,
     additional_info: '',
     section_heading: last?.section_heading ?? '',
     section_id: last?.section_id ?? null,
@@ -823,6 +798,7 @@ function assignFromInitial() {
     const initialTips = (props.initial as { tips?: string[] })?.tips
     form.tips_notes = Array.isArray(initialTips) ? initialTips.join('\n') : ''
     form.servings = props.initial.servings ?? null
+    form.would_cook_again = (props.initial as any).would_cook_again ?? null
     form.source_page = props.initial.source_page ?? ''
     // Set current image URL if exists
     currentImageUrl.value = (props.initial as any).image_path ?? null
@@ -832,13 +808,14 @@ function assignFromInitial() {
       amount: ing.amount != null ? String(ing.amount) : '',
       unit: ing.unit ?? '',
       name: ing.name ?? '',
+      category: (ing as IngredientRow).category ?? null,
       section_id: (ing as IngredientRow & { section_id?: number }).section_id ?? null,
       section_heading: (ing as IngredientRow).section_heading ?? null,
       original_text: ing.original_text ?? (ing as any).originalText ?? null,
-      additional_info: (ing as IngredientRow).additional_info ?? null,
+      additional_info: ing.additional_info ?? (ing as { additionalInfo?: string | null }).additionalInfo ?? null,
     }))
     if (form.ingredients.length === 0) {
-      form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '', section_heading: '', section_id: null }]
+      form.ingredients = [{ amount: '', unit: '', name: '', category: null, additional_info: '', section_heading: '', section_id: null }]
     }
     form.recipe_steps = (props.initial.recipe_steps ?? []).map((s) => ({
       instruction: s.instruction ?? '',
@@ -857,8 +834,9 @@ function assignFromInitial() {
     form.description = ''
     form.tips_notes = ''
     form.servings = null
+    form.would_cook_again = null
     form.source_page = ''
-    form.ingredients = [{ amount: '', unit: '', name: '', additional_info: '', section_heading: '', section_id: null }]
+    form.ingredients = [{ amount: '', unit: '', name: '', category: null, additional_info: '', section_heading: '', section_id: null }]
     form.recipe_steps = [{ instruction: '' }]
     sourceType.value = 'none'
     selectedSourceId.value = null
@@ -918,6 +896,7 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
       position: i,
       section_id: ing.section_id != null ? ing.section_id : null,
       original_text: ing.original_text ?? null,
+      category: ing.category?.trim() || null,
       additional_info: ing.additional_info?.trim() || null,
       section_heading: ing.section_heading?.trim() || null,
     }))
@@ -934,6 +913,7 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
     subtitle: form.subtitle.trim() || null,
     description: form.description.trim() || null,
     servings: form.servings && form.servings > 0 ? form.servings : null,
+    would_cook_again: form.would_cook_again ?? null,
     source_id: sourceType.value === 'book' && selectedSourceId.value != null ? selectedSourceId.value : null,
     source_page: sourceType.value === 'book' ? (form.source_page.trim() || null) : null,
     ingredients,
@@ -1463,6 +1443,48 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
   align-items: center;
 }
 
+.ingredient-category {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-left: calc(80px + 100px + var(--spacing-sm) * 2);
+}
+
+.ingredient-category__label {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  min-width: 4.5rem;
+}
+
+.ingredient-category__select {
+  flex: 1;
+  min-width: 0;
+  max-width: 22rem;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+}
+
+.ingredient-category-hint {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.ingredient-category-hint code {
+  font-size: 0.75em;
+  padding: 0.1em 0.25em;
+  border-radius: 3px;
+  background: var(--color-bg-muted);
+}
+
 .ingredient-additional {
   padding-left: calc(80px + 100px + var(--spacing-sm) * 2);
 }
@@ -1778,6 +1800,16 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
 
   .ingredient-row {
     grid-template-columns: 60px 80px 1fr 40px;
+  }
+
+  .ingredient-category,
+  .ingredient-additional {
+    padding-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .ingredient-original {
+    padding-left: 0;
   }
 
   .instruction-row {

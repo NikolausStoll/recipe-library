@@ -19,10 +19,12 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Styling**: CSS custom properties for light/dark mode theming
 - **Key Components**:
   - `RecipeForm.vue` - Main recipe entry/edit form
+  - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (ingredients include optional **category**, select-only from `constants/ingredientCategories.ts`; German labels, canonical English keys persisted)
   - `RecipeImportOverlay.vue` - Two-step AI import overlay (1: optional recipe image, 2: text images → OpenAI extraction)
   - `AppLayout.vue` - Main layout with header and navigation
 
 ### Backend (`backend/src/`)
+- **Constants**: `constants/ingredientCategories.js` – canonical ingredient category keys + `sanitizeIngredientCategory()` (must match frontend `constants/ingredientCategories.ts`)
 - **Server**: Express.js on port 8097
 - **Database**: SQLite with better-sqlite3, schema in `db/index.js`
 - **Routes**: Organized in `routes/` (recipes, sources, upload, health, admin)
@@ -41,6 +43,8 @@ Tables: `recipe_sources`, `recipes`, `recipe_ingredient_sections`, `ingredients`
 Key features:
 - Cascading deletes (ON DELETE CASCADE)
 - Recipe status: `draft` | `confirmed`
+- Recipe favorites: `favorite` flag (0/1)
+- Recipe "would cook again": `would_cook_again` flag (`yes` | `maybe` | `no`)
 - Extract status: `pending` | `done` | `failed`
 - Import method: `manual` | `url` | `image`
 - Source types: `book` | `url` | `manual` | `other`
@@ -93,6 +97,9 @@ python3 -m venv venv
 - `POST /api/recipes` - Create recipe (stored as draft)
 - `PUT /api/recipes/:id` - Update recipe (can change status to confirmed)
 - `DELETE /api/recipes/:id` - Delete recipe (cascades)
+- `POST /api/recipes/:id/favorite` - Body `{ favorite: boolean }`; toggles the `favorite` flag
+- `GET /api/recipes/with-ingredients?favorite=1` - Same as `with-ingredients`, optionally filtered to favorites only
+- `PUT /api/recipes/:id` - Can update `would_cook_again` with values `yes` | `maybe` | `no`
 - `POST /api/recipes/extract-from-url` - Body `{ url, normalize? }`; returns raw `{ source, warnings, fetched_url, recipe }`; if `normalize: true`, adds `structured`, `normalize_model`, `normalize_usage` (OpenAI, primary `gpt-4o-mini` / fallback `gpt-4.1-mini` on low-quality heuristics)
 - `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `extract_usage` with `model` and `extract_kind: url_normalize`
 
@@ -126,7 +133,7 @@ The recipe extraction uses OpenAI's vision API with a strict JSON schema (`RECIP
 ### Extraction Schema
 - **Root**: status, confidence, warnings, missingFields, recipe
 - **Recipe**: title, subtitle, introText, language, servings, ingredientsSections, steps, tips, nutritionTotal
-- **Ingredients**: Organized in sections with heading, each item has originalText, amount, amountMax, unit, ingredient, additionalInfo
+- **Ingredients**: Organized in sections with heading, each item has originalText, amount, amountMax, unit, ingredient, additionalInfo, **category** (LLM / URL normalization)
 - **Steps**: Array of {index, text}
 - **Nutrition**: Estimated from ingredients (not extracted from image)
 

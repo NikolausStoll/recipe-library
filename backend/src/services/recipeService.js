@@ -1,9 +1,12 @@
 import { getDb } from '../db/index.js'
 import { getThumbnailPathIfExists } from '../utils/uploadPaths.js'
+import { sanitizeIngredientCategory } from '../constants/ingredientCategories.js'
 
 const RECIPE_COLUMNS = [
   'id', 'source_id', 'source_page', 'import_method', 'extract_status', 'extract_confidence', 'extract_warnings', 'extract_missing_fields',
   'status', 'title', 'subtitle', 'description', 'language', 'servings_value', 'servings_unit_text',
+  'favorite',
+  'would_cook_again',
   'nutrition_kcal', 'nutrition_protein', 'nutrition_carbs', 'nutrition_fat',
   'prep_time_min', 'cook_time_min', 'image_path', 'image_urls_json',
   'created_at', 'updated_at',
@@ -64,6 +67,8 @@ export function listRecipes() {
   const db = getDb()
   const rows = db.prepare(`
     SELECT r.id, r.source_id, r.source_page, r.import_method, r.extract_status, r.status,
+           r.favorite,
+           r.would_cook_again,
            r.title, r.subtitle, r.description, r.language, r.servings_value, r.servings_unit_text,
            r.prep_time_min, r.cook_time_min, r.image_path, r.created_at, r.updated_at,
            s.type AS source_type, s.name AS source_name, s.subtitle AS source_subtitle, s.book_title AS source_book_title,
@@ -102,18 +107,23 @@ export function addRecipeHistoryEntry(recipeId) {
   return listRecipeHistory(recipeId)
 }
 
-export function listRecipesWithIngredients() {
+export function listRecipesWithIngredients(options = {}) {
+  const { favoriteOnly = false } = options
   const db = getDb()
   const recipes = listRecipes()
-  if (!recipes.length) return recipes.map((recipe) => ({ ...recipe, ingredients: [] }))
+  const filtered = favoriteOnly ? recipes.filter((r) => r.favorite) : recipes
+  if (!filtered.length) return filtered.map((recipe) => ({ ...recipe, ingredients: [] }))
+  const recipeIds = filtered.map((r) => r.id)
 
+  const placeholders = recipeIds.map(() => '?').join(', ')
   const ingredientRows = db.prepare(`
     SELECT i.id, s.recipe_id, i.section_id, i.position, i.original_text, i.amount, i.amount_max,
-           i.unit, i.ingredient, i.additional_info, s.heading AS section_heading
+           i.unit, i.ingredient, i.category, i.additional_info, s.heading AS section_heading
     FROM ingredients i
     JOIN recipe_ingredient_sections s ON s.id = i.section_id
+    WHERE s.recipe_id IN (${placeholders})
     ORDER BY s.recipe_id, s.position, i.position, i.id
-  `).all()
+  `).all(...recipeIds)
 
   const ingredientsByRecipe = new Map()
   for (const row of ingredientRows) {
@@ -132,11 +142,12 @@ export function listRecipesWithIngredients() {
       unit: row.unit ?? null,
       ingredient: row.ingredient ?? null,
       name: row.ingredient ?? null,
+      category: sanitizeIngredientCategory(row.category),
       additional_info: row.additional_info ?? null,
     })
   }
 
-  return recipes.map((recipe) => ({
+  return filtered.map((recipe) => ({
     ...recipe,
     ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
   }))
@@ -160,7 +171,7 @@ export function getRecipeById(id) {
   const allIngredients = []
   for (const sec of sections) {
     const items = db.prepare(`
-      SELECT id, section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info
+      SELECT id, section_id, position, original_text, amount, amount_max, unit, ingredient, category, additional_info
       FROM ingredients WHERE section_id = ? ORDER BY position, id
     `).all(sec.id)
     allIngredients.push({ section: sec, items })
@@ -204,6 +215,7 @@ export function getRecipeById(id) {
       unit: row.unit,
       ingredient: row.ingredient,
       name: row.ingredient,
+      category: sanitizeIngredientCategory(row.category),
       additional_info: row.additional_info,
     }))
   )
@@ -241,6 +253,7 @@ function buildParsedRecipeFromRow(row, sectionsWithItems, steps, tips) {
         amountMax: i.amount_max ?? null,
         unit: i.unit ?? null,
         ingredient: i.ingredient ?? null,
+        category: sanitizeIngredientCategory(i.category),
         additionalInfo: i.additional_info ?? null,
       })),
     })),
@@ -316,10 +329,10 @@ export function createRecipe(body) {
     INSERT INTO recipes (
       source_id, source_page, import_method, extract_status, status,
       title, subtitle, description, language, servings_value, servings_unit_text,
-      prep_time_min, cook_time_min, image_path, image_urls_json,
+      would_cook_again, prep_time_min, cook_time_min, image_path, image_urls_json,
       created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     sourceId,
     (recipe.source_page ?? '').trim() || null,
@@ -331,6 +344,7 @@ export function createRecipe(body) {
     recipe.language ?? null,
     recipe.servings_value ?? recipe.servings ?? null,
     recipe.servings_unit_text ?? null,
+    recipe.would_cook_again ?? null,
     recipe.prep_time_min ?? null,
     recipe.cook_time_min ?? null,
     recipe.image_path ?? null,
@@ -342,7 +356,7 @@ export function createRecipe(body) {
   const id = result.lastInsertRowid
   const ingredientSections = groupIngredientsForSections(body.ingredients)
   const insertIng = db.prepare(`
-    INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, category, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertSection = db.prepare('INSERT INTO recipe_ingredient_sections (recipe_id, position, heading) VALUES (?, ?, ?)')
   ingredientSections.forEach((section, secIdx) => {
@@ -359,6 +373,7 @@ export function createRecipe(body) {
         amountMax != null ? (typeof amountMax === 'number' ? amountMax : parseFloat(String(amountMax))) : null,
         ing.unit ?? null,
         (ing.ingredient ?? ing.name ?? '').trim() || null,
+        sanitizeIngredientCategory(ing.category),
         ing.additional_info ?? ing.additionalInfo ?? null
       )
     })
@@ -407,6 +422,7 @@ export function updateRecipe(id, body) {
   const language = (body && 'language' in body) ? (recipe.language ?? null) : existingRow.language
   const servings_value = (body && ('servings' in body || 'servings_value' in body)) ? (recipe.servings_value ?? recipe.servings ?? null) : existingRow.servings_value
   const servings_unit_text = (body && 'servings_unit_text' in body) ? (recipe.servings_unit_text ?? null) : existingRow.servings_unit_text
+  const would_cook_again = (body && 'would_cook_again' in body) ? (recipe.would_cook_again ?? null) : existingRow.would_cook_again
   const prep_time_min = (body && 'prep_time_min' in body) ? recipe.prep_time_min : existingRow.prep_time_min
   const cook_time_min = (body && 'cook_time_min' in body) ? recipe.cook_time_min : existingRow.cook_time_min
   const image_path = (body && 'image_path' in body) ? recipe.image_path : existingRow.image_path
@@ -419,7 +435,7 @@ export function updateRecipe(id, body) {
     UPDATE recipes SET
       source_id = ?, source_page = ?, import_method = ?, extract_status = ?, status = ?,
       title = ?, subtitle = ?, description = ?, language = ?, servings_value = ?, servings_unit_text = ?,
-      prep_time_min = ?, cook_time_min = ?, image_path = ?, image_urls_json = ?,
+      would_cook_again = ?, prep_time_min = ?, cook_time_min = ?, image_path = ?, image_urls_json = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -434,6 +450,7 @@ export function updateRecipe(id, body) {
     language ?? null,
     servings_value ?? null,
     servings_unit_text ?? null,
+    would_cook_again ?? null,
     prep_time_min ?? null,
     cook_time_min ?? null,
     image_path ?? null,
@@ -452,7 +469,7 @@ export function updateRecipe(id, body) {
     db.prepare('DELETE FROM recipe_ingredient_sections WHERE recipe_id = ?').run(Number(id))
     const ingredientSections = groupIngredientsForSections(body.ingredients)
     const insertIng = db.prepare(`
-      INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, category, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const insertSection = db.prepare('INSERT INTO recipe_ingredient_sections (recipe_id, position, heading) VALUES (?, ?, ?)')
     ingredientSections.forEach((section, secIdx) => {
@@ -469,6 +486,7 @@ export function updateRecipe(id, body) {
           amountMax != null ? (typeof amountMax === 'number' ? amountMax : parseFloat(String(amountMax))) : null,
           ing.unit ?? null,
           (ing.ingredient ?? ing.name ?? '').trim() || null,
+          sanitizeIngredientCategory(ing.category),
           ing.additional_info ?? ing.additionalInfo ?? null
         )
       })
@@ -492,6 +510,26 @@ export function updateRecipe(id, body) {
       insertTip.run(Number(id), i, typeof t === 'string' ? t : (t?.text ?? ''))
     })
   }
+
+  return getRecipeById(id)
+}
+
+/**
+ * Mark/unmark a recipe as favorite.
+ * Returns the updated recipe row (or null if not found).
+ */
+export function setRecipeFavorite(id, favorite) {
+  const db = getDb()
+  const fav = favorite === true || favorite === 1 || favorite === '1' ? 1 : 0
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+
+  db.prepare(`
+    UPDATE recipes SET favorite = ?, updated_at = ? WHERE id = ?
+  `).run(
+    fav,
+    now,
+    Number(id),
+  )
 
   return getRecipeById(id)
 }
@@ -556,7 +594,7 @@ export function setRecipeParsedRecipe(id, parsedRecipe, options = {}) {
   if (inner?.ingredientsSections?.length) {
     const insertSection = db.prepare('INSERT INTO recipe_ingredient_sections (recipe_id, position, heading) VALUES (?, ?, ?)')
     const insertIng = db.prepare(`
-      INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ingredients (section_id, position, original_text, amount, amount_max, unit, ingredient, category, additional_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     inner.ingredientsSections.forEach((sec, si) => {
       const ins = insertSection.run(recipeId, si, sec.heading ?? null)
@@ -570,6 +608,7 @@ export function setRecipeParsedRecipe(id, parsedRecipe, options = {}) {
           item.amountMax ?? null,
           item.unit ?? null,
           item.ingredient ?? null,
+          sanitizeIngredientCategory(item.category),
           item.additionalInfo ?? null
         )
       })
@@ -615,6 +654,8 @@ function rowToRecipe(row) {
     source_id: row.source_id,
     source_page: row.source_page ?? null,
     import_method: row.import_method,
+    favorite: row.favorite === 1 || row.favorite === true,
+    would_cook_again: row.would_cook_again ?? null,
     extract_status: row.extract_status,
     extract_confidence: row.extract_confidence != null ? Number(row.extract_confidence) : null,
     extract_warnings: Array.isArray(extract_warnings) ? extract_warnings : null,
@@ -645,7 +686,7 @@ function sanitizeRecipeInput(body) {
   const allowed = [
     'source_id', 'source_page', 'import_method', 'extract_status', 'status',
     'title', 'subtitle', 'description', 'language', 'servings', 'servings_value', 'servings_unit_text',
-    'prep_time_min', 'cook_time_min', 'image_path', 'image_urls_json',
+    'prep_time_min', 'cook_time_min', 'image_path', 'image_urls_json', 'would_cook_again',
   ]
   const out = {}
   for (const key of allowed) {

@@ -5,6 +5,7 @@
 
 import OpenAI from 'openai'
 import { RECIPE_JSON_SCHEMA } from './extractRecipeService.js'
+import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
 
 const PRIMARY_MODEL = process.env.OPENAI_NORMALIZE_MODEL_PRIMARY || 'gpt-4o-mini'
 const FALLBACK_MODEL = process.env.OPENAI_NORMALIZE_MODEL_FALLBACK || 'gpt-4.1-mini'
@@ -69,6 +70,7 @@ Sanity checks:
 - Liquid ingredients measured in cups should usually be converted to ml
 - Do not convert tbsp / tsp into ml; keep them as EL / TL
 - Count-based ingredients should stay count-based unless the source already gives a weight or volume
+- Solid ingredients measured in cups should NOT equal 240g for a cup or 120 for half a cup
 
 Examples:
 
@@ -83,7 +85,7 @@ Good:
 
 Bad:
 - "1 cup jasmine rice" → 1 g
-- "1 cup jasmine rice" → 1 ml
+- "1 cup jasmine rice" → 240 g
 - "1 cup carrots and peas" → 240 ml
 - "1 tbsp oil" → 15 ml
 - "1 tsp salt" → 5 ml
@@ -104,6 +106,17 @@ Translation:
   - title
   - originalText
 
+Ingredient categorization:
+
+For each ingredient, assign exactly one category from this list:
+${formatCategoryListForPrompt()}
+
+Rules for categorization:
+- Use only these categories. Do not invent new ones.
+- Choose the most practical category based on the ingredient name.
+- Always return exactly one category per ingredient.
+- If uncertain, use "other".
+
 Rules:
 - Do not invent ingredients or steps
 - If something is unclear, keep it close to the original
@@ -121,6 +134,7 @@ Extract:
 - ingredient (clean German name)
 - additionalInfo (translated, includes preparation or alternatives)
 - originalText
+- category (one of the allowed categories above)
 
 Steps:
 - Keep order

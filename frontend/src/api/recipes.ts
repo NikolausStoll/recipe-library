@@ -27,6 +27,7 @@ export interface ParsedIngredientItem {
   amountMax?: number | null
   unit?: string | null
   ingredient?: string | null
+  category?: string | null
   additionalInfo?: string | null
 }
 
@@ -56,6 +57,8 @@ export interface RecipeListItem extends RecipeSourceInfo {
   source_id: number | null
   source_type: string
   import_method: string
+  favorite: boolean
+  would_cook_again: 'yes' | 'maybe' | 'no' | null
   extract_status: string | null
   extract_confidence?: number | null
   extract_warnings?: string[] | null
@@ -97,6 +100,7 @@ export interface RecipeIngredient {
   amount_max?: number | null
   unit?: string | null
   ingredient?: string | null
+  category?: string | null
   name?: string
   additional_info?: string | null
 }
@@ -119,6 +123,7 @@ export interface IngredientInput {
   originalText?: string | null
   amount_max?: number | null
   amountMax?: number | null
+  category?: string | null
   additional_info?: string | null
   additionalInfo?: string | null
   section_heading?: string | null
@@ -143,6 +148,7 @@ export interface RecipeFormPayload {
   author?: string | null
   source_page?: string | null
   status?: 'draft' | 'confirmed'
+  would_cook_again?: 'yes' | 'maybe' | 'no' | null
   ingredients?: IngredientInput[]
   recipe_steps?: RecipeStepInput[]
   tips?: string[]
@@ -153,9 +159,21 @@ export function listRecipes(): Promise<RecipeListItem[]> {
 }
 
 export function listRecipesWithIngredients(): Promise<RecipeListItemWithIngredients[]> {
-  return fetch(`${API_BASE}/recipes/with-ingredients`).then((res) =>
-    handleResponse<RecipeListItemWithIngredients[]>(res)
-  )
+  return fetch(`${API_BASE}/recipes/with-ingredients`).then((res) => handleResponse<RecipeListItemWithIngredients[]>(res))
+}
+
+export function listRecipesWithIngredientsFiltered(options?: { favoriteOnly?: boolean }): Promise<RecipeListItemWithIngredients[]> {
+  const favoriteOnly = options?.favoriteOnly === true
+  const url = favoriteOnly ? `${API_BASE}/recipes/with-ingredients?favorite=1` : `${API_BASE}/recipes/with-ingredients`
+  return fetch(url).then((res) => handleResponse<RecipeListItemWithIngredients[]>(res))
+}
+
+export function setRecipeFavorite(id: number, favorite: boolean): Promise<{ recipe: Recipe }> {
+  return fetch(`${API_BASE}/recipes/${id}/favorite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ favorite }),
+  }).then((res) => handleResponse<{ recipe: Recipe }>(res))
 }
 
 /** Raw scrape from a webpage (JSON-LD / HTML); no LLM. */

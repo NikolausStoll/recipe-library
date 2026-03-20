@@ -55,6 +55,8 @@ export function initDb() {
       extract_warnings TEXT,
       extract_missing_fields TEXT,
       status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed')),
+      favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1)),
+      would_cook_again TEXT,
       title TEXT NOT NULL,
       subtitle TEXT,
       description TEXT,
@@ -89,6 +91,7 @@ export function initDb() {
       amount_max REAL,
       unit TEXT,
       ingredient TEXT,
+      category TEXT,
       additional_info TEXT
     );
 
@@ -147,10 +150,100 @@ export function initDb() {
   addCol('recipe_sources', 'year', 'INTEGER')
   addCol('recipe_sources', 'image_path', 'TEXT')
   addCol('recipes', 'image_urls_json', 'TEXT')
+  addCol('recipes', 'favorite', 'INTEGER DEFAULT 0')
+  addCol('recipes', 'would_cook_again', 'TEXT')
+  addCol('ingredients', 'category', 'TEXT')
   addCol('extract_usage', 'response_json', 'TEXT')
   addCol('extract_usage', 'model', 'TEXT')
   addCol('extract_usage', 'extract_kind', 'TEXT')
   addCol('extract_usage', 'request_json', 'TEXT')
+
+  // Ensure new column(s) exist even if ALTER TABLE was ignored.
+  // This keeps the server running instead of failing later on "no such column" errors.
+  const recipesTableCols = database.prepare('PRAGMA table_info(recipes)').all()
+  const hasWouldCookAgain = recipesTableCols.some((c) => c.name === 'would_cook_again')
+  if (!hasWouldCookAgain) {
+    const existingCols = recipesTableCols.map((c) => c.name).filter((name) => name !== 'would_cook_again')
+    try {
+      database.pragma('foreign_keys = OFF')
+      database.exec(`
+        ALTER TABLE recipes RENAME TO recipes_old;
+        CREATE TABLE recipes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source_id INTEGER REFERENCES recipe_sources(id),
+          source_page TEXT,
+          import_method TEXT NOT NULL DEFAULT 'manual' CHECK (import_method IN ('manual', 'url', 'image')),
+          extract_status TEXT CHECK (extract_status IS NULL OR extract_status IN ('pending', 'done', 'failed')),
+          extract_confidence REAL,
+          extract_warnings TEXT,
+          extract_missing_fields TEXT,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed')),
+          favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1)),
+          would_cook_again TEXT,
+          title TEXT NOT NULL,
+          subtitle TEXT,
+          description TEXT,
+          language TEXT,
+          servings_value REAL,
+          servings_unit_text TEXT,
+          nutrition_kcal REAL,
+          nutrition_protein REAL,
+          nutrition_carbs REAL,
+          nutrition_fat REAL,
+          prep_time_min INTEGER,
+          cook_time_min INTEGER,
+          image_path TEXT,
+          image_urls_json TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        );
+        INSERT INTO recipes (${existingCols.join(', ')})
+          SELECT ${existingCols.join(', ')} FROM recipes_old;
+        DROP TABLE recipes_old;
+      `)
+      database.pragma('foreign_keys = ON')
+
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);
+      `)
+    } catch (_) {
+      // Leave DB as-is; the server may fail if the column is still missing.
+    }
+  }
+
+  const ingredientsTableCols = database.prepare('PRAGMA table_info(ingredients)').all()
+  const hasIngredientCategory = ingredientsTableCols.some((c) => c.name === 'category')
+  if (!hasIngredientCategory && ingredientsTableCols.length) {
+    const existingCols = ingredientsTableCols.map((c) => c.name).filter((name) => name !== 'category')
+    try {
+      database.pragma('foreign_keys = OFF')
+      database.exec(`
+        ALTER TABLE ingredients RENAME TO ingredients_old;
+        CREATE TABLE ingredients (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          section_id INTEGER NOT NULL REFERENCES recipe_ingredient_sections(id) ON DELETE CASCADE,
+          position INTEGER NOT NULL DEFAULT 0,
+          original_text TEXT,
+          amount REAL,
+          amount_max REAL,
+          unit TEXT,
+          ingredient TEXT,
+          category TEXT,
+          additional_info TEXT
+        );
+        INSERT INTO ingredients (${existingCols.join(', ')})
+          SELECT ${existingCols.join(', ')} FROM ingredients_old;
+        DROP TABLE ingredients_old;
+      `)
+      database.pragma('foreign_keys = ON')
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
+        CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
+      `)
+    } catch (_) {
+      // Leave DB as-is; the server may fail if the column is still missing.
+    }
+  }
 
   // One-time migration: if old recipe schema (parsed_recipe_json, ingredients.name) exists, replace with RECIPE_JSON_SCHEMA-aligned schema
   const tableInfo = database.prepare('PRAGMA table_info(recipes)').all()
@@ -175,6 +268,8 @@ export function initDb() {
         extract_warnings TEXT,
         extract_missing_fields TEXT,
         status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed')),
+        favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1)),
+        would_cook_again TEXT,
         title TEXT NOT NULL,
         subtitle TEXT,
         description TEXT,
@@ -207,6 +302,7 @@ export function initDb() {
         amount_max REAL,
         unit TEXT,
         ingredient TEXT,
+        category TEXT,
         additional_info TEXT
       );
       CREATE TABLE recipe_steps (

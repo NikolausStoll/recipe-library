@@ -5,6 +5,10 @@
 
 import OpenAI from 'openai'
 import { getDb } from '../db/index.js'
+import {
+  formatCategoryListForPrompt,
+  CANONICAL_INGREDIENT_CATEGORY_ENUM,
+} from '../constants/ingredientCategories.js'
 
 export const EXTRACT_PROMPT = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
@@ -35,6 +39,17 @@ Rules:
 - Do not invent metadata that must come directly from the image (e.g. servings, times, titles).
 
 - Extract tips, hints, or variations into the tips array if they are clearly separate from steps or introText.
+
+Ingredient categorization:
+
+For each ingredient, assign exactly one category from this list:
+${formatCategoryListForPrompt()}
+
+Rules for categorization:
+- Use only these categories. Do not invent new ones.
+- Choose the most practical category based on the ingredient name.
+- Always return exactly one category per ingredient.
+- If uncertain, use "other".
 
 - If extraction is only partly reliable, set status to "partial".
 - If almost nothing reliable can be extracted, set status to "failed" and recipe to null.
@@ -88,7 +103,7 @@ export const RECIPE_JSON_SCHEMA = {
                 items: {
                   type: 'object',
                   additionalProperties: false,
-                  required: ['originalText', 'amount', 'amountMax', 'unit', 'ingredient', 'additionalInfo'],
+                  required: ['originalText', 'amount', 'amountMax', 'unit', 'ingredient', 'additionalInfo', 'category'],
                   properties: {
                     originalText: { type: ['string', 'null'] },
                     amount: { type: ['number', 'null'] },
@@ -96,6 +111,7 @@ export const RECIPE_JSON_SCHEMA = {
                     unit: { type: ['string', 'null'], description: 'Unit of the ingredient, e.g. "g", "ml", "pcs", "pinch".' },
                     ingredient: { type: ['string', 'null'] },
                     additionalInfo: { type: ['string', 'null'] },
+                    category: { type: ['string', 'null'], enum: CANONICAL_INGREDIENT_CATEGORY_ENUM },
                   },
                 },
               },
