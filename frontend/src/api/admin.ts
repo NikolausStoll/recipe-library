@@ -19,7 +19,8 @@ export interface ExtractUsageAdminRow {
   /** Raw JSON payload sent to the model (URL normalization); null for vision extract */
   request_json: string | null
   model: string | null
-  extract_kind: string | null
+  /** What the call was: recipe_image_extract, url_recipe_normalize, health_score, … */
+  usage_kind: string | null
   created_at: string | null
   pricing_key: string | null
   cost_usd: number | null

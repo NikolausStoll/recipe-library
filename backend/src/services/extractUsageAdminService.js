@@ -1,5 +1,5 @@
 /**
- * Admin read access for extract_usage with recipe title join.
+ * Admin read access for ai_token_usage with recipe title join.
  */
 
 import { getDb } from '../db/index.js'
@@ -18,10 +18,10 @@ export function listExtractUsageForAdmin() {
            e.response_json,
            e.request_json,
            e.model,
-           e.extract_kind,
+           e.usage_kind,
            e.created_at,
            r.title AS recipe_title
-    FROM extract_usage e
+    FROM ai_token_usage e
     LEFT JOIN recipes r ON r.id = e.recipe_id
     ORDER BY e.id DESC
   `
@@ -42,7 +42,7 @@ export function listExtractUsageForAdmin() {
       response_json: row.response_json,
       request_json: row.request_json ?? null,
       model: row.model,
-      extract_kind: row.extract_kind,
+      usage_kind: row.usage_kind,
       created_at: row.created_at,
       pricing_key,
       cost_usd,

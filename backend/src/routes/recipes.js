@@ -4,10 +4,16 @@ import path from 'path'
 import fs from 'fs'
 import sharp from 'sharp'
 import * as recipeService from '../services/recipeService.js'
-import { extractRecipeFromImages, logExtractUsage } from '../services/extractRecipeService.js'
+import { extractRecipeFromImages, logAiTokenUsage } from '../services/extractRecipeService.js'
 import { prepareTextImage, writeResizedWebp } from '../services/imageProcessingService.js'
 import { cropPerspective, cropPerspectiveBuffer } from '../services/cropPerspectiveService.js'
 import { estimateRecipeNutrition } from '../services/nutritionService.js'
+import {
+  estimateRecipeHealthScore,
+  estimateRecipeHealthScoreById,
+  HealthScoreEstimateError,
+} from '../services/recipeHealthScoreService.js'
+import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistence.js'
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
 import { buildThumbnailPath } from '../utils/uploadPaths.js'
@@ -62,6 +68,64 @@ router.post('/:id/estimate-nutrition', async (req, res) => {
     res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to estimate nutrition' })
   }
 })
+
+/**
+ * POST /api/recipes/:id/estimate-health-score – practical health score for a saved recipe; result is stored in recipe_health_scores.
+ */
+router.post('/:id/estimate-health-score', async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' })
+  }
+  try {
+    const result = await estimateRecipeHealthScoreById(id)
+    upsertRecipeHealthScore(id, result)
+    logAiTokenUsage(id, result.tokenUsage, result.estimate, {
+      model: result.model,
+      usage_kind: 'health_score',
+    })
+    res.json(result)
+  } catch (e) {
+    if (e instanceof Error && e.message === 'Recipe not found') {
+      return res.status(404).json({ error: 'Recipe not found' })
+    }
+    if (e instanceof HealthScoreEstimateError && e.tokenUsage) {
+      logAiTokenUsage(id, e.tokenUsage, { error: e.message }, { model: e.model, usage_kind: 'health_score' })
+    }
+    const msg = e instanceof Error ? e.message : 'Failed to estimate health score'
+    const status = msg === 'OPENAI_API_KEY is not set' ? 503 : 502
+    console.error('estimate-health-score failed:', e)
+    res.status(status).json({ error: msg })
+  }
+})
+
+/**
+ * POST /api/recipes/estimate-health-score – health score from a structured recipe object in the body (no DB id).
+ * Body: { recipe: object } — same general shape as GET /api/recipes/:id (title, ingredients, recipe_steps, tips, nutrition_*, …).
+ */
+router.post('/estimate-health-score', async (req, res) => {
+  const recipe = req.body?.recipe
+  if (!recipe || typeof recipe !== 'object' || Array.isArray(recipe)) {
+    return res.status(400).json({ error: 'Body must include a recipe object: { recipe: { ... } }' })
+  }
+  try {
+    const result = await estimateRecipeHealthScore(recipe)
+    res.json(result)
+  } catch (e) {
+    if (e instanceof HealthScoreEstimateError && e.tokenUsage) {
+      logAiTokenUsage(null, e.tokenUsage, { error: e.message }, { model: e.model, usage_kind: 'health_score' })
+    }
+    const msg = e instanceof Error ? e.message : 'Failed to estimate health score'
+    const status = msg === 'OPENAI_API_KEY is not set' ? 503 : 502
+    console.error('estimate-health-score (body) failed:', e)
+    res.status(status).json({ error: msg })
+  }
+})
+</think>
+
+
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+Read
 
 /**
  * POST /api/recipes/:id/cook – record that the recipe was cooked today.
@@ -179,7 +243,7 @@ router.post('/extract-from-url', async (req, res) => {
 })
 
 /**
- * POST /api/recipes/import-from-url – scrape URL, normalize with OpenAI, create draft recipe, log each LLM call to extract_usage.
+ * POST /api/recipes/import-from-url – scrape URL, normalize with OpenAI, create draft recipe, log each LLM call to ai_token_usage.
  * Body: { url: string }. Returns { recipe, scrape: { source, warnings, fetched_url } }.
  */
 router.post('/import-from-url', async (req, res) => {
@@ -214,9 +278,9 @@ router.post('/import-from-url', async (req, res) => {
     const { recipe: structured, attempts } = await normalizeRecipeWithLLM(scraped.recipe)
     for (const a of attempts) {
       if (a.usage || a.recipe) {
-        logExtractUsage(createdId, a.usage, a.recipe, {
+        logAiTokenUsage(createdId, a.usage, a.recipe, {
           model: a.model,
-          extract_kind: 'url_normalize',
+          usage_kind: 'url_recipe_normalize',
           request_json: a.request_json,
         })
       }
@@ -446,7 +510,7 @@ router.post('/:id/image', (req, res, next) => {
 /**
  * POST /api/recipes/:id/extract-from-images – Step 2: extract recipe text from image(s) via OpenAI.
  * Body: multipart form with "images" (one or more files) and optional "points" (JSON array: for each image, null or [ {x,y}, {x,y}, {x,y}, {x,y} ] in original coords). If points[i] has 4 points, that image is perspective-cropped, then scaled; then send to AI.
- * Returns { recipe, usage?: { ... } }. Token usage is logged to extract_usage.
+ * Returns { recipe, usage?: { ... } }. Token usage is logged to ai_token_usage.
  */
 router.post('/:id/extract-from-images', (req, res, next) => {
   upload.array('images', 10)(req, res, (err) => {
@@ -511,7 +575,7 @@ router.post('/:id/extract-from-images', (req, res, next) => {
     const updated = recipeService.setRecipeParsedRecipe(id, parsedRecipe, { updateTitle: true })
     const visionModel = process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini'
     if (usage || parsedRecipe) {
-      logExtractUsage(id, usage, parsedRecipe, { model: visionModel, extract_kind: 'vision' })
+      logAiTokenUsage(id, usage, parsedRecipe, { model: visionModel, usage_kind: 'recipe_image_extract' })
     }
     res.json({ recipe: updated, usage: usage || null })
   } catch (e) {

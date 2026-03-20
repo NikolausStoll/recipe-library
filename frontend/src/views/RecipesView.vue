@@ -325,8 +325,81 @@
             </ul>
           </div>
 
-          <!-- Nutrition -->
+          <!-- Health + Nutrition -->
           <div v-if="viewingRecipe" class="note-block note-block--nutrition">
+            <div class="recipe-health-section">
+              <h2 class="recipe-detail-section-title">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M12 21C12 21 4 13.5 4 8.5C4 5.42 6.42 3 9.5 3C11.24 3 12.91 3.81 14 5.08C15.09 3.81 16.76 3 18.5 3C21.58 3 24 5.42 24 8.5C24 13.5 16 21 16 21H12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Health estimate
+              </h2>
+              <p class="recipe-health-disclaimer">
+                Practical everyday estimate for cooking — not medical advice.
+              </p>
+
+              <div v-if="healthScoreError" class="recipe-health-error">{{ healthScoreError }}</div>
+
+              <div
+                v-if="healthScoreResult && healthScoreResult.estimate.healthScore != null"
+                class="recipe-health-body"
+              >
+                <div class="recipe-health-score-row">
+                  <span class="recipe-health-score-value">{{ healthScoreResult.estimate.healthScore }}</span>
+                  <span class="recipe-health-score-max">/ 100</span>
+                  <span
+                    v-if="healthScoreResult.estimate.confidence != null"
+                    class="recipe-health-confidence"
+                  >
+                    Confidence: {{ Math.round(healthScoreResult.estimate.confidence * 100) }}%
+                  </span>
+                </div>
+                <p v-if="healthScoreResult.estimate.summary" class="recipe-health-summary">
+                  {{ healthScoreResult.estimate.summary }}
+                </p>
+                <div class="recipe-health-columns">
+                  <div v-if="healthScoreResult.estimate.positives?.length" class="recipe-health-column">
+                    <h3 class="recipe-health-column-title">Positives</h3>
+                    <ul class="recipe-health-list">
+                      <li v-for="(p, i) in healthScoreResult.estimate.positives" :key="'p-' + i">{{ p }}</li>
+                    </ul>
+                  </div>
+                  <div v-if="healthScoreResult.estimate.concerns?.length" class="recipe-health-column">
+                    <h3 class="recipe-health-column-title">Concerns</h3>
+                    <ul class="recipe-health-list">
+                      <li v-for="(c, i) in healthScoreResult.estimate.concerns" :key="'c-' + i">{{ c }}</li>
+                    </ul>
+                  </div>
+                </div>
+                <div v-if="healthScoreResult.estimate.improvementTips?.length" class="recipe-health-tips">
+                  <h3 class="recipe-health-column-title">Tips</h3>
+                  <ul class="recipe-health-list">
+                    <li v-for="(t, i) in healthScoreResult.estimate.improvementTips" :key="'t-' + i">{{ t }}</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="recipe-detail-health-cta">
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  :disabled="healthScoreLoading"
+                  @click="requestDetailHealthScore"
+                >
+                  {{
+                    healthScoreLoading
+                      ? 'Estimating…'
+                      : healthScoreResult && healthScoreResult.estimate.healthScore != null
+                        ? 'New health estimate'
+                        : 'Get health score'
+                  }}
+                </button>
+                <span v-if="healthScoreLoading" class="recipe-detail-health-cta__status">Working…</span>
+              </div>
+            </div>
+
+            <div class="recipe-health-nutrition-divider" role="presentation" />
+
             <h2 class="recipe-detail-section-title">
               <svg viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -488,6 +561,7 @@ import {
   updateRecipe,
   deleteRecipe,
   estimateRecipeNutrition,
+  postRecipeHealthScore,
   postRecipeCooked,
   getRecipeHistory,
   setRecipeFavorite,
@@ -498,6 +572,7 @@ import type {
   RecipeListItemWithIngredients,
   RecipeFormPayload,
   ParsedRecipeFromOcr,
+  RecipeHealthScoreResponse,
 } from '../api/recipes'
 import { getPerServingValue } from '../utils/nutrition'
 
@@ -526,6 +601,9 @@ const coverOverlay = ref<{ visible: boolean; x: number; y: number; src?: string 
 })
 const recipeHistories = ref<Record<number, string[]>>({})
 const nutritionLoading = ref(false)
+const healthScoreLoading = ref(false)
+const healthScoreResult = ref<RecipeHealthScoreResponse | null>(null)
+const healthScoreError = ref('')
 
 const showWouldCookAgainPrompt = ref(false)
 const wouldCookAgainRecipeId = ref<number | null>(null)
@@ -666,7 +744,7 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
       }
     }
   }
-  if (ingredients.length === 0) ingredients.push({ amount: '', unit: '', name: '', additional_info: null })
+  if (ingredients.length === 0) ingredients.push({ amount: '', unit: '', name: '', additional_info: '' })
 
   const recipe_steps = (pr?.steps ?? []).map((s) => ({ instruction: s?.text?.trim() ?? '' }))
   if (recipe_steps.length === 0) recipe_steps.push({ instruction: '' })
@@ -688,6 +766,7 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
     nutrition_carbs: recipe.nutrition_carbs ?? pr?.nutritionTotal?.carbs ?? null,
     nutrition_fat: recipe.nutrition_fat ?? pr?.nutritionTotal?.fat ?? null,
     tips: recipe.tips ?? pr?.tips ?? [],
+    import_method: recipe.import_method ?? 'manual',
   }
 }
 
@@ -912,6 +991,8 @@ async function viewRecipe(id: number) {
   try {
     viewingRecipe.value = await getRecipe(id)
     displayServings.value = viewingRecipe.value.servings || 1
+    healthScoreResult.value = viewingRecipe.value.health_score ?? null
+    healthScoreError.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load recipe'
   }
@@ -960,9 +1041,35 @@ function requestDetailNutritionEstimate() {
   runNutritionEstimate(id, { refreshList: true })
 }
 
+async function runHealthScoreEstimate(recipeId: number) {
+  if (!recipeId || healthScoreLoading.value) return
+  healthScoreLoading.value = true
+  healthScoreError.value = ''
+  try {
+    const result = await postRecipeHealthScore(recipeId)
+    healthScoreResult.value = result
+    if (viewingRecipe.value?.id === recipeId) {
+      viewingRecipe.value = { ...viewingRecipe.value, health_score: result }
+    }
+  } catch (e) {
+    healthScoreError.value = e instanceof Error ? e.message : 'Health score request failed'
+    healthScoreResult.value = null
+  } finally {
+    healthScoreLoading.value = false
+  }
+}
+
+function requestDetailHealthScore() {
+  const id = viewingRecipe.value?.id
+  if (!id) return
+  runHealthScoreEstimate(id)
+}
+
 function closeDetailView() {
   viewingRecipe.value = null
   displayServings.value = 1
+  healthScoreResult.value = null
+  healthScoreError.value = ''
 }
 
 function adjustServings(delta: number) {
@@ -1010,6 +1117,7 @@ function startEdit(id: number) {
       nutrition_carbs: recipe.nutrition_carbs ?? null,
       nutrition_fat: recipe.nutrition_fat ?? null,
       tips: recipe.tips ?? [],
+      import_method: recipe.import_method ?? 'manual',
     }
     showRecipeForm.value = true
   }).catch((e) => {
@@ -1923,6 +2031,114 @@ onBeforeUnmount(() => {
   content: '💡';
   position: absolute;
   left: 0;
+}
+
+.recipe-health-section {
+  margin-bottom: var(--spacing-md);
+}
+
+.recipe-health-disclaimer {
+  margin: 0 0 var(--spacing-md);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.recipe-health-error {
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  font-size: 0.9rem;
+}
+
+.recipe-health-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.recipe-health-score-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+}
+
+.recipe-health-score-value {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.recipe-health-score-max {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.recipe-health-confidence {
+  margin-left: auto;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.recipe-health-summary {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.recipe-health-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.recipe-health-column-title {
+  margin: 0 0 var(--spacing-xs);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.recipe-health-list {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.recipe-health-tips {
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.recipe-detail-health-cta {
+  margin-top: var(--spacing-md);
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.recipe-detail-health-cta__status {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.recipe-health-nutrition-divider {
+  height: 1px;
+  margin: var(--spacing-xl) 0;
+  background: var(--color-border);
 }
 
 .recipe-nutrition {

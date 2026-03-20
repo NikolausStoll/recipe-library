@@ -17,7 +17,7 @@ const router = createRouter({
           path: 'admin/extract-usage',
           name: 'admin-extract-usage',
           component: () => import('../views/AdminExtractUsageView.vue'),
-          meta: { title: 'Admin · Extract usage' },
+          meta: { title: 'Admin · AI token usage' },
         },
       ],
     },

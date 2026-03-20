@@ -39,9 +39,10 @@
 
 - Raw recipe URL extraction (`recipeUrlExtractService.js`) uses JSON-LD and HTML only; optional LLM normalization (`recipeNormalizationService.js`, `normalizeRecipeWithLLM`) when `POST /api/recipes/extract-from-url` includes `normalize: true`
 - OpenAI vision API used for recipe extraction
-- Token usage logged to `extract_usage` table
+- Token usage logged to `ai_token_usage` table
 - Strict JSON schema validation (`RECIPE_JSON_SCHEMA`)
 - Nutrition values estimated from ingredients (not extracted from image)
+- Optional **health score** estimate (`recipeHealthScoreService.js`, `recipeHealthScorePersistence.js`) runs on **structured** recipes only (`POST /api/recipes/:id/estimate-health-score` or `POST /api/recipes/estimate-health-score`); separate from OCR/URL extraction; **by-id** calls persist the latest estimate to `recipe_health_scores`, log model/tokens to `ai_token_usage` (`usage_kind: health_score`), and expose `health_score` on `GET /api/recipes/:id`
 - Model configurable via `OPENAI_EXTRACT_MODEL` (default: `gpt-4.1-mini`)
 
 ## Development Workflow
@@ -60,7 +61,7 @@
 
 ### Modifying OpenAI Extraction
 - Changes to `EXTRACT_PROMPT` or `RECIPE_JSON_SCHEMA` require testing
-- Monitor token usage in `extract_usage` table (web UI: **Admin** → extract usage, or `GET /api/admin/extract-usage`)
+- Monitor token usage in `ai_token_usage` table (web UI: **Admin** → AI token usage, or `GET /api/admin/extract-usage`)
 - Consider cost implications of prompt/schema changes
 
 ## Common Patterns
@@ -137,7 +138,7 @@ Currently manual. When adding tests:
 ## Maintenance
 
 ### Regular Tasks
-- Review token usage in `extract_usage` table
+- Review token usage in `ai_token_usage` table
 - Monitor upload directory size
 - Check for unused uploaded images
 - Keep dependencies updated (npm audit)

@@ -1,5 +1,5 @@
 /**
- * OpenAI pricing for extract_usage cost estimates (USD per 1M tokens).
+ * OpenAI pricing for ai_token_usage cost estimates (USD per 1M tokens).
  * GPT-4o mini: $0.15 input / $0.60 output per 1M
  * GPT-4.1 mini: $0.40 input / $1.60 output per 1M
  */

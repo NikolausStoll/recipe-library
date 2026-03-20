@@ -4,7 +4,7 @@ import { listExtractUsageForAdmin } from '../services/extractUsageAdminService.j
 const router = Router()
 
 /**
- * GET /api/admin/extract-usage – list extract_usage rows with recipe title and estimated cost (USD / cents).
+ * GET /api/admin/extract-usage – list ai_token_usage rows with recipe title and estimated cost (USD / cents).
  */
 router.get('/extract-usage', (req, res) => {
   try {

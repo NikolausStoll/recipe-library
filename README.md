@@ -11,12 +11,12 @@ A full-stack recipe management application with AI-powered recipe extraction fro
   1. Optional: Upload recipe photo
   2. Upload recipe text image(s) → OpenAI vision extraction with structured JSON schema
 - **Recipe URL scrape**: `POST /api/recipes/extract-from-url` fetches HTML and extracts raw fields (JSON-LD + HTML heuristics). Optional `normalize: true` chains OpenAI (`gpt-4o-mini`, fallback `gpt-4.1-mini`) to structured JSON matching the vision-extract schema (German, metric-friendly units)
-- **Recipe URL import (full flow)**: `POST /api/recipes/import-from-url` creates a draft recipe, scrapes + normalizes with OpenAI, writes each LLM call to `extract_usage` (with `model` and `extract_kind`), then returns the recipe for editing in the UI
+- **Recipe URL import (full flow)**: `POST /api/recipes/import-from-url` creates a draft recipe, scrapes + normalizes with OpenAI, writes each LLM call to `ai_token_usage` (with `model` and `usage_kind`), then returns the recipe for editing in the UI
 - **Book Source Management**: Track recipes from cookbooks with metadata and cover images
 - **4-Point Perspective Crop**: Optional Python-based image perspective correction
 - **Admin · Extract usage**: Table of OpenAI token usage with per-request cost estimate (¢) for supported models
 - **Light/Dark Mode**: CSS custom properties for full theme support
-- **Token Usage Tracking**: Monitor OpenAI API costs via `extract_usage` table
+- **Token Usage Tracking**: Monitor OpenAI API costs via `ai_token_usage` table
 
 ## Project Structure
 
@@ -53,7 +53,7 @@ recipe-library/
 - **ingredients**: Individual ingredients (amount, unit, ingredient, additional_info, optional **category** – must be one of the canonical keys in `backend/src/constants/ingredientCategories.js`; the recipe form uses German labels mapped to those keys)
 - **recipe_steps**: Preparation steps
 - **recipe_tips**: Cooking tips and variations
-- **extract_usage**: OpenAI token usage log (`response_json`, optional `request_json` for JSON-in requests, `model`, `extract_kind`)
+- **ai_token_usage**: OpenAI token usage log (`response_json`, optional `request_json` for JSON-in requests, `model`, `usage_kind`)
 
 ## Quick Start
 
@@ -115,6 +115,8 @@ Create a `.env` file in the **project root** based on [.env.example](.env.exampl
 - `OPENAI_EXTRACT_MODEL` – OpenAI model for extraction (default: `gpt-4.1-mini`)
 - `OPENAI_EXTRACT_DETAIL` – Vision API detail level: `low` | `high` | `auto` (default: `high`)
 - `OPENAI_NUTRITION_MODEL` – Model for nutrition estimation (default: `gpt-4o-mini`)
+- `OPENAI_HEALTH_SCORE_MODEL` – Model for health score estimation (`POST .../estimate-health-score`, default: `gpt-4o-mini`)
+- `OPENAI_HEALTH_SCORE_TEMPERATURE` – Optional, clamped 0–0.3 (default: `0.2`)
 - `CROP_PYTHON` – Python executable path for perspective crop (optional)
 - `RECIPE_URL_FETCH_TIMEOUT_MS` – Max wait for URL fetch (default: `25000`)
 - `RECIPE_URL_MAX_BYTES` – Max HTML response size for URL extraction (default: `2000000`)
@@ -163,7 +165,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 - **`GET /api/health`** – Server health status
 
 ### Admin
-- **`GET /api/admin/extract-usage`** – All `extract_usage` rows with joined recipe title, token counts, `response_json`, optional **`request_json`** (input JSON for URL normalization calls), `model`, `extract_kind`, plus estimated **`cost_usd`** / **`cost_cents`** (US cents) from built-in pricing for `gpt-4o-mini` and `gpt-4.1-mini` only; other models return `cost_cents: null`. Used by **Admin → Extract usage** in the web UI.
+- **`GET /api/admin/extract-usage`** – All `ai_token_usage` rows with joined recipe title, token counts, `response_json`, optional **`request_json`** (input JSON for URL normalization calls), `model`, `usage_kind`, plus estimated **`cost_usd`** / **`cost_cents`** (US cents) from built-in pricing for `gpt-4o-mini` and `gpt-4.1-mini` only; other models return `cost_cents: null`. Used by **Admin → AI token usage** in the web UI.
 
 ### Recipes
 
@@ -196,7 +198,14 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Response: Updated recipe object
 
 - **`DELETE /api/recipes/:id`** – Delete recipe
-  - Cascades to ingredients, steps, tips, sections
+  - Cascades to ingredients, steps, tips, sections, `recipe_health_scores`, history
+
+#### AI helpers (structured recipe only; not part of OCR/URL extract)
+- **`POST /api/recipes/:id/estimate-nutrition`** – Estimate kcal/macros from structured ingredients (persists `nutrition_*` on the recipe)
+- **`POST /api/recipes/:id/estimate-health-score`** – Practical **health score** (0–100), summary, positives, concerns, tips, confidence (0–1). **Persists** the latest estimate in `recipe_health_scores` (one row per recipe); **model** and **token usage** are appended to `ai_token_usage` with `usage_kind: health_score`. `GET /api/recipes/:id` includes `health_score` (estimate fields only; not model/tokens from DB). Not medical advice.
+  - Response (HTTP 200): `{ estimate, model, tokenUsage }` — successful estimate only. On failure (missing API key, model error, invalid output): **HTTP 503** (no key) or **502** with `{ error: string }`; nothing is written to `recipe_health_scores`.
+- **`POST /api/recipes/estimate-health-score`** – Same model as by id, but with a structured recipe in the body (no DB id, no persist). Same **200** vs **502**/**503** behavior as above.
+  - Body: `{ recipe: object }` — same fields as a full recipe payload (title, ingredients, recipe_steps, tips, optional nutrition_* , …)
 
 #### URL (raw extraction, no LLM)
 - **`POST /api/recipes/extract-from-url`** – Fetch a public recipe page and return raw extracted fields
@@ -207,7 +216,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 - **`POST /api/recipes/import-from-url`** – End-to-end URL import (same as app “Import from URL”)
   - Body: `{ url: string }` (requires `OPENAI_API_KEY`)
-  - Creates a draft recipe (`import_method: url`), scrapes the page, normalizes with OpenAI; **each** LLM request is appended to `extract_usage` with `model` and `extract_kind: url_normalize` (fallback retry = second row)
+  - Creates a draft recipe (`import_method: url`), scrapes the page, normalizes with OpenAI; **each** LLM request is appended to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize` (fallback retry = second row)
   - Response: `{ recipe, scrape: { source, warnings, fetched_url } }` with HTTP 201
 
 ### AI Import (Two-Step Process)
@@ -224,7 +233,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Body: `multipart/form-data` with `images` field (one or more text images)
   - Images resized to `TEXT_IMAGE_MAX_DIMENSION` before sending to OpenAI
   - Response: `{ recipe: { status, confidence, warnings, missingFields, recipe: {...} }, usage?: { prompt_tokens, completion_tokens, total_tokens } }`
-  - Token usage logged to `extract_usage` table
+  - Token usage logged to `ai_token_usage` table
 
 ### Sources (Cookbooks, URLs, etc.)
 
@@ -330,7 +339,7 @@ npm run start
 **Solutions**:
 - Verify `OPENAI_API_KEY` is set correctly in `.env`
 - Check OpenAI account has credits/active subscription
-- Review `extract_usage` table for error details
+- Review `ai_token_usage` table for error details
 - Ensure images don't exceed OpenAI size limits (currently 20MB per image)
 - Try different `OPENAI_EXTRACT_MODEL` (e.g., `gpt-4o` vs `gpt-4o-mini` vs `gpt-4.1-mini`)
 
@@ -380,7 +389,7 @@ npm run start
 **Problem**: High OpenAI costs
 
 **Solutions**:
-- Monitor `extract_usage` table regularly
+- Monitor `ai_token_usage` table regularly
 - Use `gpt-4.1-mini` instead of pricier models like `gpt-4o` (set `OPENAI_EXTRACT_MODEL`)
 - Reduce `TEXT_IMAGE_MAX_DIMENSION` to lower token usage
 - Set `OPENAI_EXTRACT_DETAIL=low` for lower quality but cheaper extraction

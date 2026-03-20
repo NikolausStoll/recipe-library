@@ -1,6 +1,7 @@
 import { getDb } from '../db/index.js'
 import { getThumbnailPathIfExists } from '../utils/uploadPaths.js'
 import { sanitizeIngredientCategory } from '../constants/ingredientCategories.js'
+import { getRecipeHealthScoreByRecipeId } from './recipeHealthScorePersistence.js'
 
 const RECIPE_COLUMNS = [
   'id', 'source_id', 'source_page', 'import_method', 'extract_status', 'extract_confidence', 'extract_warnings', 'extract_missing_fields',
@@ -220,6 +221,8 @@ export function getRecipeById(id) {
     }))
   )
 
+  const health_score = getRecipeHealthScoreByRecipeId(Number(id))
+
   return {
     ...rowToRecipe(recipeRow),
     source_type: sourceData?.source_type ?? 'manual',
@@ -233,6 +236,7 @@ export function getRecipeById(id) {
     })),
     tips: tips.map((t) => t.text),
     parsed_recipe,
+    health_score,
   }
 }
 

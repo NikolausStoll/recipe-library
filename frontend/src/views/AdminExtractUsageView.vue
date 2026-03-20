@@ -1,7 +1,7 @@
 <template>
   <div class="admin-extract">
     <header class="admin-extract__header">
-      <h1 class="admin-extract__title">Extract usage</h1>
+      <h1 class="admin-extract__title">AI token usage</h1>
       <p class="admin-extract__subtitle">
         OpenAI token usage per request. Estimated cost uses GPT-4o mini ($0.15 / $0.60 per 1M) and GPT-4.1 mini ($0.40 /
         $1.60 per 1M); amounts are in US cents (fractional when below 1¢).
@@ -33,7 +33,7 @@
               <th class="num">Total</th>
               <th class="num">Cost (¢)</th>
               <th>Model</th>
-              <th>Kind</th>
+              <th>Usage kind</th>
               <th>Created</th>
               <th>Request</th>
               <th>Response</th>
@@ -55,7 +55,7 @@
                 <span v-else class="muted" title="Unknown model for pricing">—</span>
               </td>
               <td class="mono">{{ r.model ?? '—' }}</td>
-              <td>{{ r.extract_kind ?? '—' }}</td>
+              <td>{{ r.usage_kind ?? '—' }}</td>
               <td class="mono nowrap">{{ r.created_at ?? '—' }}</td>
               <td>
                 <details v-if="r.request_json" class="admin-extract__json">
@@ -76,7 +76,7 @@
         </table>
       </div>
 
-      <p v-else class="admin-extract__empty">No extract usage rows yet.</p>
+      <p v-else class="admin-extract__empty">No AI token usage rows yet.</p>
     </template>
   </div>
 </template>

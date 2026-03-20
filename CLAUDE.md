@@ -19,7 +19,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Styling**: CSS custom properties for light/dark mode theming
 - **Key Components**:
   - `RecipeForm.vue` - Main recipe entry/edit form
-  - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (ingredients include optional **category**, select-only from `constants/ingredientCategories.ts`; German labels, canonical English keys persisted)
+  - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (ingredients & steps: **plain-text summary** by default; click to expand editors; **+ Add** opens new rows in edit mode; ingredient OCR original line hidden for `import_method === 'url'`; categories from `constants/ingredientCategories.ts`)
   - `RecipeImportOverlay.vue` - Two-step AI import overlay (1: optional recipe image, 2: text images → OpenAI extraction)
   - `AppLayout.vue` - Main layout with header and navigation
 
@@ -32,13 +32,15 @@ The app supports manual recipe entry, book source management, and AI-powered rec
   - `extractRecipeService.js` - OpenAI vision integration with structured JSON schema extraction
   - `recipeUrlExtractService.js` - Fetch recipe HTML, extract raw fields from JSON-LD Recipe + HTML fallbacks (no LLM)
   - `recipeNormalizationService.js` - LLM normalization of scraped raw recipe (`normalizeRecipeWithLLM`, `isLowQuality`); same JSON schema as vision extract; optional after `extract-from-url` when `normalize: true`
+  - `recipeHealthScoreService.js` - `estimateRecipeHealthScore(recipe)` / `estimateRecipeHealthScoreById(id)` — practical 0–100 health estimate from **already structured** recipe JSON (separate step; not wired into OCR/URL extract)
+  - `recipeHealthScorePersistence.js` - upsert/read `recipe_health_scores` (estimate fields only); model/tokens for health calls go to `ai_token_usage` via `logAiTokenUsage`
   - `recipeService.js` - Recipe CRUD operations
   - `sourceService.js` - Book source management
   - `imageProcessingService.js` - Image resizing, format conversion (Sharp)
   - `cropPerspectiveService.js` - Optional 4-point perspective crop (Python + OpenCV)
 
 ### Database Schema
-Tables: `recipe_sources`, `recipes`, `recipe_ingredient_sections`, `ingredients`, `recipe_steps`, `recipe_tips`, `extract_usage`
+Tables: `recipe_sources`, `recipes`, `recipe_ingredient_sections`, `ingredients`, `recipe_steps`, `recipe_tips`, `recipe_health_scores`, `ai_token_usage`, `recipe_history`
 
 Key features:
 - Cascading deletes (ON DELETE CASCADE)
@@ -101,14 +103,16 @@ python3 -m venv venv
 - `GET /api/recipes/with-ingredients?favorite=1` - Same as `with-ingredients`, optionally filtered to favorites only
 - `PUT /api/recipes/:id` - Can update `would_cook_again` with values `yes` | `maybe` | `no`
 - `POST /api/recipes/extract-from-url` - Body `{ url, normalize? }`; returns raw `{ source, warnings, fetched_url, recipe }`; if `normalize: true`, adds `structured`, `normalize_model`, `normalize_usage` (OpenAI, primary `gpt-4o-mini` / fallback `gpt-4.1-mini` on low-quality heuristics)
-- `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `extract_usage` with `model` and `extract_kind: url_normalize`
+- `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize`
+- `POST /api/recipes/:id/estimate-health-score` - Practical health score + summary + tips from structured recipe; **persists** only successful estimates to `recipe_health_scores` and logs model/tokens to `ai_token_usage` (`usage_kind: health_score`); failures return **502**/**503** with `{ error }` (no DB row)
+- `POST /api/recipes/estimate-health-score` - Body `{ recipe }`; same scoring without loading from DB
 
 ### Image Import (Two-step process)
 1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`
 2. `POST /api/recipes/:id/extract-from-images` - Extract recipe text from images via OpenAI
 
 ### Admin
-- `GET /api/admin/extract-usage` - List `extract_usage` with recipe title join and per-row cost estimate (see `extractUsagePricing.js`)
+- `GET /api/admin/extract-usage` - List `ai_token_usage` with recipe title join and per-row cost estimate (see `extractUsagePricing.js`)
 
 ### Sources
 - `GET /api/sources` - List all sources
@@ -138,7 +142,7 @@ The recipe extraction uses OpenAI's vision API with a strict JSON schema (`RECIP
 - **Nutrition**: Estimated from ingredients (not extracted from image)
 
 ### Token Usage Tracking
-All OpenAI API calls log token usage to the `extract_usage` table for cost monitoring (`model`, `extract_kind`: `vision` | `url_normalize`, `response_json`, and `request_json` when the model input is JSON—URL normalization stores the scraped raw recipe payload).
+All OpenAI API calls log token usage to the `ai_token_usage` table for cost monitoring (`model`, `usage_kind`: `recipe_image_extract` | `url_recipe_normalize` | `health_score`, …, `response_json`, and `request_json` when the model input is JSON—URL normalization stores the scraped raw recipe payload).
 
 ## Code Style Guidelines
 
@@ -187,7 +191,7 @@ All OpenAI API calls log token usage to the `extract_usage` table for cost monit
 ### Modifying OpenAI Extraction
 1. Update `EXTRACT_PROMPT` and/or `RECIPE_JSON_SCHEMA` in `extractRecipeService.js`
 2. Test with various recipe images
-3. Check `extract_usage` table for token usage changes
+3. Check `ai_token_usage` table for token usage changes
 
 ## Testing
 
@@ -214,7 +218,7 @@ docker run -p 8097:8097 --env-file .env -v $(pwd)/data:/data recipe-library
 
 ### OpenAI API Issues
 - Check `OPENAI_API_KEY` is set correctly
-- Review `extract_usage` table for error responses
+- Review `ai_token_usage` table for error responses
 - Verify image sizes don't exceed OpenAI limits
 - Check model availability and pricing
 

@@ -31,6 +31,28 @@ export function getDb() {
 export function initDb() {
   const database = getDb()
 
+  // Before CREATE TABLE IF NOT EXISTS ai_token_usage: migrate legacy extract_usage so we never get two tables.
+  try {
+    const legacy = database
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='extract_usage'")
+      .get()
+    const modern = database
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_token_usage'")
+      .get()
+    if (legacy && !modern) {
+      database.exec('ALTER TABLE extract_usage RENAME TO ai_token_usage')
+    }
+  } catch (_) {}
+  try {
+    const ai = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_token_usage'").get()
+    if (ai) {
+      const cols = database.prepare('PRAGMA table_info(ai_token_usage)').all()
+      if (cols.some((c) => c.name === 'extract_kind')) {
+        database.exec('ALTER TABLE ai_token_usage RENAME COLUMN extract_kind TO usage_kind')
+      }
+    }
+  } catch (_) {}
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS recipe_sources (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,7 +131,7 @@ export function initDb() {
       text TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS extract_usage (
+    CREATE TABLE IF NOT EXISTS ai_token_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       recipe_id INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
       prompt_tokens INTEGER,
@@ -118,7 +140,7 @@ export function initDb() {
       response_json TEXT,
       request_json TEXT,
       model TEXT,
-      extract_kind TEXT,
+      usage_kind TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -130,13 +152,24 @@ export function initDb() {
       UNIQUE(recipe_id, cooked_date)
     );
 
+    CREATE TABLE IF NOT EXISTS recipe_health_scores (
+      recipe_id INTEGER PRIMARY KEY REFERENCES recipes(id) ON DELETE CASCADE,
+      health_score REAL,
+      confidence REAL,
+      summary TEXT,
+      positives_json TEXT NOT NULL DEFAULT '[]',
+      concerns_json TEXT NOT NULL DEFAULT '[]',
+      improvement_tips_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_sections_recipe_id ON recipe_ingredient_sections(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
     CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
     CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe_id ON recipe_steps(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_tips_recipe_id ON recipe_tips(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);
-    CREATE INDEX IF NOT EXISTS idx_extract_usage_recipe_id ON extract_usage(recipe_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_token_usage_recipe_id ON ai_token_usage(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_history_recipe_id ON recipe_history(recipe_id);
   `)
 
@@ -153,10 +186,67 @@ export function initDb() {
   addCol('recipes', 'favorite', 'INTEGER DEFAULT 0')
   addCol('recipes', 'would_cook_again', 'TEXT')
   addCol('ingredients', 'category', 'TEXT')
-  addCol('extract_usage', 'response_json', 'TEXT')
-  addCol('extract_usage', 'model', 'TEXT')
-  addCol('extract_usage', 'extract_kind', 'TEXT')
-  addCol('extract_usage', 'request_json', 'TEXT')
+
+  addCol('ai_token_usage', 'response_json', 'TEXT')
+  addCol('ai_token_usage', 'model', 'TEXT')
+  addCol('ai_token_usage', 'usage_kind', 'TEXT')
+  addCol('ai_token_usage', 'request_json', 'TEXT')
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS recipe_health_scores (
+      recipe_id INTEGER PRIMARY KEY REFERENCES recipes(id) ON DELETE CASCADE,
+      health_score REAL,
+      confidence REAL,
+      summary TEXT,
+      positives_json TEXT NOT NULL DEFAULT '[]',
+      concerns_json TEXT NOT NULL DEFAULT '[]',
+      improvement_tips_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `)
+
+  try {
+    database.exec('CREATE INDEX IF NOT EXISTS idx_ai_token_usage_recipe_id ON ai_token_usage(recipe_id)')
+  } catch (_) {}
+
+  try {
+    if (database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_token_usage'").get()) {
+      database.run(`UPDATE ai_token_usage SET usage_kind = 'recipe_image_extract' WHERE usage_kind = 'vision'`)
+      database.run(`UPDATE ai_token_usage SET usage_kind = 'url_recipe_normalize' WHERE usage_kind = 'url_normalize'`)
+    }
+  } catch (_) {}
+
+  try {
+    const hCols = database.prepare('PRAGMA table_info(recipe_health_scores)').all()
+    const names = hCols.map((c) => c.name)
+    if (names.includes('model')) {
+      database.exec('ALTER TABLE recipe_health_scores DROP COLUMN model')
+    }
+  } catch (_) {}
+  try {
+    const hCols = database.prepare('PRAGMA table_info(recipe_health_scores)').all()
+    const names = hCols.map((c) => c.name)
+    if (names.includes('token_usage_json')) {
+      database.exec('ALTER TABLE recipe_health_scores DROP COLUMN token_usage_json')
+    }
+  } catch (_) {}
+  try {
+    const hCols = database.prepare('PRAGMA table_info(recipe_health_scores)').all()
+    const names = hCols.map((c) => c.name)
+    if (names.includes('used_fallback')) {
+      database.exec('ALTER TABLE recipe_health_scores DROP COLUMN used_fallback')
+    }
+  } catch (_) {}
+  try {
+    const hCols = database.prepare('PRAGMA table_info(recipe_health_scores)').all()
+    const names = hCols.map((c) => c.name)
+    if (names.includes('warning')) {
+      database.exec('ALTER TABLE recipe_health_scores DROP COLUMN warning')
+    }
+  } catch (_) {}
+  try {
+    database.exec('DELETE FROM recipe_health_scores WHERE health_score IS NULL')
+  } catch (_) {}
 
   // Ensure new column(s) exist even if ALTER TABLE was ignored.
   // This keeps the server running instead of failing later on "no such column" errors.
@@ -251,6 +341,7 @@ export function initDb() {
   if (hasOldSchema) {
     database.exec(`
       DROP TABLE IF EXISTS extract_usage;
+      DROP TABLE IF EXISTS ai_token_usage;
       DROP TABLE IF EXISTS recipe_tips;
       DROP TABLE IF EXISTS ingredients;
       DROP TABLE IF EXISTS recipe_steps;
@@ -317,7 +408,7 @@ export function initDb() {
         position INTEGER NOT NULL DEFAULT 0,
         text TEXT NOT NULL
       );
-      CREATE TABLE extract_usage (
+      CREATE TABLE ai_token_usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         recipe_id INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
         prompt_tokens INTEGER,
@@ -326,7 +417,7 @@ export function initDb() {
         response_json TEXT,
         request_json TEXT,
         model TEXT,
-        extract_kind TEXT,
+        usage_kind TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
       CREATE TABLE recipe_history (
@@ -336,13 +427,23 @@ export function initDb() {
         created_at TEXT DEFAULT (datetime('now')),
         UNIQUE(recipe_id, cooked_date)
       );
+      CREATE TABLE recipe_health_scores (
+        recipe_id INTEGER PRIMARY KEY REFERENCES recipes(id) ON DELETE CASCADE,
+        health_score REAL,
+        confidence REAL,
+        summary TEXT,
+        positives_json TEXT NOT NULL DEFAULT '[]',
+        concerns_json TEXT NOT NULL DEFAULT '[]',
+        improvement_tips_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
       CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_sections_recipe_id ON recipe_ingredient_sections(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
       CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
       CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe_id ON recipe_steps(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_recipe_tips_recipe_id ON recipe_tips(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);
-      CREATE INDEX IF NOT EXISTS idx_extract_usage_recipe_id ON extract_usage(recipe_id);
+      CREATE INDEX IF NOT EXISTS idx_ai_token_usage_recipe_id ON ai_token_usage(recipe_id);
       CREATE INDEX IF NOT EXISTS idx_recipe_history_recipe_id ON recipe_history(recipe_id);
     `)
   }

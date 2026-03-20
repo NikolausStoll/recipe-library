@@ -274,31 +274,64 @@
       </div>
 
       <!-- Step 2: Ingredients -->
-      <div v-if="currentStep === 1" class="form-step">
-        <p class="ingredient-category-hint">
-          Only the canonical keys in parentheses are saved (e.g. <code>produce</code>, <code>pantry</code>). The German name is for display.
+      <div v-if="currentStep === 1" class="form-step form-step--ingredients">
+        <p class="ingredients-step__hint">
+          Ingredients are shown as plain text for review. Click a line to edit. New rows open in edit mode.
+          Category keys: only values in parentheses are saved (e.g. <code>produce</code>, <code>pantry</code>).
         </p>
-        <div v-for="(group, sectionKey) in ingredientsBySection" :key="group.key" class="ingredient-section">
-          <div class="ingredient-heading-input">
-            <label>
-              Section Heading
-              <input
-                type="text"
-                :value="group.heading ?? ''"
-                placeholder="Optional heading"
-                @input="updateSectionHeading(group.key, $event.target.value)"
-              />
-            </label>
+        <div v-for="group in ingredientsBySection" :key="group.key" class="ingredient-section">
+          <div class="ingredient-section__heading-block">
+            <span class="ingredient-section__heading-block-label">Section heading</span>
+            <input
+              type="text"
+              class="ingredient-section__heading-input"
+              :value="group.heading ?? ''"
+              placeholder="Optional heading (e.g. Sauce, Salad)"
+              @input="updateSectionHeading(group.key, ($event.target as HTMLInputElement).value)"
+            />
           </div>
-          <div v-if="group.heading" class="ingredient-section__header">
-            <strong>{{ group.heading }}</strong>
-          </div>
+          <p v-if="group.heading?.trim()" class="ingredient-section__heading-preview">{{ group.heading }}</p>
+
           <div
             v-for="item in group.items"
             :key="`${group.key}-${item.flatIndex}`"
-            class="ingredient-item"
+            class="ingredient-card"
+            :class="{ 'ingredient-card--editing': isIngredientEditing(item.flatIndex) }"
           >
-            <div class="ingredient-row">
+            <div v-if="!isIngredientEditing(item.flatIndex)" class="ingredient-card__view">
+              <div
+                class="ingredient-card__summary"
+                role="button"
+                tabindex="0"
+                :aria-label="'Edit ingredient: ' + ingredientLineMain(item.ing)"
+                @click="openIngredientEdit(item.flatIndex)"
+                @keydown.enter.prevent="openIngredientEdit(item.flatIndex)"
+                @keydown.space.prevent="openIngredientEdit(item.flatIndex)"
+              >
+                <div class="ingredient-card__summary-main">{{ ingredientLineMain(item.ing) }}</div>
+                <div v-if="ingredientLineSub(item.ing)" class="ingredient-card__summary-sub">{{ ingredientLineSub(item.ing) }}</div>
+                <div
+                  v-if="!hideIngredientOriginalLine && (item.ing.original_text || '').trim()"
+                  class="ingredient-card__summary-original"
+                >
+                  <span class="ingredient-card__summary-original-label">Original:</span>
+                  {{ truncateText(item.ing.original_text ?? '', 120) }}
+                </div>
+              </div>
+              <button
+                type="button"
+                class="btn-icon btn-icon--remove"
+                title="Remove ingredient"
+                @click.stop="removeIngredient(item.flatIndex)"
+              >
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <template v-else>
+            <div class="ingredient-card__primary">
               <input
                 v-model="item.ing.amount"
                 type="text"
@@ -309,21 +342,21 @@
               <input
                 v-model="item.ing.unit"
                 type="text"
-                placeholder="cup"
+                placeholder="g"
                 class="ingredient-input ingredient-input--unit"
                 aria-label="Unit"
               />
               <input
                 v-model="item.ing.name"
                 type="text"
-                placeholder="flour"
+                placeholder="Ingredient name"
                 class="ingredient-input ingredient-input--name"
                 aria-label="Ingredient name"
               />
               <button
                 type="button"
                 class="btn-icon btn-icon--remove"
-                title="Remove"
+                title="Remove ingredient"
                 @click="removeIngredient(item.flatIndex)"
               >
                 <svg viewBox="0 0 24 24" fill="none">
@@ -331,60 +364,123 @@
                 </svg>
               </button>
             </div>
-            <div class="ingredient-category">
-              <label class="ingredient-category__label">Category</label>
-              <select
-                :value="item.ing.category ?? ''"
-                class="ingredient-category__select"
-                aria-label="Ingredient category"
-                @change="setIngredientCategorySelect(item.ing, ($event.target as HTMLSelectElement).value)"
-              >
-                <option value="">— No category —</option>
-                <option
-                  v-for="opt in INGREDIENT_CATEGORY_OPTIONS"
-                  :key="opt.value"
-                  :value="opt.value"
+
+            <div class="ingredient-card__secondary">
+              <div class="ingredient-card__field">
+                <label class="ingredient-card__field-label" :for="`ing-cat-${item.flatIndex}`">Category</label>
+                <select
+                  :id="`ing-cat-${item.flatIndex}`"
+                  :value="item.ing.category ?? ''"
+                  class="ingredient-card__select"
+                  aria-label="Ingredient category"
+                  @change="setIngredientCategorySelect(item.ing, ($event.target as HTMLSelectElement).value)"
                 >
-                  {{ opt.labelDe }} ({{ opt.value }})
-                </option>
-              </select>
+                  <option value="">— None —</option>
+                  <option
+                    v-for="opt in INGREDIENT_CATEGORY_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.labelDe }} ({{ opt.value }})
+                  </option>
+                </select>
+              </div>
+              <div class="ingredient-card__field ingredient-card__field--grow">
+                <label class="ingredient-card__field-label" :for="`ing-add-${item.flatIndex}`">Additional info</label>
+                <input
+                  :id="`ing-add-${item.flatIndex}`"
+                  v-model="item.ing.additional_info"
+                  type="text"
+                  class="ingredient-card__text-input"
+                  placeholder="Notes, alternatives…"
+                  aria-label="Additional ingredient info"
+                />
+              </div>
             </div>
-            <div class="ingredient-additional">
-              <input
-                v-model="item.ing.additional_info"
-                type="text"
-                class="ingredient-additional__input"
-                placeholder="Additional info"
-                aria-label="Additional ingredient info"
-              />
+
+            <div v-if="!hideIngredientOriginalLine" class="ingredient-card__original-wrap">
+              <template v-if="item.ing.original_text == null">
+                <button
+                  type="button"
+                  class="ingredient-card__link-btn"
+                  @click="item.ing.original_text = ''"
+                >
+                  + Add original line (from OCR)
+                </button>
+              </template>
+              <template v-else-if="item.ing.original_text === ''">
+                <div class="ingredient-card__original-editor">
+                  <span class="ingredient-card__field-label">Original line</span>
+                  <input
+                    v-model="item.ing.original_text"
+                    type="text"
+                    class="ingredient-card__text-input ingredient-card__text-input--original"
+                    placeholder="Paste visible line from the source"
+                    aria-label="Original ingredient line"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn--secondary btn--tiny"
+                    @click="item.ing.original_text = null"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </template>
+              <template v-else>
+                <div
+                  v-if="!isOriginalLineExpanded(item.flatIndex)"
+                  class="ingredient-card__original-collapsed"
+                >
+                  <button
+                    type="button"
+                    class="ingredient-card__link-btn"
+                    @click="toggleOriginalLineExpanded(item.flatIndex)"
+                  >
+                    Show / edit original line
+                  </button>
+                  <span class="ingredient-card__original-preview" :title="item.ing.original_text ?? ''">{{
+                    truncateText(item.ing.original_text ?? '', 72)
+                  }}</span>
+                </div>
+                <div v-else class="ingredient-card__original-editor">
+                  <span class="ingredient-card__field-label">Original line</span>
+                  <div class="ingredient-card__original-row">
+                    <input
+                      v-model="item.ing.original_text"
+                      type="text"
+                      class="ingredient-card__text-input ingredient-card__text-input--original"
+                      placeholder="Original ingredient text from OCR"
+                      aria-label="Original ingredient line"
+                    />
+                    <button
+                      type="button"
+                      class="btn-icon-small"
+                      title="Remove original text"
+                      @click="item.ing.original_text = null; collapseOriginalLine(item.flatIndex)"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn--secondary btn--tiny"
+                    @click="collapseOriginalLine(item.flatIndex)"
+                  >
+                    Done
+                  </button>
+                </div>
+              </template>
             </div>
-            <div v-if="item.ing.original_text !== undefined && item.ing.original_text !== null" class="ingredient-original">
-              <label class="ingredient-original__label">Original:</label>
-              <input
-                v-model="item.ing.original_text"
-                type="text"
-                class="ingredient-original__input"
-                placeholder="Original ingredient text from OCR"
-              />
-              <button
-                type="button"
-                class="btn-icon-small"
-                title="Remove original text"
-                @click="item.ing.original_text = null"
-              >
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+
+            <div class="ingredient-card__edit-footer">
+              <button type="button" class="btn btn--secondary btn--small" @click="closeIngredientEdit(item.flatIndex)">
+                Done
               </button>
             </div>
-            <button
-              v-else
-              type="button"
-              class="ingredient-add-original"
-              @click="item.ing.original_text = ''"
-            >
-              + Add original text
-            </button>
+            </template>
           </div>
         </div>
 
@@ -394,30 +490,71 @@
       </div>
 
       <!-- Step 3: Instructions -->
-      <div v-if="currentStep === 2" class="form-step">
+      <div v-if="currentStep === 2" class="form-step form-step--instructions">
+        <p class="instructions-step__hint">
+          Steps are shown as plain text for review. Click to edit. New steps open in edit mode.
+        </p>
         <div
           v-for="(step, index) in form.recipe_steps"
           :key="index"
-          class="instruction-row"
+          class="instruction-block"
+          :class="{ 'instruction-block--editing': isStepEditing(index) }"
         >
-          <div class="instruction-number">{{ index + 1 }}</div>
-          <textarea
-            v-model="step.instruction"
-            rows="2"
-            :placeholder="`Step ${index + 1}`"
-            class="form-textarea"
-            aria-label="Step instruction"
-          />
-          <button
-            type="button"
-            class="btn-icon btn-icon--remove"
-            title="Remove step"
-            @click="removeStep(index)"
-          >
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+          <div v-if="!isStepEditing(index)" class="instruction-block__view">
+            <div class="instruction-number">{{ index + 1 }}</div>
+            <div
+              class="instruction-block__summary"
+              role="button"
+              tabindex="0"
+              :aria-label="'Edit step ' + (index + 1)"
+              @click="openStepEdit(index)"
+              @keydown.enter.prevent="openStepEdit(index)"
+              @keydown.space.prevent="openStepEdit(index)"
+            >
+              {{
+                (step.instruction || '').trim()
+                  ? step.instruction
+                  : 'Empty step — click to edit'
+              }}
+            </div>
+            <button
+              type="button"
+              class="btn-icon btn-icon--remove"
+              title="Remove step"
+              @click.stop="removeStep(index)"
+            >
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+          <div v-else class="instruction-block__edit">
+            <div class="instruction-row">
+              <div class="instruction-number">{{ index + 1 }}</div>
+              <textarea
+                v-model="step.instruction"
+                rows="3"
+                :placeholder="`Step ${index + 1}`"
+                class="form-textarea instruction-block__textarea"
+                aria-label="Step instruction"
+              />
+              <button
+                type="button"
+                class="btn-icon btn-icon--remove"
+                title="Remove step"
+                @click="removeStep(index)"
+              >
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="instruction-block__edit-actions">
+              <button type="button" class="btn btn--secondary btn--small" @click="closeStepEdit(index)">
+                Done
+              </button>
+            </div>
+          </div>
         </div>
 
         <button type="button" class="btn btn--secondary btn--block" @click="addStep">
@@ -500,7 +637,7 @@ import type {
 } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
-import { INGREDIENT_CATEGORY_OPTIONS } from '../constants/ingredientCategories'
+import { INGREDIENT_CATEGORY_OPTIONS, getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 
 interface IngredientRow {
   amount: string
@@ -510,6 +647,7 @@ interface IngredientRow {
   section_id?: number | null
   section_heading?: string | null
   original_text?: string | null
+  /** Form uses empty string when unset */
   additional_info?: string | null
 }
 
@@ -517,6 +655,7 @@ const props = defineProps<{
   initial?: (Partial<RecipeFormPayload> & {
     parsed_recipe?: ParsedRecipeFromOcr | null
     source_id?: number | null
+    import_method?: string | null
     extract_confidence?: number | null
     extract_missing_fields?: string[] | null
     nutrition_kcal?: number | null
@@ -720,6 +859,77 @@ const hasExtractionFeedback = computed(() => {
 const extractConfidence = computed(() => props.initial?.extract_confidence ?? null)
 const extractMissingFields = computed(() => props.initial?.extract_missing_fields ?? null)
 
+/** URL-imported recipes: hide OCR "original line" fields in the form. */
+const hideIngredientOriginalLine = computed(() => (props.initial?.import_method ?? 'manual') === 'url')
+
+/** Flat indices whose original-line editor is expanded (default: collapsed when text exists). */
+const expandedOriginalLineIndices = ref<Set<number>>(new Set())
+
+/** Ingredients shown as full form (otherwise one-line summary for review). */
+const editingIngredientIndices = ref<Set<number>>(new Set())
+
+/** Steps shown as textarea (otherwise one-line summary). */
+const editingStepIndices = ref<Set<number>>(new Set())
+
+function isIngredientEditing(flatIndex: number): boolean {
+  return editingIngredientIndices.value.has(flatIndex)
+}
+
+function openIngredientEdit(flatIndex: number) {
+  const next = new Set(editingIngredientIndices.value)
+  next.add(flatIndex)
+  editingIngredientIndices.value = next
+}
+
+function closeIngredientEdit(flatIndex: number) {
+  const next = new Set(editingIngredientIndices.value)
+  next.delete(flatIndex)
+  editingIngredientIndices.value = next
+}
+
+function isStepEditing(index: number): boolean {
+  return editingStepIndices.value.has(index)
+}
+
+function openStepEdit(index: number) {
+  const next = new Set(editingStepIndices.value)
+  next.add(index)
+  editingStepIndices.value = next
+}
+
+function closeStepEdit(index: number) {
+  const next = new Set(editingStepIndices.value)
+  next.delete(index)
+  editingStepIndices.value = next
+}
+
+function ingredientLineMain(ing: IngredientRow): string {
+  const amount = (ing.amount || '').trim()
+  const unit = (ing.unit || '').trim()
+  const name = (ing.name || '').trim()
+  const parts = [amount, unit, name].filter(Boolean)
+  const hasMeta = !!(ing.category || (ing.additional_info || '').trim())
+  if (parts.length === 0 && !hasMeta) return 'Empty ingredient — click to edit'
+  return parts.join(' ').trim() || name || '—'
+}
+
+function ingredientLineSub(ing: IngredientRow): string {
+  const bits: string[] = []
+  if (ing.category) bits.push(getIngredientCategoryLabelDe(ing.category))
+  const add = (ing.additional_info || '').trim()
+  if (add) bits.push(add)
+  return bits.join(' · ')
+}
+
+function remapIndexSetAfterRemove(setRef: { value: Set<number> }, removedIndex: number) {
+  const next = new Set<number>()
+  for (const i of setRef.value) {
+    if (i < removedIndex) next.add(i)
+    else if (i > removedIndex) next.add(i - 1)
+  }
+  setRef.value = next
+}
+
 const ingredientsBySection = computed(() => {
   const groups = new Map<string, { heading: string; items: { ing: IngredientRow; flatIndex: number }[] }>()
   const defaultKey = '\0'
@@ -749,6 +959,29 @@ function setIngredientCategorySelect(ing: IngredientRow, value: string) {
   ing.category = v ? v : null
 }
 
+function truncateText(text: string, maxLen: number): string {
+  const t = text.trim()
+  if (t.length <= maxLen) return t
+  return `${t.slice(0, maxLen)}…`
+}
+
+function isOriginalLineExpanded(flatIndex: number): boolean {
+  return expandedOriginalLineIndices.value.has(flatIndex)
+}
+
+function toggleOriginalLineExpanded(flatIndex: number) {
+  const next = new Set(expandedOriginalLineIndices.value)
+  if (next.has(flatIndex)) next.delete(flatIndex)
+  else next.add(flatIndex)
+  expandedOriginalLineIndices.value = next
+}
+
+function collapseOriginalLine(flatIndex: number) {
+  const next = new Set(expandedOriginalLineIndices.value)
+  next.delete(flatIndex)
+  expandedOriginalLineIndices.value = next
+}
+
 function addIngredient() {
   const last = form.ingredients[form.ingredients.length - 1]
   form.ingredients.push({
@@ -760,18 +993,24 @@ function addIngredient() {
     section_heading: last?.section_heading ?? '',
     section_id: last?.section_id ?? null,
   })
+  const newIdx = form.ingredients.length - 1
+  openIngredientEdit(newIdx)
 }
 
 function removeIngredient(index: number) {
   form.ingredients.splice(index, 1)
+  remapIndexSetAfterRemove(expandedOriginalLineIndices, index)
+  remapIndexSetAfterRemove(editingIngredientIndices, index)
 }
 
 function addStep() {
   form.recipe_steps.push({ instruction: '' })
+  openStepEdit(form.recipe_steps.length - 1)
 }
 
 function removeStep(index: number) {
   form.recipe_steps.splice(index, 1)
+  remapIndexSetAfterRemove(editingStepIndices, index)
 }
 
 function nextStep() {
@@ -791,6 +1030,9 @@ function goToStep(idx: number) {
 }
 
 function assignFromInitial() {
+  expandedOriginalLineIndices.value = new Set()
+  editingIngredientIndices.value = new Set()
+  editingStepIndices.value = new Set()
   if (props.initial) {
     form.title = props.initial.title ?? ''
     form.subtitle = props.initial.subtitle ?? ''
@@ -812,7 +1054,8 @@ function assignFromInitial() {
       section_id: (ing as IngredientRow & { section_id?: number }).section_id ?? null,
       section_heading: (ing as IngredientRow).section_heading ?? null,
       original_text: ing.original_text ?? (ing as any).originalText ?? null,
-      additional_info: ing.additional_info ?? (ing as { additionalInfo?: string | null }).additionalInfo ?? null,
+      additional_info:
+        (ing.additional_info ?? (ing as { additionalInfo?: string | null }).additionalInfo ?? '') ?? '',
     }))
     if (form.ingredients.length === 0) {
       form.ingredients = [{ amount: '', unit: '', name: '', category: null, additional_info: '', section_heading: '', section_id: null }]
@@ -1401,26 +1644,53 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
   text-decoration: underline;
 }
 
-/* Ingredients */
-.ingredient-section {
+/* Ingredients (card layout) */
+.form-step--ingredients {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
 }
 
-.ingredient-section__header {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-text);
-  margin-top: var(--spacing-sm);
+.ingredients-step__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
 }
 
-.ingredient-heading-input {
+.ingredients-step__hint code {
+  font-size: 0.75em;
+  padding: 0.1em 0.25em;
+  border-radius: 3px;
+  background: var(--color-bg-muted);
+}
+
+.ingredient-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.ingredient-section__heading-block {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+}
+
+.ingredient-section__heading-block-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
   margin-bottom: var(--spacing-xs);
 }
 
-.ingredient-heading-input input {
+.ingredient-section__heading-input {
   width: 100%;
+  box-sizing: border-box;
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--color-input-border);
   border-radius: var(--radius-sm);
@@ -1430,74 +1700,285 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
   color: var(--color-text);
 }
 
-.ingredient-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.ingredient-row {
-  display: grid;
-  grid-template-columns: 80px 100px 1fr 40px;
-  gap: var(--spacing-sm);
-  align-items: center;
-}
-
-.ingredient-category {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding-left: calc(80px + 100px + var(--spacing-sm) * 2);
-}
-
-.ingredient-category__label {
-  flex: 0 0 auto;
-  font-size: 0.8rem;
+.ingredient-section__heading-preview {
+  margin: 0;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text-muted);
-  min-width: 4.5rem;
 }
 
-.ingredient-category__select {
+.ingredient-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated, var(--color-bg));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ingredient-card--editing {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.12);
+}
+
+.ingredient-card__view {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.ingredient-card__summary {
   flex: 1;
   min-width: 0;
-  max-width: 22rem;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--color-input-border);
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: 0.85rem;
-  background: var(--color-input-bg);
-  color: var(--color-text);
+  text-align: left;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: var(--color-bg-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.ingredient-category-hint {
-  margin: 0 0 var(--spacing-md) 0;
+.ingredient-card__summary:hover {
+  background: var(--color-bg);
+  border-color: var(--color-border);
+}
+
+.ingredient-card__summary:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.ingredient-card__summary-main {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.ingredient-card__summary-sub {
+  margin-top: 0.25rem;
   font-size: 0.8rem;
   color: var(--color-text-muted);
   line-height: 1.4;
 }
 
-.ingredient-category-hint code {
-  font-size: 0.75em;
-  padding: 0.1em 0.25em;
-  border-radius: 3px;
-  background: var(--color-bg-muted);
+.ingredient-card__summary-original {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  line-height: 1.4;
 }
 
-.ingredient-additional {
-  padding-left: calc(80px + 100px + var(--spacing-sm) * 2);
+.ingredient-card__summary-original-label {
+  font-weight: 600;
+  font-style: normal;
+  margin-right: 0.35rem;
 }
 
-.ingredient-additional__input {
+.ingredient-card__edit-footer {
+  padding-top: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+  border-top: 1px dashed var(--color-border);
+}
+
+.ingredient-card__primary {
+  display: grid;
+  grid-template-columns: 72px 88px minmax(0, 1fr) 40px;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.ingredient-card__secondary {
+  display: grid;
+  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  gap: var(--spacing-md);
+  align-items: end;
+  padding-top: var(--spacing-xs);
+  border-top: 1px dashed var(--color-border);
+}
+
+.ingredient-card__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.ingredient-card__field--grow {
+  flex: 1;
+}
+
+.ingredient-card__field-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.ingredient-card__select,
+.ingredient-card__text-input {
   width: 100%;
+  box-sizing: border-box;
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--color-input-border);
   border-radius: var(--radius-sm);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   background: var(--color-input-bg);
   color: var(--color-text);
+}
+
+.ingredient-card__text-input--original {
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.ingredient-card__text-input--original:focus {
+  font-style: normal;
+  color: var(--color-text);
+  background: var(--color-input-bg);
+}
+
+.ingredient-card__original-wrap {
+  padding-top: var(--spacing-xs);
+  border-top: 1px dashed var(--color-border);
+}
+
+.ingredient-card__original-collapsed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.85rem;
+}
+
+.ingredient-card__original-preview {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ingredient-card__original-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.ingredient-card__original-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.ingredient-card__original-row .ingredient-card__text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ingredient-card__link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ingredient-card__link-btn:hover {
+  color: var(--color-primary-hover, var(--color-primary));
+}
+
+.btn--tiny {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  align-self: flex-start;
+}
+
+.btn--small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+/* Instructions: view vs edit */
+.form-step--instructions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.instructions-step__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.instruction-block {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated, var(--color-bg));
+}
+
+.instruction-block--editing {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.1);
+}
+
+.instruction-block__view {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.instruction-block__summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  padding: var(--spacing-xs) 0;
+  cursor: pointer;
+  text-align: left;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.instruction-block__summary:hover {
+  color: var(--color-primary);
+}
+
+.instruction-block__summary:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.instruction-block__edit {
+  padding: var(--spacing-md);
+}
+
+.instruction-block__edit-actions {
+  margin-top: var(--spacing-sm);
+}
+
+.instruction-block__textarea {
+  min-height: 5rem;
 }
 
 .ingredient-input {
@@ -1515,60 +1996,6 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
   outline: none;
   border-color: var(--color-input-focus);
   box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
-}
-
-.ingredient-original {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding-left: calc(80px + 100px + var(--spacing-sm) * 2);
-  margin-top: calc(var(--spacing-xs) * -1);
-}
-
-.ingredient-original__label {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  font-style: italic;
-}
-
-.ingredient-original__input {
-  flex: 1;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: 0.85rem;
-  background: var(--color-bg-muted);
-  color: var(--color-text-muted);
-  font-style: italic;
-  transition: all var(--transition-fast);
-}
-
-.ingredient-original__input:focus {
-  outline: none;
-  border-color: var(--color-border-focus);
-  background: var(--color-input-bg);
-  color: var(--color-text);
-}
-
-.ingredient-add-original {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  margin-left: calc(80px + 100px + var(--spacing-sm) * 2);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  align-self: flex-start;
-}
-
-.ingredient-add-original:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: rgba(255, 107, 53, 0.05);
 }
 
 .btn-icon-small {
@@ -1798,18 +2225,13 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
     font-size: 0.75rem;
   }
 
-  .ingredient-row {
-    grid-template-columns: 60px 80px 1fr 40px;
+  .ingredient-card__primary {
+    grid-template-columns: 56px 72px minmax(0, 1fr) 36px;
+    gap: var(--spacing-xs);
   }
 
-  .ingredient-category,
-  .ingredient-additional {
-    padding-left: 0;
-    flex-wrap: wrap;
-  }
-
-  .ingredient-original {
-    padding-left: 0;
+  .ingredient-card__secondary {
+    grid-template-columns: 1fr;
   }
 
   .instruction-row {

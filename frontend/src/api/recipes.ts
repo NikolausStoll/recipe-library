@@ -109,6 +109,8 @@ export interface Recipe extends RecipeListItem {
   ingredients: RecipeIngredient[]
   recipe_steps: { id: number; recipe_id: number; step_number: number; instruction: string }[]
   tips?: string[]
+  /** Latest persisted health estimate from recipe_health_scores; null if never estimated. */
+  health_score?: RecipeHealthScoreResponse | null
 }
 
 export interface IngredientInput {
@@ -228,7 +230,7 @@ export function extractRecipeFromUrl(
   }).then((res) => handleResponse<RecipeUrlExtractResult | RecipeUrlExtractResultWithNormalize>(res))
 }
 
-/** Scrape + LLM normalize + create draft recipe; usage logged server-side in extract_usage. */
+/** Scrape + LLM normalize + create draft recipe; usage logged server-side in ai_token_usage. */
 export interface RecipeUrlImportResult {
   recipe: Recipe
   scrape: {
@@ -312,6 +314,38 @@ export function estimateRecipeNutrition(recipeId: number): Promise<NutritionEsti
   return fetch(`${API_BASE}/recipes/${recipeId}/estimate-nutrition`, {
     method: 'POST',
   }).then((res) => handleResponse<NutritionEstimateResult>(res))
+}
+
+/** Practical everyday health estimate (not medical advice). Persisted in recipe_health_scores after POST .../estimate-health-score */
+export interface RecipeHealthScoreEstimate {
+  healthScore: number | null
+  summary: string | null
+  positives: string[]
+  concerns: string[]
+  improvementTips: string[]
+  confidence: number | null
+}
+
+export interface RecipeHealthScoreResponse {
+  estimate: RecipeHealthScoreEstimate
+  model: string | null
+  tokenUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null
+}
+
+/** By recipe id: estimates, persists to DB, returns the estimate. Body-only POST does not persist. */
+export function postRecipeHealthScore(recipeId: number): Promise<RecipeHealthScoreResponse> {
+  return fetch(`${API_BASE}/recipes/${recipeId}/estimate-health-score`, {
+    method: 'POST',
+  }).then((res) => handleResponse<RecipeHealthScoreResponse>(res))
+}
+
+/** Same scoring as by id, but with a structured recipe object in the body (no DB row). */
+export function postRecipeHealthScorePayload(recipe: Record<string, unknown>): Promise<RecipeHealthScoreResponse> {
+  return fetch(`${API_BASE}/recipes/estimate-health-score`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipe }),
+  }).then((res) => handleResponse<RecipeHealthScoreResponse>(res))
 }
 
 export interface RecipeHistoryResponse {

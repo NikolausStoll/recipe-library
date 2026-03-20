@@ -158,7 +158,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
        │   └─> ingredients (with original_text)
        │   └─> recipe_steps
        │   └─> recipe_tips
-       └─> Log token usage to extract_usage table
+       └─> Log token usage to ai_token_usage table
        └─> Return updated recipe with confidence score
 
 3. User views/edits recipe
@@ -184,7 +184,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | `RecipeFormMultiStep.vue` | 4-step recipe form | Progress indicator, image upload, ingredients, steps, review |
 | `RecipeImportOverlay.vue` | AI import workflow | Camera/file upload, 4-point crop UI, OpenAI extraction |
 | `RecipeUrlImportOverlay.vue` | URL import | Paste URL, `POST /import-from-url`, opens same edit flow as image import |
-| `AdminExtractUsageView.vue` | Token / cost admin | Table of `extract_usage`, JSON expand, sums |
+| `AdminExtractUsageView.vue` | Token / cost admin | Table of `ai_token_usage`, JSON expand, sums |
 | `SourcesView.vue` | Book source management | CRUD operations, cover upload with crop |
 | `DashboardView.vue` | Statistics and quick actions | Recipe counts, recent recipes, quick links |
 | `AppLayout.vue` | Main layout with navigation | Sticky header, route links, responsive design |
@@ -200,10 +200,10 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | `health.js` | Health check | GET /api/health | Database connection |
 | `admin.js` | Admin API | GET /admin/extract-usage | extractUsageAdminService |
 | **Service Layer** |
-| `extractUsageAdminService.js` | extract_usage listing | Join recipes for title | better-sqlite3, extractUsagePricing |
+| `extractUsageAdminService.js` | ai_token_usage listing | Join recipes for title | better-sqlite3, extractUsagePricing |
 | `recipeService.js` | Recipe CRUD operations | createRecipe, updateRecipe, getRecipeById, listRecipes | Database (better-sqlite3) |
 | `sourceService.js` | Source CRUD operations | createSource, updateSource, getSourceById, listSources | Database |
-| `extractRecipeService.js` | OpenAI vision integration | extractRecipeFromImages, logExtractUsage | OpenAI SDK, Database |
+| `extractRecipeService.js` | OpenAI vision integration | extractRecipeFromImages, logAiTokenUsage | OpenAI SDK, Database |
 | `recipeUrlExtractService.js` | URL → raw recipe fields | extractRecipeFromUrl (JSON-LD + HTML) | fetch, cheerio |
 | `recipeNormalizationService.js` | Raw URL recipe → structured JSON | normalizeRecipeWithLLM, isLowQuality | OpenAI SDK, RECIPE_JSON_SCHEMA |
 | `imageProcessingService.js` | Image resize/convert | prepareTextImage, resizeImage | Sharp |
@@ -254,6 +254,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - 1:N to `recipe_ingredient_sections` (one recipe has many sections)
 - 1:N to `recipe_steps` (one recipe has many steps)
 - 1:N to `recipe_tips` (one recipe has many tips)
+- 0:1 to `recipe_health_scores` (optional persisted health estimate)
 
 ### Entity: `recipe_ingredient_sections`
 **Description**: Grouping of ingredients with optional heading (e.g., "For the dough", "For the filling")
@@ -309,8 +310,22 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 **Relationships**:
 - N:1 to `recipes` (many tips to one recipe)
 
-### Entity: `extract_usage`
-**Description**: OpenAI API token usage tracking for cost monitoring
+### Entity: `recipe_health_scores`
+**Description**: Latest LLM health estimate for a recipe (practical, not medical); one row per recipe, upserted on each `POST .../estimate-health-score`.
+
+**Key Fields**:
+- `recipe_id` (PK, FK) - References recipes.id ON DELETE CASCADE
+- `health_score` - 0–100 or null if fallback
+- `confidence` - 0–1 or null
+- `summary` - Short text
+- `positives_json`, `concerns_json`, `improvement_tips_json` - JSON arrays of strings
+- `updated_at` - Last estimate time (model/tokens are in `ai_token_usage`, `usage_kind` = `health_score`). Failed estimates are not stored.
+
+**Relationships**:
+- 1:1 with `recipes` (optional; row exists only after at least one estimate)
+
+### Entity: `ai_token_usage`
+**Description**: OpenAI API token usage for cost monitoring (vision extract, URL normalization, health score, etc.)
 
 **Key Fields**:
 - `id` (PK) - Auto-increment ID
@@ -318,23 +333,23 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - `prompt_tokens` - Input tokens
 - `completion_tokens` - Output tokens
 - `total_tokens` - Sum of prompt + completion
-- `response_json` - Parsed recipe / response payload (JSON text)
-- `request_json` - JSON sent to the model when the call is text-based (e.g. URL scrape payload for `url_normalize`); null for vision-only calls
+- `response_json` - Model output / structured response (JSON text)
+- `request_json` - JSON sent to the model when the call is text-based (e.g. URL scrape payload); null for vision-only calls
 - `model` - OpenAI model id used for that call (e.g. gpt-4.1-mini, gpt-4o-mini)
-- `extract_kind` - Operation type: `vision` (image extract) or `url_normalize` (URL scrape normalization); null for legacy rows
+- `usage_kind` - Call type: `recipe_image_extract`, `url_recipe_normalize`, `health_score`, … (legacy rows may have been migrated from `vision` / `url_normalize`)
 - `created_at` - Timestamp
 
 **Relationships**:
-- N:1 to `recipes` (many extraction attempts per recipe)
+- N:1 to `recipes` (many AI calls per recipe)
 
 ## 5. Mapping: User Stories → Components/Entities
 
 | Story ID | Title | Affected Components | Affected Entities | NFR Notes |
 |----------|-------|---------------------|-------------------|-----------|
 | US-001 | Manual recipe entry | RecipeFormMultiStep, recipeService, recipes.js | recipes, recipe_ingredient_sections, ingredients, recipe_steps, recipe_tips | Validation: Required title, min 1 ingredient |
-| US-002 | AI recipe import | RecipeImportOverlay, RecipeUrlImportOverlay, extractRecipeService, recipeNormalizationService, recipes.js, upload.js | recipes, ingredients, recipe_steps, extract_usage | Performance: Image resize before API call; Cost: Token tracking |
+| US-002 | AI recipe import | RecipeImportOverlay, RecipeUrlImportOverlay, extractRecipeService, recipeNormalizationService, recipes.js, upload.js | recipes, ingredients, recipe_steps, ai_token_usage | Performance: Image resize before API call; Cost: Token tracking |
 | US-003 | View recipe list | RecipesView, recipeService | recipes, recipe_sources | Performance: No ingredients/steps in list query |
-| US-004 | View recipe detail | RecipesView, recipeService | recipes, ingredients, recipe_steps, recipe_tips | UI: Servings adjustment with ingredient scaling |
+| US-004 | View recipe detail | RecipesView, recipeService | recipes, ingredients, recipe_steps, recipe_tips, recipe_health_scores | UI: Servings adjustment with ingredient scaling; optional persisted health estimate |
 | US-005 | Edit recipe | RecipeFormMultiStep, recipeService | All recipe-related entities | Data: Preserve original_text for OCR imports |
 | US-006 | Delete recipe | RecipesView, recipeService | recipes + cascades | Data Integrity: ON DELETE CASCADE for related records |
 | US-007 | Manage sources | SourcesView, sourceService | recipe_sources | Validation: Name required, year range check |
@@ -342,7 +357,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | US-009 | 4-point perspective crop | RecipeImportOverlay, SourcesView, cropPerspectiveService | recipes.image_path, recipe_sources.image_path | Optional: Requires Python/OpenCV setup |
 | US-010 | Search/filter recipes | RecipesView | recipes | Performance: Add index on title for search |
 | US-011 | Recipe status (draft/confirmed) | RecipeFormMultiStep, recipeService | recipes.status | Workflow: Draft → Confirmed (one-way) |
-| US-012 | Token usage monitoring | extractRecipeService | extract_usage | Cost: Log all OpenAI API calls |
+| US-012 | Token usage monitoring | extractRecipeService, recipe routes | ai_token_usage | Cost: Log all OpenAI API calls |
 | US-013 | Favorite recipes | RecipesView, AppLayout, recipes.js | recipes.favorite | UI: Star toggle + favorites-only listing |
 | US-014 | Would cook again rating | RecipesView, RecipeFormMultiStep, recipes.js | recipes.would_cook_again | UI: prompt after first "Mark cooked today" + selectable in Edit Recipe |
 
@@ -398,7 +413,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - Cache-busting for updated images (`?v=timestamp`)
 
 **Cost Management**:
-- Token usage logged to extract_usage table
+- Token usage logged to ai_token_usage table
 - Configurable model (gpt-4.1-mini cheaper than gpt-4o)
 - Configurable detail level (low/high/auto)
 - Image resize before OpenAI API call (reduce tokens)

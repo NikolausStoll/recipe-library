@@ -1,6 +1,6 @@
 /**
  * Extract structured recipe from one or more recipe-text images using OpenAI vision.
- * Uses a fixed prompt and JSON schema; logs token usage to extract_usage table.
+ * Uses a fixed prompt and JSON schema; logs token usage to ai_token_usage table.
  */
 
 import OpenAI from 'openai'
@@ -195,14 +195,14 @@ export async function extractRecipeFromImages(imageBuffers) {
 }
 
 /**
- * Log token usage and optional full JSON response for an extract run to extract_usage table (for debugging).
+ * Log token usage and optional JSON payloads for any OpenAI call (vision extract, URL normalize, health score, …).
  * @param {number|null|undefined} recipeId
  * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number }|null|undefined} usage
  * @param {unknown} responseJson
- * @param {{ model?: string|null, extract_kind?: string|null, request_json?: string|null }} [meta] - request_json: input JSON sent to the model (URL normalize); null for vision
+ * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null }} [meta] - request_json: input JSON sent to the model (URL normalize); null for vision
  */
-export function logExtractUsage(recipeId, usage, responseJson = null, meta = {}) {
-  if (!usage && !responseJson) return
+export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {}) {
+  if (!usage && responseJson == null) return
   const db = getDb()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
   const responseStr = responseJson != null ? (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson)) : null
@@ -213,9 +213,9 @@ export function logExtractUsage(recipeId, usage, responseJson = null, meta = {})
         : JSON.stringify(meta.request_json)
       : null
   const model = meta.model != null ? String(meta.model) : null
-  const extract_kind = meta.extract_kind != null ? String(meta.extract_kind) : null
+  const usage_kind = meta.usage_kind != null ? String(meta.usage_kind) : null
   db.prepare(`
-    INSERT INTO extract_usage (recipe_id, prompt_tokens, completion_tokens, total_tokens, response_json, request_json, model, extract_kind, created_at)
+    INSERT INTO ai_token_usage (recipe_id, prompt_tokens, completion_tokens, total_tokens, response_json, request_json, model, usage_kind, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     recipeId,
@@ -225,7 +225,7 @@ export function logExtractUsage(recipeId, usage, responseJson = null, meta = {})
     responseStr,
     requestStr,
     model,
-    extract_kind,
+    usage_kind,
     now
   )
 }

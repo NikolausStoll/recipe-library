@@ -215,7 +215,7 @@ async function callLLM(rawRecipe, model) {
     ingredient_lines: Array.isArray(rawRecipe?.ingredient_lines) ? rawRecipe.ingredient_lines : [],
     steps: Array.isArray(rawRecipe?.steps) ? rawRecipe.steps : [],
   }
-  /** Serialized input JSON sent to the model (stored in extract_usage.request_json). */
+  /** Serialized input JSON sent to the model (stored in ai_token_usage.request_json). */
   const userPayload = JSON.stringify(payloadForModel, null, 0)
 
   const response = await client.chat.completions.create({
