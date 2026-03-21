@@ -36,7 +36,8 @@ Rules:
 - Keep ingredient prep for the same component together in one step where reasonable.
 - A step should represent a practical unit a cook would perform, not a grammatical clause.
 
-- Do not invent metadata that must come directly from the image (e.g. servings, times, titles).
+- Do not invent servings or title if they are not visible in the image.
+- If preparation time or cooking time in minutes is explicitly stated on the image, set recipe.prepTimeMinutes and/or recipe.cookTimeMinutes; otherwise use null.
 
 - Extract tips, hints, or variations into the tips array if they are clearly separate from steps or introText.
 
@@ -73,12 +74,32 @@ export const RECIPE_JSON_SCHEMA = {
     recipe: {
       type: ['object', 'null'],
       additionalProperties: false,
-      required: ['title', 'subtitle', 'introText', 'language', 'servings', 'ingredientsSections', 'steps', 'tips'],
+      required: [
+        'title',
+        'subtitle',
+        'introText',
+        'language',
+        'servings',
+        'prepTimeMinutes',
+        'cookTimeMinutes',
+        'ingredientsSections',
+        'steps',
+        'tips',
+      ],
       properties: {
         title: { type: ['string', 'null'] },
         subtitle: { type: ['string', 'null'] },
         introText: { type: ['string', 'null'] },
         language: { type: ['string', 'null'] },
+
+        prepTimeMinutes: {
+          type: ['number', 'null'],
+          description: 'Preparation time in minutes if explicitly visible; otherwise null',
+        },
+        cookTimeMinutes: {
+          type: ['number', 'null'],
+          description: 'Cooking time in minutes if explicitly visible; otherwise null',
+        },
 
         servings: {
           type: ['object', 'null'],

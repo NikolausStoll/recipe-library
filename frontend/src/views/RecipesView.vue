@@ -229,6 +229,23 @@
             <p v-if="viewingRecipe.subtitle" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
 
             <div class="recipe-detail-meta">
+              <div
+                v-if="viewingRecipe.prep_time_min != null || viewingRecipe.cook_time_min != null"
+                class="recipe-detail-times"
+              >
+                <span v-if="viewingRecipe.prep_time_min != null" class="recipe-detail-time-chip">
+                  Prep {{ viewingRecipe.prep_time_min }} min
+                  <span v-if="viewingRecipe.prep_time_source" class="recipe-time-source"
+                    >({{ viewingRecipe.prep_time_source }})</span
+                  >
+                </span>
+                <span v-if="viewingRecipe.cook_time_min != null" class="recipe-detail-time-chip">
+                  Cook {{ viewingRecipe.cook_time_min }} min
+                  <span v-if="viewingRecipe.cook_time_source" class="recipe-time-source"
+                    >({{ viewingRecipe.cook_time_source }})</span
+                  >
+                </span>
+              </div>
               <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
                 <svg viewBox="0 0 24 24" fill="none">
                   <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -323,6 +340,37 @@
             <ul class="recipe-tips-list">
               <li v-for="(tip, idx) in viewingRecipe.tips" :key="idx">{{ tip }}</li>
             </ul>
+          </div>
+
+          <!-- Prep / cook AI estimate -->
+          <div v-if="viewingRecipe" class="note-block note-block--time-estimate">
+            <h2 class="recipe-detail-section-title">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 8V12L14.5 14.5M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Preparation &amp; cooking time
+            </h2>
+            <p class="recipe-time-estimate-disclaimer">
+              Separate AI estimate (home-cook timing). Editable in the recipe form. Imported times stay unless you
+              confirm replacement.
+            </p>
+            <div v-if="timeEstimateError" class="recipe-health-error">{{ timeEstimateError }}</div>
+            <div class="recipe-detail-time-cta">
+              <button
+                type="button"
+                class="btn btn--secondary"
+                :disabled="timeEstimateLoading"
+                @click="requestDetailTimeEstimate"
+              >
+                {{ timeEstimateLoading ? 'Estimating…' : 'Estimate prep & cook times' }}
+              </button>
+            </div>
           </div>
 
           <!-- Health + Nutrition -->
@@ -532,6 +580,58 @@
   </div>
 
   <div
+    v-if="timeEstimateConflict && viewingRecipe"
+    class="time-estimate-conflict-overlay"
+    @click.self="clearTimeEstimateConflict"
+  >
+    <div class="time-estimate-conflict-panel" role="dialog" aria-modal="true" aria-labelledby="time-conflict-title">
+      <h3 id="time-conflict-title">Replace imported times?</h3>
+      <p class="time-estimate-conflict-intro">
+        The model suggests different values. Choose which imported times to overwrite.
+      </p>
+      <ul class="time-estimate-conflict-list">
+        <li v-if="timeEstimateConflict.blocked.prep">
+          <label class="time-estimate-conflict-label">
+            <input v-model="timeReplacePrepChoice" type="checkbox" />
+            <span>
+              Replace prep:
+              <strong>{{ timeEstimateConflict.current.prep_time_min }} min</strong>
+              (imported) →
+              <strong>{{ timeEstimateConflict.estimate.prepTimeMinutes }} min</strong>
+              (AI,
+              {{ Math.round((timeEstimateConflict.estimate.prepTimeConfidence ?? 0) * 100) }}% confidence)
+            </span>
+          </label>
+        </li>
+        <li v-if="timeEstimateConflict.blocked.cook">
+          <label class="time-estimate-conflict-label">
+            <input v-model="timeReplaceCookChoice" type="checkbox" />
+            <span>
+              Replace cook:
+              <strong>{{ timeEstimateConflict.current.cook_time_min }} min</strong>
+              (imported) →
+              <strong>{{ timeEstimateConflict.estimate.cookTimeMinutes }} min</strong>
+              (AI,
+              {{ Math.round((timeEstimateConflict.estimate.cookTimeConfidence ?? 0) * 100) }}% confidence)
+            </span>
+          </label>
+        </li>
+      </ul>
+      <div class="time-estimate-conflict-actions">
+        <button type="button" class="btn btn--secondary" @click="clearTimeEstimateConflict">Cancel</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          :disabled="timeEstimateLoading || !timeReplaceSelectionValid"
+          @click="confirmTimeEstimateReplace"
+        >
+          Apply selected
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div
     v-if="coverOverlay.visible"
     class="recipe-cover-overlay"
     :style="{ top: coverOverlay.y + 'px', left: coverOverlay.x + 'px' }"
@@ -565,6 +665,8 @@ import {
   postRecipeCooked,
   getRecipeHistory,
   setRecipeFavorite,
+  estimateRecipeTimes,
+  RecipeTimeEstimateConflictError,
 } from '../api/recipes'
 import { getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 import type {
@@ -573,6 +675,7 @@ import type {
   RecipeFormPayload,
   ParsedRecipeFromOcr,
   RecipeHealthScoreResponse,
+  RecipeTimeEstimateConflictBody,
 } from '../api/recipes'
 import { getPerServingValue } from '../utils/nutrition'
 
@@ -604,6 +707,20 @@ const nutritionLoading = ref(false)
 const healthScoreLoading = ref(false)
 const healthScoreResult = ref<RecipeHealthScoreResponse | null>(null)
 const healthScoreError = ref('')
+
+const timeEstimateLoading = ref(false)
+const timeEstimateError = ref('')
+const timeEstimateConflict = ref<RecipeTimeEstimateConflictBody | null>(null)
+const timeReplacePrepChoice = ref(false)
+const timeReplaceCookChoice = ref(false)
+
+const timeReplaceSelectionValid = computed(() => {
+  const c = timeEstimateConflict.value
+  if (!c) return false
+  if (c.blocked.prep && !timeReplacePrepChoice.value) return false
+  if (c.blocked.cook && !timeReplaceCookChoice.value) return false
+  return true
+})
 
 const showWouldCookAgainPrompt = ref(false)
 const wouldCookAgainRecipeId = ref<number | null>(null)
@@ -767,6 +884,12 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
     nutrition_fat: recipe.nutrition_fat ?? pr?.nutritionTotal?.fat ?? null,
     tips: recipe.tips ?? pr?.tips ?? [],
     import_method: recipe.import_method ?? 'manual',
+    prep_time_min: recipe.prep_time_min ?? null,
+    cook_time_min: recipe.cook_time_min ?? null,
+    prep_time_source: recipe.prep_time_source ?? null,
+    cook_time_source: recipe.cook_time_source ?? null,
+    prep_time_confidence: recipe.prep_time_confidence ?? null,
+    cook_time_confidence: recipe.cook_time_confidence ?? null,
   }
 }
 
@@ -1065,11 +1188,60 @@ function requestDetailHealthScore() {
   runHealthScoreEstimate(id)
 }
 
+function clearTimeEstimateConflict() {
+  timeEstimateConflict.value = null
+  timeReplacePrepChoice.value = false
+  timeReplaceCookChoice.value = false
+}
+
+async function runTimeEstimate(flags?: { replacePrep?: boolean; replaceCook?: boolean }) {
+  const id = viewingRecipe.value?.id
+  if (!id || timeEstimateLoading.value) return
+  timeEstimateLoading.value = true
+  timeEstimateError.value = ''
+  try {
+    const result = await estimateRecipeTimes(id, {
+      replace_prep_if_original: flags?.replacePrep === true,
+      replace_cook_if_original: flags?.replaceCook === true,
+    })
+    clearTimeEstimateConflict()
+    if (viewingRecipe.value?.id === id) {
+      viewingRecipe.value = result.recipe
+    }
+    await loadList()
+  } catch (e) {
+    if (e instanceof RecipeTimeEstimateConflictError) {
+      timeEstimateConflict.value = e.conflict
+      timeReplacePrepChoice.value = false
+      timeReplaceCookChoice.value = false
+    } else {
+      timeEstimateError.value = e instanceof Error ? e.message : 'Time estimate failed'
+    }
+  } finally {
+    timeEstimateLoading.value = false
+  }
+}
+
+function requestDetailTimeEstimate() {
+  void runTimeEstimate()
+}
+
+function confirmTimeEstimateReplace() {
+  const c = timeEstimateConflict.value
+  if (!c) return
+  void runTimeEstimate({
+    replacePrep: c.blocked.prep ? timeReplacePrepChoice.value : false,
+    replaceCook: c.blocked.cook ? timeReplaceCookChoice.value : false,
+  })
+}
+
 function closeDetailView() {
   viewingRecipe.value = null
   displayServings.value = 1
   healthScoreResult.value = null
   healthScoreError.value = ''
+  clearTimeEstimateConflict()
+  timeEstimateError.value = ''
 }
 
 function adjustServings(delta: number) {
@@ -1118,6 +1290,12 @@ function startEdit(id: number) {
       nutrition_fat: recipe.nutrition_fat ?? null,
       tips: recipe.tips ?? [],
       import_method: recipe.import_method ?? 'manual',
+      prep_time_min: recipe.prep_time_min ?? null,
+      cook_time_min: recipe.cook_time_min ?? null,
+      prep_time_source: recipe.prep_time_source ?? null,
+      cook_time_source: recipe.cook_time_source ?? null,
+      prep_time_confidence: recipe.prep_time_confidence ?? null,
+      cook_time_confidence: recipe.cook_time_confidence ?? null,
     }
     showRecipeForm.value = true
   }).catch((e) => {
@@ -1791,6 +1969,103 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   padding-top: var(--spacing-lg);
   border-top: 1px solid var(--color-border);
+}
+
+.recipe-detail-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.recipe-detail-time-chip {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.recipe-time-source {
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: lowercase;
+}
+
+.recipe-time-estimate-disclaimer {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-md);
+  line-height: 1.45;
+}
+
+.recipe-detail-time-cta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.time-estimate-conflict-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+}
+
+.time-estimate-conflict-panel {
+  max-width: 480px;
+  width: 100%;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.time-estimate-conflict-panel h3 {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 1.15rem;
+}
+
+.time-estimate-conflict-intro {
+  margin: 0 0 var(--spacing-md);
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.time-estimate-conflict-list {
+  margin: 0 0 var(--spacing-lg);
+  padding-left: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.time-estimate-conflict-label {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.time-estimate-conflict-label input {
+  margin-top: 4px;
+}
+
+.time-estimate-conflict-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .recipe-detail-meta-item {

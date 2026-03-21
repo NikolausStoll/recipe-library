@@ -245,7 +245,9 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - `title`, `subtitle`, `description` - Recipe text content
 - `servings_value`, `servings_unit_text` - Servings information
 - `nutrition_kcal`, `nutrition_protein`, `nutrition_carbs`, `nutrition_fat` - Nutrition data
-- `prep_time_min`, `cook_time_min` - Time estimates
+- `prep_time_min`, `cook_time_min` - Time values (minutes)
+- `prep_time_source`, `cook_time_source` - `original` (URL scrape or visible on extract image) | `estimated` (AI time estimate) | null
+- `prep_time_confidence`, `cook_time_confidence` - 0–1 when source is `estimated`; null otherwise
 - `image_path` - Recipe photo URL
 - `created_at`, `updated_at` - Timestamps
 
@@ -336,7 +338,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - `response_json` - Model output / structured response (JSON text)
 - `request_json` - JSON sent to the model when the call is text-based (e.g. URL scrape payload); null for vision-only calls
 - `model` - OpenAI model id used for that call (e.g. gpt-4.1-mini, gpt-4o-mini)
-- `usage_kind` - Call type: `recipe_image_extract`, `url_recipe_normalize`, `health_score`, … (legacy rows may have been migrated from `vision` / `url_normalize`)
+- `usage_kind` - Call type: `recipe_image_extract`, `url_recipe_normalize`, `health_score`, `recipe_time_estimate`, … (legacy rows may have been migrated from `vision` / `url_normalize`)
 - `created_at` - Timestamp
 
 **Relationships**:

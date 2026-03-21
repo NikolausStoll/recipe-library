@@ -9,13 +9,90 @@ const RECIPE_COLUMNS = [
   'favorite',
   'would_cook_again',
   'nutrition_kcal', 'nutrition_protein', 'nutrition_carbs', 'nutrition_fat',
-  'prep_time_min', 'cook_time_min', 'image_path', 'image_urls_json',
+  'prep_time_min', 'cook_time_min',
+  'prep_time_source', 'cook_time_source', 'prep_time_confidence', 'cook_time_confidence',
+  'image_path', 'image_urls_json',
   'created_at', 'updated_at',
 ]
 
 const SOURCE_FIELDS = ['book_title', 'author', 'year']
 
 const SOURCE_KEYS = ['source_name', ...SOURCE_FIELDS]
+
+function normalizeTimeSource(v) {
+  if (v === 'original' || v === 'estimated') return v
+  return null
+}
+
+/** True if this time came from URL/image extract and should not be overwritten without confirmation. */
+export function recipeTimeReplaceConflicts(row) {
+  return {
+    prep: row.prep_time_source === 'original' && row.prep_time_min != null,
+    cook: row.cook_time_source === 'original' && row.cook_time_min != null,
+  }
+}
+
+/**
+ * Apply LLM time estimate; respects original imported times unless flags allow replacement.
+ * @param {number|string} recipeId
+ * @param {{ prepTimeMinutes: number|null, prepTimeConfidence: number, cookTimeMinutes: number|null, cookTimeConfidence: number }} llm
+ * @param {{ replace_prep_if_original?: boolean, replace_cook_if_original?: boolean }} flags
+ */
+export function applyRecipeTimeEstimate(recipeId, llm, flags = {}) {
+  const db = getDb()
+  const row = db
+    .prepare(
+      `SELECT prep_time_min, cook_time_min, prep_time_source, cook_time_source, prep_time_confidence, cook_time_confidence FROM recipes WHERE id = ?`,
+    )
+    .get(Number(recipeId))
+  if (!row) return null
+
+  const conflicts = recipeTimeReplaceConflicts(row)
+  const replacePrep = flags.replace_prep_if_original === true
+  const replaceCook = flags.replace_cook_if_original === true
+
+  let prepMin = row.prep_time_min
+  let cookMin = row.cook_time_min
+  let prepSrc = row.prep_time_source
+  let cookSrc = row.cook_time_source
+  let prepConf = row.prep_time_confidence
+  let cookConf = row.cook_time_confidence
+
+  const applyPrep = llm.prepTimeMinutes != null && (!conflicts.prep || replacePrep)
+  const applyCook = llm.cookTimeMinutes != null && (!conflicts.cook || replaceCook)
+
+  if (applyPrep) {
+    prepMin = llm.prepTimeMinutes
+    prepSrc = 'estimated'
+    prepConf = llm.prepTimeConfidence
+  }
+  if (applyCook) {
+    cookMin = llm.cookTimeMinutes
+    cookSrc = 'estimated'
+    cookConf = llm.cookTimeConfidence
+  }
+
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  db.prepare(`
+    UPDATE recipes SET
+      prep_time_min = ?, cook_time_min = ?,
+      prep_time_source = ?, cook_time_source = ?,
+      prep_time_confidence = ?, cook_time_confidence = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(
+    prepMin ?? null,
+    cookMin ?? null,
+    prepSrc ?? null,
+    cookSrc ?? null,
+    prepConf ?? null,
+    cookConf ?? null,
+    now,
+    Number(recipeId),
+  )
+
+  return getRecipeById(recipeId)
+}
 
 function hasSourceFields(body) {
   if (!body) return false
@@ -71,7 +148,9 @@ export function listRecipes() {
            r.favorite,
            r.would_cook_again,
            r.title, r.subtitle, r.description, r.language, r.servings_value, r.servings_unit_text,
-           r.prep_time_min, r.cook_time_min, r.image_path, r.created_at, r.updated_at,
+           r.prep_time_min, r.cook_time_min,
+           r.prep_time_source, r.cook_time_source, r.prep_time_confidence, r.cook_time_confidence,
+           r.image_path, r.created_at, r.updated_at,
            s.type AS source_type, s.name AS source_name, s.subtitle AS source_subtitle, s.book_title AS source_book_title,
            s.author AS source_author, s.year AS source_year, s.image_path AS source_image_path
     FROM recipes r LEFT JOIN recipe_sources s ON r.source_id = s.id
@@ -271,6 +350,8 @@ function buildParsedRecipeFromRow(row, sectionsWithItems, steps, tips) {
           fat: row.nutrition_fat ?? null,
         }
       : null,
+    prepTimeMinutes: row.prep_time_min != null ? Number(row.prep_time_min) : null,
+    cookTimeMinutes: row.cook_time_min != null ? Number(row.cook_time_min) : null,
   }
 }
 
@@ -333,10 +414,12 @@ export function createRecipe(body) {
     INSERT INTO recipes (
       source_id, source_page, import_method, extract_status, status,
       title, subtitle, description, language, servings_value, servings_unit_text,
-      would_cook_again, prep_time_min, cook_time_min, image_path, image_urls_json,
+      would_cook_again, prep_time_min, cook_time_min,
+      prep_time_source, cook_time_source, prep_time_confidence, cook_time_confidence,
+      image_path, image_urls_json,
       created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     sourceId,
     (recipe.source_page ?? '').trim() || null,
@@ -351,6 +434,10 @@ export function createRecipe(body) {
     recipe.would_cook_again ?? null,
     recipe.prep_time_min ?? null,
     recipe.cook_time_min ?? null,
+    normalizeTimeSource(recipe.prep_time_source) ?? null,
+    normalizeTimeSource(recipe.cook_time_source) ?? null,
+    recipe.prep_time_confidence != null ? Number(recipe.prep_time_confidence) : null,
+    recipe.cook_time_confidence != null ? Number(recipe.cook_time_confidence) : null,
     recipe.image_path ?? null,
     recipe.image_urls_json ?? null,
     now,
@@ -429,6 +516,22 @@ export function updateRecipe(id, body) {
   const would_cook_again = (body && 'would_cook_again' in body) ? (recipe.would_cook_again ?? null) : existingRow.would_cook_again
   const prep_time_min = (body && 'prep_time_min' in body) ? recipe.prep_time_min : existingRow.prep_time_min
   const cook_time_min = (body && 'cook_time_min' in body) ? recipe.cook_time_min : existingRow.cook_time_min
+  const prep_time_source =
+    body && 'prep_time_source' in body ? normalizeTimeSource(recipe.prep_time_source) : existingRow.prep_time_source
+  const cook_time_source =
+    body && 'cook_time_source' in body ? normalizeTimeSource(recipe.cook_time_source) : existingRow.cook_time_source
+  const prep_time_confidence =
+    body && 'prep_time_confidence' in body
+      ? recipe.prep_time_confidence != null
+        ? Number(recipe.prep_time_confidence)
+        : null
+      : existingRow.prep_time_confidence
+  const cook_time_confidence =
+    body && 'cook_time_confidence' in body
+      ? recipe.cook_time_confidence != null
+        ? Number(recipe.cook_time_confidence)
+        : null
+      : existingRow.cook_time_confidence
   const image_path = (body && 'image_path' in body) ? recipe.image_path : existingRow.image_path
   const image_urls_json = (body && 'image_urls_json' in body) ? recipe.image_urls_json : existingRow.image_urls_json
   const import_method = (body && 'import_method' in body) ? (recipe.import_method ?? 'manual') : existingRow.import_method
@@ -439,7 +542,9 @@ export function updateRecipe(id, body) {
     UPDATE recipes SET
       source_id = ?, source_page = ?, import_method = ?, extract_status = ?, status = ?,
       title = ?, subtitle = ?, description = ?, language = ?, servings_value = ?, servings_unit_text = ?,
-      would_cook_again = ?, prep_time_min = ?, cook_time_min = ?, image_path = ?, image_urls_json = ?,
+      would_cook_again = ?, prep_time_min = ?, cook_time_min = ?,
+      prep_time_source = ?, cook_time_source = ?, prep_time_confidence = ?, cook_time_confidence = ?,
+      image_path = ?, image_urls_json = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -457,6 +562,10 @@ export function updateRecipe(id, body) {
     would_cook_again ?? null,
     prep_time_min ?? null,
     cook_time_min ?? null,
+    prep_time_source ?? null,
+    cook_time_source ?? null,
+    prep_time_confidence ?? null,
+    cook_time_confidence ?? null,
     image_path ?? null,
     image_urls_json ?? null,
     now,
@@ -556,9 +665,33 @@ export function setRecipeParsedRecipe(id, parsedRecipe, options = {}) {
   const existing = db.prepare('SELECT id FROM recipes WHERE id = ?').get(Number(id))
   if (!existing) return null
 
+  const timeRow = db
+    .prepare(
+      `SELECT prep_time_min, cook_time_min, prep_time_source, cook_time_source, prep_time_confidence, cook_time_confidence FROM recipes WHERE id = ?`,
+    )
+    .get(Number(id))
+
   const inner = parsedRecipe.recipe
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
   const titleToSet = (options.updateTitle && inner?.title) ? inner.title.trim() : null
+
+  let prepMin = timeRow?.prep_time_min ?? null
+  let cookMin = timeRow?.cook_time_min ?? null
+  let prepSrc = timeRow?.prep_time_source ?? null
+  let cookSrc = timeRow?.cook_time_source ?? null
+  let prepConf = timeRow?.prep_time_confidence ?? null
+  let cookConf = timeRow?.cook_time_confidence ?? null
+
+  if (inner?.prepTimeMinutes != null && Number.isFinite(Number(inner.prepTimeMinutes))) {
+    prepMin = Math.round(Number(inner.prepTimeMinutes))
+    prepSrc = 'original'
+    prepConf = null
+  }
+  if (inner?.cookTimeMinutes != null && Number.isFinite(Number(inner.cookTimeMinutes))) {
+    cookMin = Math.round(Number(inner.cookTimeMinutes))
+    cookSrc = 'original'
+    cookConf = null
+  }
 
   db.prepare(`
     UPDATE recipes SET
@@ -566,6 +699,8 @@ export function setRecipeParsedRecipe(id, parsedRecipe, options = {}) {
       title = COALESCE(?, title), subtitle = ?, description = ?, language = ?,
       servings_value = ?, servings_unit_text = ?,
       nutrition_kcal = ?, nutrition_protein = ?, nutrition_carbs = ?, nutrition_fat = ?,
+      prep_time_min = ?, cook_time_min = ?,
+      prep_time_source = ?, cook_time_source = ?, prep_time_confidence = ?, cook_time_confidence = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -582,6 +717,12 @@ export function setRecipeParsedRecipe(id, parsedRecipe, options = {}) {
     inner?.nutritionTotal?.protein ?? null,
     inner?.nutritionTotal?.carbs ?? null,
     inner?.nutritionTotal?.fat ?? null,
+    prepMin ?? null,
+    cookMin ?? null,
+    prepSrc ?? null,
+    cookSrc ?? null,
+    prepConf ?? null,
+    cookConf ?? null,
     now,
     Number(id),
   )
@@ -678,6 +819,10 @@ function rowToRecipe(row) {
     nutrition_fat: row.nutrition_fat != null ? Number(row.nutrition_fat) : null,
     prep_time_min: row.prep_time_min,
     cook_time_min: row.cook_time_min,
+    prep_time_source: normalizeTimeSource(row.prep_time_source),
+    cook_time_source: normalizeTimeSource(row.cook_time_source),
+    prep_time_confidence: row.prep_time_confidence != null ? Number(row.prep_time_confidence) : null,
+    cook_time_confidence: row.cook_time_confidence != null ? Number(row.cook_time_confidence) : null,
     image_path: row.image_path,
     image_urls_json: row.image_urls_json ?? null,
     image_thumb_path: getThumbnailPathIfExists(row.image_path),
@@ -690,7 +835,15 @@ function sanitizeRecipeInput(body) {
   const allowed = [
     'source_id', 'source_page', 'import_method', 'extract_status', 'status',
     'title', 'subtitle', 'description', 'language', 'servings', 'servings_value', 'servings_unit_text',
-    'prep_time_min', 'cook_time_min', 'image_path', 'image_urls_json', 'would_cook_again',
+    'prep_time_min',
+    'cook_time_min',
+    'prep_time_source',
+    'cook_time_source',
+    'prep_time_confidence',
+    'cook_time_confidence',
+    'image_path',
+    'image_urls_json',
+    'would_cook_again',
   ]
   const out = {}
   for (const key of allowed) {

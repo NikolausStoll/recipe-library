@@ -33,6 +33,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
   - `recipeUrlExtractService.js` - Fetch recipe HTML, extract raw fields from JSON-LD Recipe + HTML fallbacks (no LLM)
   - `recipeNormalizationService.js` - LLM normalization of scraped raw recipe (`normalizeRecipeWithLLM`, `isLowQuality`); same JSON schema as vision extract; optional after `extract-from-url` when `normalize: true`
   - `recipeHealthScoreService.js` - `estimateRecipeHealthScore(recipe)` / `estimateRecipeHealthScoreById(id)` — practical 0–100 health estimate from **already structured** recipe JSON (separate step; not wired into OCR/URL extract)
+  - `recipeTimeEstimateService.js` - `estimateRecipePrepCookTimes(recipe)` — separate chat completion (`gpt-4o-mini` default) for prep/cook minutes + confidence; applied via `recipeService.applyRecipeTimeEstimate`
   - `recipeHealthScorePersistence.js` - upsert/read `recipe_health_scores` (estimate fields only); model/tokens for health calls go to `ai_token_usage` via `logAiTokenUsage`
   - `recipeService.js` - Recipe CRUD operations
   - `sourceService.js` - Book source management
@@ -106,6 +107,7 @@ python3 -m venv venv
 - `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize`
 - `POST /api/recipes/:id/estimate-health-score` - Practical health score + summary + tips from structured recipe; **persists** only successful estimates to `recipe_health_scores` and logs model/tokens to `ai_token_usage` (`usage_kind: health_score`); failures return **502**/**503** with `{ error }` (no DB row)
 - `POST /api/recipes/estimate-health-score` - Body `{ recipe }`; same scoring without loading from DB
+- `POST /api/recipes/:id/estimate-times` - Body `{ replace_prep_if_original?, replace_cook_if_original? }`; separate LLM (`recipeTimeEstimateService.js`, default `gpt-4o-mini`) for prep/cook minutes + confidence; sets `*_source` to `estimated` when applied; **409** if `original` imported times would be replaced without flags; logs `usage_kind: recipe_time_estimate`
 
 ### Image Import (Two-step process)
 1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`
@@ -136,13 +138,13 @@ The recipe extraction uses OpenAI's vision API with a strict JSON schema (`RECIP
 
 ### Extraction Schema
 - **Root**: status, confidence, warnings, missingFields, recipe
-- **Recipe**: title, subtitle, introText, language, servings, ingredientsSections, steps, tips, nutritionTotal
+- **Recipe**: title, subtitle, introText, language, servings, prepTimeMinutes, cookTimeMinutes (visible on image only; else null), ingredientsSections, steps, tips, nutritionTotal
 - **Ingredients**: Organized in sections with heading, each item has originalText, amount, amountMax, unit, ingredient, additionalInfo, **category** (LLM / URL normalization)
 - **Steps**: Array of {index, text}
 - **Nutrition**: Estimated from ingredients (not extracted from image)
 
 ### Token Usage Tracking
-All OpenAI API calls log token usage to the `ai_token_usage` table for cost monitoring (`model`, `usage_kind`: `recipe_image_extract` | `url_recipe_normalize` | `health_score`, …, `response_json`, and `request_json` when the model input is JSON—URL normalization stores the scraped raw recipe payload).
+All OpenAI API calls log token usage to the `ai_token_usage` table for cost monitoring (`model`, `usage_kind`: `recipe_image_extract` | `url_recipe_normalize` | `health_score` | `recipe_time_estimate`, …, `response_json`, and `request_json` when the model input is JSON—URL normalization stores the scraped raw recipe payload).
 
 ## Code Style Guidelines
 

@@ -119,6 +119,7 @@ Rules for categorization:
 
 Rules:
 - Do not invent ingredients or steps
+- Always set recipe.prepTimeMinutes and recipe.cookTimeMinutes to null (times from the page are stored separately; do not infer them here).
 - If something is unclear, keep it close to the original
 - Preserve meaning over strict normalization
 - If conversion is uncertain, keep the original unit

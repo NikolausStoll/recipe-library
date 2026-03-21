@@ -117,6 +117,8 @@ Create a `.env` file in the **project root** based on [.env.example](.env.exampl
 - `OPENAI_NUTRITION_MODEL` – Model for nutrition estimation (default: `gpt-4o-mini`)
 - `OPENAI_HEALTH_SCORE_MODEL` – Model for health score estimation (`POST .../estimate-health-score`, default: `gpt-4o-mini`)
 - `OPENAI_HEALTH_SCORE_TEMPERATURE` – Optional, clamped 0–0.3 (default: `0.2`)
+- `OPENAI_TIME_ESTIMATE_MODEL` – Model for prep/cook time estimate (`POST .../estimate-times`, default: `gpt-4o-mini`)
+- `OPENAI_TIME_ESTIMATE_TEMPERATURE` – Optional, clamped 0–0.3 (default: `0.2`)
 - `CROP_PYTHON` – Python executable path for perspective crop (optional)
 - `RECIPE_URL_FETCH_TIMEOUT_MS` – Max wait for URL fetch (default: `25000`)
 - `RECIPE_URL_MAX_BYTES` – Max HTML response size for URL extraction (default: `2000000`)
@@ -203,6 +205,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 #### AI helpers (structured recipe only; not part of OCR/URL extract)
 - **`POST /api/recipes/:id/estimate-nutrition`** – Estimate kcal/macros from structured ingredients (persists `nutrition_*` on the recipe)
 - **`POST /api/recipes/:id/estimate-health-score`** – Practical **health score** (0–100), summary, positives, concerns, tips, confidence (0–1). **Persists** the latest estimate in `recipe_health_scores` (one row per recipe); **model** and **token usage** are appended to `ai_token_usage` with `usage_kind: health_score`. `GET /api/recipes/:id` includes `health_score` (estimate fields only; not model/tokens from DB). Not medical advice.
+- **`POST /api/recipes/:id/estimate-times`** – Separate OpenAI call (`gpt-4o-mini` by default) for **prep** and **cook** minutes + per-field confidence. Updates `prep_time_min` / `cook_time_min` and sets `prep_time_source` / `cook_time_source` to `estimated` when applied. If times came from URL scrape or image extract (`original`), returns **409** with suggested values until the client sends `replace_prep_if_original` and/or `replace_cook_if_original: true`. Logged to `ai_token_usage` with `usage_kind: recipe_time_estimate`.
   - Response (HTTP 200): `{ estimate, model, tokenUsage }` — successful estimate only. On failure (missing API key, model error, invalid output): **HTTP 503** (no key) or **502** with `{ error: string }`; nothing is written to `recipe_health_scores`.
 - **`POST /api/recipes/estimate-health-score`** – Same model as by id, but with a structured recipe in the body (no DB id, no persist). Same **200** vs **502**/**503** behavior as above.
   - Body: `{ recipe: object }` — same fields as a full recipe payload (title, ingredients, recipe_steps, tips, optional nutrition_* , …)

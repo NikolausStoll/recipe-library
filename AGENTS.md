@@ -43,6 +43,7 @@
 - Strict JSON schema validation (`RECIPE_JSON_SCHEMA`)
 - Nutrition values estimated from ingredients (not extracted from image)
 - Optional **health score** estimate (`recipeHealthScoreService.js`, `recipeHealthScorePersistence.js`) runs on **structured** recipes only (`POST /api/recipes/:id/estimate-health-score` or `POST /api/recipes/estimate-health-score`); separate from OCR/URL extraction; **by-id** calls persist the latest estimate to `recipe_health_scores`, log model/tokens to `ai_token_usage` (`usage_kind: health_score`), and expose `health_score` on `GET /api/recipes/:id`
+- Optional **prep/cook time** estimate (`recipeTimeEstimateService.js`, `POST /api/recipes/:id/estimate-times`): separate LLM call (`usage_kind: recipe_time_estimate`); does not overwrite URL/image-sourced times (`original`) unless the client confirms with replace flags (**409** otherwise)
 - Model configurable via `OPENAI_EXTRACT_MODEL` (default: `gpt-4.1-mini`)
 
 ## Development Workflow

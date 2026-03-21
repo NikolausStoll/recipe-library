@@ -91,6 +91,10 @@ export function initDb() {
       nutrition_fat REAL,
       prep_time_min INTEGER,
       cook_time_min INTEGER,
+      prep_time_source TEXT,
+      cook_time_source TEXT,
+      prep_time_confidence REAL,
+      cook_time_confidence REAL,
       image_path TEXT,
       image_urls_json TEXT,
       created_at TEXT DEFAULT (datetime('now')),
@@ -186,6 +190,10 @@ export function initDb() {
   addCol('recipes', 'favorite', 'INTEGER DEFAULT 0')
   addCol('recipes', 'would_cook_again', 'TEXT')
   addCol('ingredients', 'category', 'TEXT')
+  addCol('recipes', 'prep_time_source', 'TEXT')
+  addCol('recipes', 'cook_time_source', 'TEXT')
+  addCol('recipes', 'prep_time_confidence', 'REAL')
+  addCol('recipes', 'cook_time_confidence', 'REAL')
 
   addCol('ai_token_usage', 'response_json', 'TEXT')
   addCol('ai_token_usage', 'model', 'TEXT')
@@ -282,6 +290,10 @@ export function initDb() {
           nutrition_fat REAL,
           prep_time_min INTEGER,
           cook_time_min INTEGER,
+          prep_time_source TEXT,
+          cook_time_source TEXT,
+          prep_time_confidence REAL,
+          cook_time_confidence REAL,
           image_path TEXT,
           image_urls_json TEXT,
           created_at TEXT DEFAULT (datetime('now')),
@@ -373,6 +385,10 @@ export function initDb() {
         nutrition_fat REAL,
         prep_time_min INTEGER,
         cook_time_min INTEGER,
+        prep_time_source TEXT,
+        cook_time_source TEXT,
+        prep_time_confidence REAL,
+        cook_time_confidence REAL,
         image_path TEXT,
         image_urls_json TEXT,
         created_at TEXT DEFAULT (datetime('now')),

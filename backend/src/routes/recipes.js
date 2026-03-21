@@ -16,6 +16,7 @@ import {
 import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistence.js'
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
+import { estimateRecipePrepCookTimes } from '../services/recipeTimeEstimateService.js'
 import { buildThumbnailPath } from '../utils/uploadPaths.js'
 
 const router = Router()
@@ -100,6 +101,76 @@ router.post('/:id/estimate-health-score', async (req, res) => {
 })
 
 /**
+ * POST /api/recipes/:id/estimate-times – prep/cook minutes via gpt-4o-mini (separate from vision extract).
+ * Body: { replace_prep_if_original?: boolean, replace_cook_if_original?: boolean }
+ * If imported times are marked original and the model suggests new values, returns 409 until flags confirm replacement.
+ */
+router.post('/:id/estimate-times', async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' })
+  }
+  const replacePrep = req.body?.replace_prep_if_original === true
+  const replaceCook = req.body?.replace_cook_if_original === true
+
+  try {
+    const recipe = recipeService.getRecipeById(id)
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' })
+    }
+
+    const conflicts = recipeService.recipeTimeReplaceConflicts(recipe)
+    const estimate = await estimateRecipePrepCookTimes(recipe)
+
+    const prepBlocked =
+      conflicts.prep && !replacePrep && estimate.prepTimeMinutes != null
+    const cookBlocked =
+      conflicts.cook && !replaceCook && estimate.cookTimeMinutes != null
+
+    const logPayload = {
+      prepTimeMinutes: estimate.prepTimeMinutes,
+      prepTimeConfidence: estimate.prepTimeConfidence,
+      cookTimeMinutes: estimate.cookTimeMinutes,
+      cookTimeConfidence: estimate.cookTimeConfidence,
+    }
+
+    if (prepBlocked || cookBlocked) {
+      logAiTokenUsage(id, estimate.tokenUsage, logPayload, {
+        model: estimate.model,
+        usage_kind: 'recipe_time_estimate',
+      })
+      return res.status(409).json({
+        error: 'Original imported times require confirmation to replace',
+        conflicts: { prep: conflicts.prep, cook: conflicts.cook },
+        blocked: { prep: prepBlocked, cook: cookBlocked },
+        estimate: logPayload,
+        current: {
+          prep_time_min: recipe.prep_time_min,
+          cook_time_min: recipe.cook_time_min,
+          prep_time_source: recipe.prep_time_source,
+          cook_time_source: recipe.cook_time_source,
+        },
+      })
+    }
+
+    const updated = recipeService.applyRecipeTimeEstimate(id, estimate, {
+      replace_prep_if_original: replacePrep,
+      replace_cook_if_original: replaceCook,
+    })
+    logAiTokenUsage(id, estimate.tokenUsage, logPayload, {
+      model: estimate.model,
+      usage_kind: 'recipe_time_estimate',
+    })
+    res.json({ recipe: updated, estimate: logPayload })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to estimate times'
+    const status = msg === 'OPENAI_API_KEY is not set' ? 503 : 502
+    console.error('estimate-times failed:', e)
+    res.status(status).json({ error: msg })
+  }
+})
+
+/**
  * POST /api/recipes/estimate-health-score – health score from a structured recipe object in the body (no DB id).
  * Body: { recipe: object } — same general shape as GET /api/recipes/:id (title, ingredients, recipe_steps, tips, nutrition_*, …).
  */
@@ -121,11 +192,6 @@ router.post('/estimate-health-score', async (req, res) => {
     res.status(status).json({ error: msg })
   }
 })
-</think>
-
-
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-Read
 
 /**
  * POST /api/recipes/:id/cook – record that the recipe was cooked today.
@@ -269,13 +335,23 @@ router.post('/import-from-url', async (req, res) => {
 
     // Store time and image URL metadata directly on the recipe row (not sent to the LLM).
     const imageUrls = Array.isArray(scraped.recipe?.image_urls) ? scraped.recipe.image_urls : []
+    const prepMin = scraped.recipe?.prep_time_min ?? null
+    const cookMin = scraped.recipe?.cook_time_min ?? null
     recipeService.updateRecipe(createdId, {
-      prep_time_min: scraped.recipe?.prep_time_min ?? null,
-      cook_time_min: scraped.recipe?.cook_time_min ?? null,
+      prep_time_min: prepMin,
+      cook_time_min: cookMin,
+      prep_time_source: prepMin != null && Number.isFinite(Number(prepMin)) ? 'original' : null,
+      cook_time_source: cookMin != null && Number.isFinite(Number(cookMin)) ? 'original' : null,
+      prep_time_confidence: null,
+      cook_time_confidence: null,
       image_urls_json: JSON.stringify(imageUrls),
     })
 
     const { recipe: structured, attempts } = await normalizeRecipeWithLLM(scraped.recipe)
+    if (structured?.recipe && typeof structured.recipe === 'object') {
+      structured.recipe.prepTimeMinutes = null
+      structured.recipe.cookTimeMinutes = null
+    }
     for (const a of attempts) {
       if (a.usage || a.recipe) {
         logAiTokenUsage(createdId, a.usage, a.recipe, {

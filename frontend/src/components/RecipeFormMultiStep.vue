@@ -190,6 +190,7 @@
             />
           </div>
         </div>
+        <p v-if="timeSourceHint" class="form-hint form-hint--muted">{{ timeSourceHint }}</p>
 
         <div class="form-row">
           <div class="form-field">
@@ -662,6 +663,12 @@ const props = defineProps<{
     nutrition_protein?: number | null
     nutrition_carbs?: number | null
     nutrition_fat?: number | null
+    prep_time_min?: number | null
+    cook_time_min?: number | null
+    prep_time_source?: 'original' | 'estimated' | null
+    cook_time_source?: 'original' | 'estimated' | null
+    prep_time_confidence?: number | null
+    cook_time_confidence?: number | null
   }) | null
   editingId?: number | null
   editingStatus?: 'draft' | 'confirmed' | null
@@ -852,6 +859,23 @@ const form = reactive({
   recipe_steps: [] as { instruction: string }[],
 })
 
+const timeSourceHint = computed(() => {
+  const i = props.initial
+  if (!i) return ''
+  const bits: string[] = []
+  if (i.prep_time_min != null && i.prep_time_min > 0 && i.prep_time_source === 'original') {
+    bits.push('Prep time from import or extraction (marked original)')
+  } else if (i.prep_time_min != null && i.prep_time_min > 0 && i.prep_time_source === 'estimated') {
+    bits.push('Prep time from AI estimate')
+  }
+  if (i.cook_time_min != null && i.cook_time_min > 0 && i.cook_time_source === 'original') {
+    bits.push('Cook time from import or extraction (marked original)')
+  } else if (i.cook_time_min != null && i.cook_time_min > 0 && i.cook_time_source === 'estimated') {
+    bits.push('Cook time from AI estimate')
+  }
+  return bits.length ? bits.join(' · ') : ''
+})
+
 const hasExtractionFeedback = computed(() => {
   const i = props.initial
   return (i?.extract_confidence != null && !Number.isNaN(i.extract_confidence)) || (i?.extract_missing_fields?.length ?? 0) > 0
@@ -1040,6 +1064,8 @@ function assignFromInitial() {
     const initialTips = (props.initial as { tips?: string[] })?.tips
     form.tips_notes = Array.isArray(initialTips) ? initialTips.join('\n') : ''
     form.servings = props.initial.servings ?? null
+    form.prep_time = props.initial.prep_time_min ?? null
+    form.cook_time = props.initial.cook_time_min ?? null
     form.would_cook_again = (props.initial as any).would_cook_again ?? null
     form.source_page = props.initial.source_page ?? ''
     // Set current image URL if exists
@@ -1077,6 +1103,8 @@ function assignFromInitial() {
     form.description = ''
     form.tips_notes = ''
     form.servings = null
+    form.prep_time = null
+    form.cook_time = null
     form.would_cook_again = null
     form.source_page = ''
     form.ingredients = [{ amount: '', unit: '', name: '', category: null, additional_info: '', section_heading: '', section_id: null }]
@@ -1129,6 +1157,37 @@ onMounted(async () => {
   }
 })
 
+function timeFieldPayload(
+  formVal: number | null | undefined,
+  initMin: number | null | undefined,
+  initSrc: 'original' | 'estimated' | null | undefined,
+  initConf: number | null | undefined
+): {
+  min: number | null
+  source: 'original' | 'estimated' | null
+  confidence: number | null
+} {
+  const v =
+    formVal != null && !Number.isNaN(Number(formVal)) && Number(formVal) > 0
+      ? Math.round(Number(formVal))
+      : null
+  if (v == null) {
+    return { min: null, source: null, confidence: null }
+  }
+  const i =
+    initMin != null && !Number.isNaN(Number(initMin)) && Number(initMin) > 0
+      ? Math.round(Number(initMin))
+      : null
+  if (i !== null && v === i) {
+    return {
+      min: v,
+      source: initSrc === 'estimated' || initSrc === 'original' ? initSrc : null,
+      confidence: initConf != null && !Number.isNaN(Number(initConf)) ? Number(initConf) : null,
+    }
+  }
+  return { min: v, source: 'original', confidence: null }
+}
+
 function handleSubmit(options?: { estimateNutrition?: boolean }) {
   const ingredients: IngredientInput[] = form.ingredients
     .filter((ing) => ing.name.trim() !== '')
@@ -1151,6 +1210,20 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
   const tips = tipsTrimmed
     ? tipsTrimmed.split(/\n/).map((s) => s.trim()).filter(Boolean)
     : undefined
+  const init = props.initial
+  const prepMeta = timeFieldPayload(
+    form.prep_time,
+    init?.prep_time_min,
+    init?.prep_time_source,
+    init?.prep_time_confidence
+  )
+  const cookMeta = timeFieldPayload(
+    form.cook_time,
+    init?.cook_time_min,
+    init?.cook_time_source,
+    init?.cook_time_confidence
+  )
+
   const payload: RecipeFormPayload = {
     title: form.title.trim(),
     subtitle: form.subtitle.trim() || null,
@@ -1159,6 +1232,12 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
     would_cook_again: form.would_cook_again ?? null,
     source_id: sourceType.value === 'book' && selectedSourceId.value != null ? selectedSourceId.value : null,
     source_page: sourceType.value === 'book' ? (form.source_page.trim() || null) : null,
+    prep_time_min: prepMeta.min,
+    cook_time_min: cookMeta.min,
+    prep_time_source: prepMeta.source,
+    cook_time_source: cookMeta.source,
+    prep_time_confidence: prepMeta.confidence,
+    cook_time_confidence: cookMeta.confidence,
     ingredients,
     recipe_steps,
     ...(tips != null ? { tips } : {}),
@@ -2245,5 +2324,15 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
   .source-books {
     grid-template-columns: 1fr;
   }
+}
+
+.form-hint {
+  margin: calc(var(--spacing-sm) * -1) 0 var(--spacing-md);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.form-hint--muted {
+  color: var(--color-text-muted);
 }
 </style>

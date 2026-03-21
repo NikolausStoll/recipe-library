@@ -50,6 +50,8 @@ export interface ParsedRecipeFromOcr {
   steps: ParsedRecipeStep[]
   tips?: string[] | null
   nutritionTotal?: { kcal?: number | null; protein?: number | null; carbs?: number | null; fat?: number | null } | null
+  prepTimeMinutes?: number | null
+  cookTimeMinutes?: number | null
 }
 
 export interface RecipeListItem extends RecipeSourceInfo {
@@ -77,6 +79,10 @@ export interface RecipeListItem extends RecipeSourceInfo {
   nutrition_fat?: number | null
   prep_time_min: number | null
   cook_time_min: number | null
+  prep_time_source?: 'original' | 'estimated' | null
+  cook_time_source?: 'original' | 'estimated' | null
+  prep_time_confidence?: number | null
+  cook_time_confidence?: number | null
   image_path: string | null
   image_thumb_path?: string | null
   parsed_recipe?: ParsedRecipeFromOcr | null
@@ -151,6 +157,12 @@ export interface RecipeFormPayload {
   source_page?: string | null
   status?: 'draft' | 'confirmed'
   would_cook_again?: 'yes' | 'maybe' | 'no' | null
+  prep_time_min?: number | null
+  cook_time_min?: number | null
+  prep_time_source?: 'original' | 'estimated' | null
+  cook_time_source?: 'original' | 'estimated' | null
+  prep_time_confidence?: number | null
+  cook_time_confidence?: number | null
   ingredients?: IngredientInput[]
   recipe_steps?: RecipeStepInput[]
   tips?: string[]
@@ -337,6 +349,69 @@ export function postRecipeHealthScore(recipeId: number): Promise<RecipeHealthSco
   return fetch(`${API_BASE}/recipes/${recipeId}/estimate-health-score`, {
     method: 'POST',
   }).then((res) => handleResponse<RecipeHealthScoreResponse>(res))
+}
+
+export type RecipeTimeSource = 'original' | 'estimated' | null
+
+export interface RecipeTimeEstimatePayload {
+  prepTimeMinutes: number | null
+  prepTimeConfidence: number
+  cookTimeMinutes: number | null
+  cookTimeConfidence: number
+}
+
+export interface RecipeTimeEstimateSuccess {
+  recipe: Recipe
+  estimate: RecipeTimeEstimatePayload
+}
+
+export interface RecipeTimeEstimateConflictBody {
+  error: string
+  conflicts: { prep: boolean; cook: boolean }
+  blocked: { prep: boolean; cook: boolean }
+  estimate: RecipeTimeEstimatePayload
+  current: {
+    prep_time_min: number | null
+    cook_time_min: number | null
+    prep_time_source: RecipeTimeSource
+    cook_time_source: RecipeTimeSource
+  }
+}
+
+export class RecipeTimeEstimateConflictError extends Error {
+  readonly conflict: RecipeTimeEstimateConflictBody
+
+  constructor(conflict: RecipeTimeEstimateConflictBody) {
+    super(conflict.error || 'Time estimate conflict')
+    this.name = 'RecipeTimeEstimateConflictError'
+    this.conflict = conflict
+  }
+}
+
+/**
+ * AI estimate for prep/cook minutes (gpt-4o-mini). Returns 409 as RecipeTimeEstimateConflictError when
+ * imported "original" times would be overwritten — retry with replace_* flags after user confirms.
+ */
+export async function estimateRecipeTimes(
+  recipeId: number,
+  options?: { replace_prep_if_original?: boolean; replace_cook_if_original?: boolean }
+): Promise<RecipeTimeEstimateSuccess> {
+  const res = await fetch(`${API_BASE}/recipes/${recipeId}/estimate-times`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      replace_prep_if_original: options?.replace_prep_if_original === true,
+      replace_cook_if_original: options?.replace_cook_if_original === true,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (res.status === 409) {
+    throw new RecipeTimeEstimateConflictError(data as RecipeTimeEstimateConflictBody)
+  }
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || res.statusText)
+  }
+  return data as RecipeTimeEstimateSuccess
 }
 
 /** Same scoring as by id, but with a structured recipe object in the body (no DB row). */
