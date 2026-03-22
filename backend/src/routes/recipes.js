@@ -748,6 +748,7 @@ router.post('/:id/image', (req, res, next) => {
 /**
  * POST /api/recipes/:id/extract-from-images – Step 2: extract recipe text from image(s) via OpenAI.
  * Body: multipart form with "images" (one or more files) and optional "points" (JSON array: for each image, null or [ {x,y}, {x,y}, {x,y}, {x,y} ] in original coords). If points[i] has 4 points, that image is perspective-cropped, then scaled; then send to AI.
+ * Unlike POST /api/upload + processImageLater: files are never written to pending/; multer uses memory only. prepareTextImage runs immediately; buffers are not persisted as recipe assets.
  * Returns { recipe, usage?: { ... } }. Token usage is logged to ai_token_usage.
  */
 router.post('/:id/extract-from-images', (req, res, next) => {

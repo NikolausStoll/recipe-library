@@ -245,7 +245,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 #### Step 2: Extract Recipe from Text Images
 - **`POST /api/recipes/:id/extract-from-images`** – AI extraction via OpenAI
   - Body: `multipart/form-data` with `images` field (one or more text images)
-  - Images resized to `TEXT_IMAGE_MAX_DIMENSION` before sending to OpenAI
+  - **Not** the same as Step 1 / `processImageLater`: uploads are read into **memory** only (`multer.memoryStorage()`), then **`prepareTextImage`** downscales (longest side ≤ `TEXT_IMAGE_MAX_DIMENSION`, default 1400) and optional perspective crop runs **before** the vision call. Nothing is stored under `pending/` and **`image_processing_pending` is not used** for these text images—they are discarded after extraction (only structured recipe data is saved).
   - Response: `{ recipe: { status, confidence, warnings, missingFields, recipe: {...} }, usage?: { prompt_tokens, completion_tokens, total_tokens } }`
   - Token usage logged to `ai_token_usage` table
 

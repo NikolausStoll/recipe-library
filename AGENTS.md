@@ -28,6 +28,7 @@
 - Source (book) covers: stored in `data/uploads/source/`, same WebP/downscale rules
 - **Defer crop/optimize**: multipart field `processImageLater` (`true`/`1`) stores the **original** file under `data/uploads/recipe/pending/` or `data/uploads/source/pending/` and sets `image_processing_pending` on the row. No WebP/thumbnail until `POST /api/recipes/:id/crop-perspective` or `POST /api/sources/:id/crop-perspective` (omit `points` for full-frame resize, or send 4 points for perspective crop).
 - All immediate-processing uploads support optional 4-point perspective crop (`points` in request body); use `cropPerspectiveBuffer` before resize
+- **Step 2 OCR images** (`POST /api/recipes/:id/extract-from-images`): in-memory only (`multer.memoryStorage`), `prepareTextImage` then OpenAI—not persisted as recipe files and **not** the `processImageLater` / `pending/` flow
 
 ### Security
 - Never expose `.env` files or API keys

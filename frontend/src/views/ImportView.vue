@@ -148,9 +148,10 @@
     <section v-if="currentRecipe" class="import-step">
       <h2 class="import-step__title">Schritt 2: Foto(s) vom Rezepttext</h2>
       <p class="import-step__desc">
-        Ein oder mehrere Fotos des Rezepttexts (Zutaten, Zubereitung). Diese werden an OpenAI zur Texterkennung gesendet.
+        Ein oder mehrere Fotos des Rezepttexts (Zutaten, Zubereitung). Beim Klick auf „Text erkennen“ skaliert der Server jedes Bild im Arbeitsspeicher und sendet es direkt an OpenAI—
+        <strong>nicht</strong> als ausstehendes Rezeptbild wie bei Schritt&nbsp;1 mit „später bearbeiten“.
       </p>
-      <div class="import-options">
+      <div class="import-options" :class="{ 'import-options--camera-live': !!step2CameraStream }">
         <div class="import-option">
           <h3 class="import-option__title">Bilder wählen (mehrere möglich)</h3>
           <input
@@ -165,6 +166,30 @@
           <button type="button" class="btn btn--secondary" @click="step2FileRef?.click()">
             Bilder wählen…
           </button>
+        </div>
+        <div class="import-option import-option--camera">
+          <h3 class="import-option__title">Kamera</h3>
+          <template v-if="!step2CameraStream">
+            <button type="button" class="btn btn--secondary" :disabled="step2CameraBusy" @click="startStep2Camera">
+              {{ step2CameraBusy ? 'Starte…' : 'Foto aufnehmen' }}
+            </button>
+          </template>
+          <template v-else>
+            <div class="import-option__camera-viewport" :style="step2CameraViewportStyle">
+              <video
+                ref="step2VideoRef"
+                class="import-option__video"
+                autoplay
+                playsinline
+                muted
+                @loadedmetadata="onStep2CameraVideoMetadata"
+              />
+            </div>
+            <div class="import-option__camera-actions">
+              <button type="button" class="btn btn--primary" @click="captureStep2Camera">Foto hinzufügen</button>
+              <button type="button" class="btn btn--secondary" @click="stopStep2Camera">Kamera schließen</button>
+            </div>
+          </template>
         </div>
       </div>
       <div v-if="step2Files.length" class="import-preview">
@@ -285,6 +310,7 @@ import type { Recipe } from '../api/recipes'
 const step1FileRef = ref<HTMLInputElement | null>(null)
 const step2FileRef = ref<HTMLInputElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
+const step2VideoRef = ref<HTMLVideoElement | null>(null)
 const step1Preview = ref<string | null>(null)
 const step1File = ref<File | null>(null)
 const uploading = ref(false)
@@ -304,6 +330,11 @@ const cameraStream = ref<MediaStream | null>(null)
 const cameraBusy = ref(false)
 /** Matches native stream dimensions to avoid letterboxing; fallback ~ phone portrait 3472×4624 */
 const cameraViewportStyle = ref<Record<string, string>>({
+  aspectRatio: '3472 / 4624',
+})
+const step2CameraStream = ref<MediaStream | null>(null)
+const step2CameraBusy = ref(false)
+const step2CameraViewportStyle = ref<Record<string, string>>({
   aspectRatio: '3472 / 4624',
 })
 
@@ -486,6 +517,7 @@ function attachCameraStream(stream: MediaStream) {
 }
 
 function startCamera() {
+  stopStep2Camera()
   cameraBusy.value = true
   uploadError.value = ''
   const w = 3472
@@ -521,6 +553,89 @@ function stopCamera() {
   cameraStream.value = null
   if (videoRef.value) videoRef.value.srcObject = null
   cameraViewportStyle.value = { aspectRatio: '3472 / 4624' }
+}
+
+function onStep2CameraVideoMetadata() {
+  const v = step2VideoRef.value
+  if (!v?.videoWidth || !v?.videoHeight) return
+  step2CameraViewportStyle.value = {
+    aspectRatio: `${v.videoWidth} / ${v.videoHeight}`,
+  }
+}
+
+function attachStep2CameraStream(stream: MediaStream) {
+  step2CameraStream.value = stream
+  nextTick().then(() => {
+    if (step2VideoRef.value) {
+      step2VideoRef.value.srcObject = stream
+      queueMicrotask(() => onStep2CameraVideoMetadata())
+    }
+  })
+}
+
+function startStep2Camera() {
+  stopCamera()
+  step2CameraBusy.value = true
+  extractError.value = ''
+  const w = 3472
+  const h = 4624
+  const ar = w / h
+  const preferred: MediaStreamConstraints = {
+    audio: false,
+    video: {
+      facingMode: 'environment',
+      width: { ideal: w },
+      height: { ideal: h },
+      aspectRatio: { ideal: ar },
+    },
+  }
+  const fallback: MediaStreamConstraints = { audio: false, video: { facingMode: 'environment' } }
+
+  navigator.mediaDevices
+    .getUserMedia(preferred)
+    .catch(() => navigator.mediaDevices.getUserMedia(fallback))
+    .then((stream) => {
+      attachStep2CameraStream(stream)
+    })
+    .catch(() => {
+      extractError.value = 'Kamera nicht verfügbar'
+    })
+    .finally(() => {
+      step2CameraBusy.value = false
+    })
+}
+
+function stopStep2Camera() {
+  step2CameraStream.value?.getTracks().forEach((t) => t.stop())
+  step2CameraStream.value = null
+  if (step2VideoRef.value) step2VideoRef.value.srcObject = null
+  step2CameraViewportStyle.value = { aspectRatio: '3472 / 4624' }
+}
+
+function captureStep2Camera() {
+  const video = step2VideoRef.value
+  if (!video || !step2CameraStream.value) return
+  const canvas = document.createElement('canvas')
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.drawImage(video, 0, 0)
+  canvas.toBlob(
+    (blob) => {
+      if (!blob) return
+      const file = new File([blob], `recipe-text-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const url = URL.createObjectURL(blob)
+      step2Files.value = [...step2Files.value, file]
+      step2Previews.value = [...step2Previews.value, url]
+      step2CropPoints.value = [...step2CropPoints.value, []]
+      step2CropImageRefs.value = [...step2CropImageRefs.value, null]
+      step2CropWrapRefs.value = [...step2CropWrapRefs.value, null]
+      extractError.value = ''
+    },
+    'image/jpeg',
+    0.9
+  )
 }
 
 function captureStep1() {
@@ -562,6 +677,7 @@ async function uploadStep1() {
       currentRecipe.value = payload.recipe
       step1Preview.value = null
       step1File.value = null
+      stopStep2Camera()
       step2Files.value = []
       extractUsage.value = null
       extractError.value = ''
@@ -583,6 +699,7 @@ async function startWithoutRecipeImage() {
     const payload = data as { recipe?: Recipe }
     if (payload.recipe) {
       currentRecipe.value = payload.recipe
+      stopStep2Camera()
       step2Files.value = []
       extractUsage.value = null
       extractError.value = ''
@@ -601,6 +718,7 @@ function clearStep1() {
   step1DeferUpload.value = false
   currentRecipe.value = null
   uploadError.value = ''
+  stopStep2Camera()
   step2Files.value = []
   extractUsage.value = null
   extractError.value = ''
@@ -681,6 +799,7 @@ function resetStep2CropPoints(idx: number) {
 }
 
 function onStep2FilesSelected(e: Event) {
+  stopStep2Camera()
   const input = e.target as HTMLInputElement
   const files = input.files ? Array.from(input.files).filter((f) => f.type.startsWith('image/')) : []
   step2Previews.value.forEach((url) => URL.revokeObjectURL(url))
@@ -695,6 +814,7 @@ function onStep2FilesSelected(e: Event) {
 }
 
 function clearStep2() {
+  stopStep2Camera()
   step2Previews.value.forEach((url) => URL.revokeObjectURL(url))
   step2Previews.value = []
   step2Files.value = []
@@ -706,6 +826,7 @@ function clearStep2() {
   step2FileRef.value?.form?.reset()
 }
 
+/** Textbilder nur für extract-from-images: In-Memory-Skalierung + KI, kein pending/-Ordner. */
 async function runExtract() {
   if (!currentRecipe.value || step2Files.value.length === 0) return
   const pointsPerImage: Array<Array<{ x: number; y: number }> | null> = []
@@ -745,6 +866,7 @@ async function runExtract() {
 
 onBeforeUnmount(() => {
   stopCamera()
+  stopStep2Camera()
   if (step1Preview.value) URL.revokeObjectURL(step1Preview.value)
   cropDragUnsubscribe?.()
   step2Previews.value.forEach((url) => URL.revokeObjectURL(url))

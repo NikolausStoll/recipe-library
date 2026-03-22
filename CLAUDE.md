@@ -21,7 +21,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Key Components**:
   - `RecipeForm.vue` - Main recipe entry/edit form
   - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (ingredients & steps: **plain-text summary** by default; click to expand editors; **+ Add** opens new rows in edit mode; ingredient OCR original line hidden for `import_method === 'url'`; categories from `constants/ingredientCategories.ts`)
-  - `RecipeImportOverlay.vue` - Two-step AI import overlay (1: optional recipe image, 2: text images → OpenAI extraction)
+  - `RecipeImportOverlay.vue` - Two-step AI import overlay (1: optional recipe image, 2: text images via file picker or camera — separate `getUserMedia` stream from step 1 → OpenAI extraction)
   - `AppLayout.vue` - Main layout with header and navigation
 
 ### Backend (`backend/src/`)
@@ -117,8 +117,8 @@ python3 -m venv venv
 - `POST /api/recipes/:id/generate-tags` - LLM assigns tags from structured recipe only; persists `recipe_tags`; `usage_kind: recipe_tag`; optional `OPENAI_RECIPE_TAG_MODEL`
 
 ### Image Import (Two-step process)
-1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`
-2. `POST /api/recipes/:id/extract-from-images` - Extract recipe text from images via OpenAI
+1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`; optional `processImageLater` → `pending/` + `image_processing_pending`
+2. `POST /api/recipes/:id/extract-from-images` - Text images for OCR: **multer memory only** → `prepareTextImage` (downscale to `TEXT_IMAGE_MAX_DIMENSION`) → optional perspective crop → OpenAI. **No** `pending/` storage and **no** `image_processing_pending` for these uploads (unrelated to Step 1 defer).
 
 ### Admin
 - `GET /api/admin/extract-usage` - List `ai_token_usage` with recipe title join and per-row cost estimate (see `extractUsagePricing.js`)
