@@ -71,6 +71,115 @@ function resolveUrlMaybeRelative(href, baseUrl) {
   }
 }
 
+/**
+ * Infer pixel count from URL path/query (WordPress -WxH, ?w=&h=, Cloudinary w_,h_, etc.).
+ * @param {string} urlString
+ * @returns {number}
+ */
+function inferPixelAreaFromUrl(urlString) {
+  try {
+    const u = new URL(urlString)
+    const full = u.pathname + u.search
+
+    const qp = u.searchParams
+    const w = qp.get('w') || qp.get('width') || qp.get('resizeWidth') || qp.get('wid')
+    const h = qp.get('h') || qp.get('height') || qp.get('resizeHeight')
+    if (w && h) {
+      const wi = parseInt(w, 10)
+      const hi = parseInt(h, 10)
+      if (wi > 0 && hi > 0) return wi * hi
+    }
+    if (w && !h) {
+      const wi = parseInt(w, 10)
+      if (wi > 0) return wi * wi
+    }
+
+    const cloud = full.match(/[/,]w_(\d{1,5})[/,]h_(\d{1,5})/i) || full.match(/w_(\d{1,5}).*h_(\d{1,5})/i)
+    if (cloud) {
+      const wi = parseInt(cloud[1], 10)
+      const hi = parseInt(cloud[2], 10)
+      if (wi > 0 && hi > 0) return wi * hi
+    }
+
+    const wxh = full.match(/(\d{1,5})x(\d{1,5})/gi)
+    if (wxh && wxh.length) {
+      let best = 0
+      for (const m of wxh) {
+        const parts = m.toLowerCase().split('x')
+        if (parts.length === 2) {
+          const wi = parseInt(parts[0], 10)
+          const hi = parseInt(parts[1], 10)
+          if (wi > 0 && hi > 0) best = Math.max(best, wi * hi)
+        }
+      }
+      if (best > 0) return best
+    }
+
+    return 0
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Cluster key: same logical image at different sizes (host + path with size tokens stripped).
+ * @param {string} urlString
+ * @returns {string}
+ */
+function imageUrlClusterKey(urlString) {
+  try {
+    const u = new URL(urlString)
+    let path = u.pathname
+    path = path.replace(/-\d{1,5}x\d{1,5}(?=\.[^./]+$)/gi, '')
+    path = path.replace(/[_]\d{1,5}x\d{1,5}(?=\.[^./]+$)/gi, '')
+    path = path.replace(/\/?\d{1,5}x\d{1,5}\//g, '/')
+    return `${u.hostname.toLowerCase()}${path}`
+  } catch {
+    return urlString
+  }
+}
+
+/**
+ * Deduplicate URLs that point to the same asset at different resolutions; keep the largest per group.
+ * Order follows first-seen distinct groups in the input.
+ * @param {string[]} urls
+ * @returns {string[]}
+ */
+function dedupeImageUrlsByBestResolution(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return []
+
+  const valid = [...new Set(urls.filter((u) => typeof u === 'string' && u.trim()).map((u) => u.trim()))]
+  if (valid.length === 0) return []
+
+  /** @type {string[]} */
+  const order = []
+  const seenOrder = new Set()
+  /** @type {Map<string, string>} */
+  const bestByKey = new Map()
+
+  for (const url of valid) {
+    const key = imageUrlClusterKey(url)
+    if (!seenOrder.has(key)) {
+      seenOrder.add(key)
+      order.push(key)
+    }
+    const area = inferPixelAreaFromUrl(url)
+    const prev = bestByKey.get(key)
+    if (!prev) {
+      bestByKey.set(key, url)
+      continue
+    }
+    const prevArea = inferPixelAreaFromUrl(prev)
+    if (area > prevArea) {
+      bestByKey.set(key, url)
+    } else if (area === prevArea && url.length > prev.length) {
+      bestByKey.set(key, url)
+    }
+  }
+
+  return order.map((k) => bestByKey.get(k))
+}
+
 function collectImageUrls(image, baseUrl) {
   const out = []
   if (!image) return out
@@ -509,6 +618,7 @@ export async function extractRecipeFromUrl(urlString) {
   const { raw: fromLd, picked } = extractJsonLdRecipes(html, finalUrl, warnings)
   const fromHtml = extractHtmlHeuristics(html, finalUrl, warnings)
   const merged = mergePreferStructured(fromLd, fromHtml)
+  merged.image_urls = dedupeImageUrlsByBestResolution(merged.image_urls)
 
   let source = determineSource(picked, fromLd, fromHtml, merged)
   if (!hasUsefulContent(merged)) {

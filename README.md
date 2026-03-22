@@ -229,6 +229,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 - **`POST /api/recipes/import-from-url`** – End-to-end URL import (same as app “Import from URL”)
   - Body: `{ url: string }` (requires `OPENAI_API_KEY`)
   - Creates a draft recipe (`import_method: url`), scrapes the page, normalizes with OpenAI; the normalization call is appended to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize`
+  - Image URLs from JSON-LD / HTML are **deduplicated** when they look like the same asset at different resolutions (WordPress-style `-WxH`, query `w`/`h`, etc.); the **largest** resolution is kept per group and listed first in `image_urls_json` for the UI
   - Response: `{ recipe, scrape: { source, warnings, fetched_url } }` with HTTP 201
 
 ### AI Import (Two-Step Process)

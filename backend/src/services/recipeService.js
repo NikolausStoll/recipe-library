@@ -154,7 +154,7 @@ export function listRecipes() {
            r.title, r.subtitle, r.description, r.language, r.servings_value, r.servings_unit_text,
            r.prep_time_min, r.cook_time_min,
            r.prep_time_source, r.cook_time_source, r.prep_time_confidence, r.cook_time_confidence,
-           r.image_path, r.image_processing_pending, r.created_at, r.updated_at,
+           r.image_path, r.image_urls_json, r.image_processing_pending, r.created_at, r.updated_at,
            s.type AS source_type, s.name AS source_name, s.subtitle AS source_subtitle, s.book_title AS source_book_title,
            s.author AS source_author, s.year AS source_year, s.image_path AS source_image_path,
            s.image_processing_pending AS source_image_processing_pending

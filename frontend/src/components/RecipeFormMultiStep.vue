@@ -714,6 +714,7 @@ import { getRecipeTagOptions } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
 import { INGREDIENT_CATEGORY_OPTIONS, getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
+import { getRecipeFormPreviewUrl } from '../utils/recipeDisplayImage'
 
 interface IngredientRow {
   amount: string
@@ -1166,8 +1167,11 @@ function assignFromInitial() {
     form.would_cook_again = (props.initial as any).would_cook_again ?? null
     form.tags = Array.isArray(props.initial.tags) ? [...props.initial.tags] : []
     form.source_page = props.initial.source_page ?? ''
-    // Set current image URL if exists
-    currentImageUrl.value = (props.initial as any).image_path ?? null
+    // Uploaded image path, or best remote URL from URL import
+    currentImageUrl.value = getRecipeFormPreviewUrl({
+      image_path: (props.initial as { image_path?: string | null }).image_path ?? null,
+      image_urls_json: (props.initial as { image_urls_json?: string | null }).image_urls_json ?? null,
+    })
     imagePreview.value = null
     imageFile.value = null
     deferImageProcessing.value = false

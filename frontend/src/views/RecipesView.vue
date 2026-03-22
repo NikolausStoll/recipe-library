@@ -110,8 +110,8 @@
       >
         <div class="recipe-card__image">
           <img
-            v-if="recipe.image_path && !recipe.image_processing_pending"
-            :src="recipe.image_thumb_path ?? recipe.image_path"
+            v-if="getRecipeCardImageUrl(recipe)"
+            :src="getRecipeCardImageUrl(recipe)!"
             :alt="recipe.title"
             loading="lazy"
           />
@@ -225,17 +225,27 @@
         </button>
 
         <div class="recipe-detail-content">
-          <!-- Hero Image -->
-          <div v-if="viewingRecipe.image_path" class="recipe-detail-hero note-block note-block--image">
+          <!-- Hero Image (upload, or best URL from URL import) -->
+          <div
+            v-if="
+              (viewingRecipe.image_path && viewingRecipe.image_processing_pending) ||
+              getRecipeHeroImageUrl(viewingRecipe)
+            "
+            class="recipe-detail-hero note-block note-block--image"
+          >
             <button
-              v-if="viewingRecipe.image_processing_pending"
+              v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
               type="button"
               class="recipe-detail-pending-hero"
               @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
             >
               <span class="recipe-detail-pending-hero__text">Image not processed yet — open editor to crop and optimize</span>
             </button>
-            <img v-else :src="viewingRecipe.image_path" :alt="viewingRecipe.title" />
+            <img
+              v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
+              :src="getRecipeHeroImageUrl(viewingRecipe)!"
+              :alt="viewingRecipe.title"
+            />
           </div>
 
           <!-- Header -->
@@ -628,6 +638,7 @@ import type {
   RecipeTimeSource,
 } from '../api/recipes'
 import { getPerServingValue } from '../utils/nutrition'
+import { getRecipeCardImageUrl, getRecipeHeroImageUrl } from '../utils/recipeDisplayImage'
 
 const props = defineProps<{ favoritesOnly?: boolean }>()
 
@@ -635,7 +646,22 @@ const recipes = ref<RecipeListItemWithIngredients[]>([])
 const loading = ref(true)
 const error = ref('')
 const editingId = ref<number | null>(null)
-const formInitial = ref<(Partial<RecipeFormPayload> & { parsed_recipe?: ParsedRecipeFromOcr | null }) | null>(null)
+const formInitial = ref<
+  | (Partial<RecipeFormPayload> & {
+      parsed_recipe?: ParsedRecipeFromOcr | null
+      import_method?: string | null
+      extract_confidence?: number | null
+      extract_missing_fields?: string[] | null
+      nutrition_kcal?: number | null
+      nutrition_protein?: number | null
+      nutrition_carbs?: number | null
+      nutrition_fat?: number | null
+      image_path?: string | null
+      image_urls_json?: string | null
+      image_processing_pending?: boolean
+    })
+  | null
+>(null)
 const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
 const ingredientSearchQuery = ref('')
@@ -752,7 +778,7 @@ function rebuildFuse() {
   fuseInstance = new Fuse(recipes.value, fuseOptions)
 }
 
-function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeFormPayload> & {
+function buildFormInitialFromImportedRecipe(recipe: Recipe): Partial<RecipeFormPayload> & {
   parsed_recipe?: ParsedRecipeFromOcr | null
   extract_confidence?: number | null
   extract_missing_fields?: string[] | null
@@ -760,7 +786,11 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
   nutrition_protein?: number | null
   nutrition_carbs?: number | null
   nutrition_fat?: number | null
-}) {
+  import_method?: string | null
+  image_path?: string | null
+  image_urls_json?: string | null
+  image_processing_pending?: boolean
+} {
   const pr = recipe.parsed_recipe
   type Ing = {
     amount: string
@@ -831,6 +861,9 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
     prep_time_confidence: recipe.prep_time_confidence ?? null,
     cook_time_confidence: recipe.cook_time_confidence ?? null,
     tags: recipe.tags ?? [],
+    image_path: recipe.image_path ?? null,
+    image_urls_json: recipe.image_urls_json ?? null,
+    image_processing_pending: recipe.image_processing_pending ?? false,
   }
 }
 
@@ -1319,6 +1352,7 @@ function startEdit(id: number) {
       prep_time_confidence: recipe.prep_time_confidence ?? null,
       cook_time_confidence: recipe.cook_time_confidence ?? null,
       tags: recipe.tags ?? [],
+      image_urls_json: recipe.image_urls_json ?? null,
     }
     showRecipeForm.value = true
   }).catch((e) => {

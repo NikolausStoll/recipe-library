@@ -131,8 +131,8 @@
         >
           <div class="recipe-mini-card__image">
             <img
-              v-if="recipe.image_path && !recipe.image_processing_pending"
-              :src="recipe.image_thumb_path ?? recipe.image_path"
+              v-if="getRecipeCardImageUrl(recipe)"
+              :src="getRecipeCardImageUrl(recipe)!"
               :alt="recipe.title"
               loading="lazy"
             />
@@ -208,6 +208,7 @@ import { listRecipes } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeListItem } from '../api/recipes'
 import type { RecipeSource } from '../api/sources'
+import { getRecipeCardImageUrl } from '../utils/recipeDisplayImage'
 
 const recipes = ref<RecipeListItem[]>([])
 const sources = ref<RecipeSource[]>([])

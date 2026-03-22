@@ -30,7 +30,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Routes**: Organized in `routes/` (recipes, sources, upload, health, admin)
 - **Services**:
   - `extractRecipeService.js` - OpenAI vision integration with structured JSON schema extraction
-  - `recipeUrlExtractService.js` - Fetch recipe HTML, extract raw fields from JSON-LD Recipe + HTML fallbacks (no LLM)
+  - `recipeUrlExtractService.js` - Fetch recipe HTML, extract raw fields from JSON-LD Recipe + HTML fallbacks (no LLM); deduplicates `image_urls` that look like the same asset at different resolutions (keeps largest) before persisting to `image_urls_json`
   - `recipeNormalizationService.js` - LLM normalization of scraped raw recipe (`normalizeRecipeWithLLM`); same JSON schema as vision extract; optional after `extract-from-url` when `normalize: true`
   - `recipeHealthScoreService.js` - `estimateRecipeHealthScore(recipe)` / `estimateRecipeHealthScoreById(id)` — practical 0–100 health estimate from **already structured** recipe JSON (separate step; not wired into OCR/URL extract)
   - `recipeTimeEstimateService.js` - `estimateRecipePrepCookTimes(recipe)` — separate chat completion (`gpt-4o-mini` default) for prep/cook minutes + confidence; applied via `recipeService.applyRecipeTimeEstimate`

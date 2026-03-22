@@ -87,6 +87,8 @@ export interface RecipeListItem extends RecipeSourceInfo {
   prep_time_confidence?: number | null
   cook_time_confidence?: number | null
   image_path: string | null
+  /** JSON array of image URLs from URL import (deduplicated server-side; best resolution first per image). */
+  image_urls_json?: string | null
   /** True when the file is stored raw (not yet WebP/resized); finalize via crop-perspective. */
   image_processing_pending?: boolean
   image_thumb_path?: string | null
