@@ -257,6 +257,17 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - 1:N to `recipe_steps` (one recipe has many steps)
 - 1:N to `recipe_tips` (one recipe has many tips)
 - 0:1 to `recipe_health_scores` (optional persisted health estimate)
+- 1:N to `recipe_tags` (zero or more controlled tag strings per recipe; separate from ingredient `category`)
+
+### Entity: `recipe_tags`
+**Description**: Junction-style rows `(recipe_id, tag)` for a fixed vocabulary (meal type, cuisine, dish type, diet, context). Assigned by `POST /api/recipes/:id/generate-tags` or manual `tags` on create/update; validated server-side (`recipeTagValidation.js`).
+
+**Key Fields**:
+- `recipe_id` (PK part, FK) - References recipes.id ON DELETE CASCADE
+- `tag` (PK part) - Allowed string from `constants/recipeTags.js`
+
+**Relationships**:
+- N:1 to `recipes`
 
 ### Entity: `recipe_ingredient_sections`
 **Description**: Grouping of ingredients with optional heading (e.g., "For the dough", "For the filling")
@@ -327,7 +338,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 - 1:1 with `recipes` (optional; row exists only after at least one estimate)
 
 ### Entity: `ai_token_usage`
-**Description**: OpenAI API token usage for cost monitoring (vision extract, URL normalization, health score, etc.)
+**Description**: OpenAI API token usage for cost monitoring (vision extract, URL normalization, health score, recipe tags, etc.)
 
 **Key Fields**:
 - `id` (PK) - Auto-increment ID

@@ -59,6 +59,8 @@ export interface RecipeListItem extends RecipeSourceInfo {
   source_id: number | null
   source_type: string
   import_method: string
+  /** Controlled vocabulary tags (meal, cuisine, dish, diet, context); see GET /api/recipes/tag-options */
+  tags?: string[]
   favorite: boolean
   would_cook_again: 'yes' | 'maybe' | 'no' | null
   extract_status: string | null
@@ -166,6 +168,8 @@ export interface RecipeFormPayload {
   ingredients?: IngredientInput[]
   recipe_steps?: RecipeStepInput[]
   tips?: string[]
+  /** Controlled tags; validated server-side. Omit on update to leave unchanged. */
+  tags?: string[]
 }
 
 export function listRecipes(): Promise<RecipeListItem[]> {
@@ -490,6 +494,35 @@ export async function estimateRecipeTimes(
       ? ' Restart the backend (or rebuild Docker) so POST /api/recipes/:id/estimate-times returns 200 with pendingOriginalReplace instead of 409.'
       : ''
   throw new Error(errMsg + hint)
+}
+
+export interface RecipeTagOptionsResponse {
+  groups: {
+    meal_type: string[]
+    cuisine: string[]
+    dish_type: string[]
+    diet: string[]
+    context: string[]
+  }
+  all_allowed: string[]
+}
+
+export function getRecipeTagOptions(): Promise<RecipeTagOptionsResponse> {
+  return fetch(`${API_BASE}/recipes/tag-options`).then((res) => handleResponse<RecipeTagOptionsResponse>(res))
+}
+
+export interface GenerateRecipeTagsResponse {
+  recipe: Recipe
+  tags: string[]
+  warnings: string[]
+  fallbacks?: { meal?: boolean; dish?: boolean }
+}
+
+/** AI tag assignment from structured recipe data (separate from extract). Persists tags. */
+export function postGenerateRecipeTags(recipeId: number): Promise<GenerateRecipeTagsResponse> {
+  return fetch(`${API_BASE}/recipes/${recipeId}/generate-tags`, { method: 'POST' }).then((res) =>
+    handleResponse<GenerateRecipeTagsResponse>(res)
+  )
 }
 
 /** Same scoring as by id, but with a structured recipe object in the body (no DB row). */

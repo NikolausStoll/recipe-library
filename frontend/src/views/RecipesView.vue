@@ -227,6 +227,9 @@
           <div class="recipe-detail-header note-block note-block--header">
             <h1 class="recipe-detail-title">{{ viewingRecipe.title }}</h1>
             <p v-if="viewingRecipe.subtitle" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
+            <div v-if="viewingRecipe.tags?.length" class="recipe-detail-tags">
+              <span v-for="t in viewingRecipe.tags" :key="t" class="recipe-detail-tag-chip">{{ formatTagChip(t) }}</span>
+            </div>
 
             <div class="recipe-detail-meta">
               <div class="recipe-detail-times recipe-detail-times--rows">
@@ -550,10 +553,12 @@
             :editing-id="editingId"
             :editing-status="editingStatus"
             :time-estimate-loading="timeEstimateLoading"
+            :tag-generate-loading="tagGenerateLoading"
             @submit="onFormSubmit"
             @confirm="onConfirmRecipe"
             @cancel="closeEdit"
             @estimate-times="onFormEstimateTimes"
+            @generate-tags="onFormGenerateTags"
           />
         </div>
       </div>
@@ -595,6 +600,7 @@ import {
   getRecipeHistory,
   setRecipeFavorite,
   estimateRecipeTimes,
+  postGenerateRecipeTags,
 } from '../api/recipes'
 import { getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 import type {
@@ -638,6 +644,7 @@ const healthScoreResult = ref<RecipeHealthScoreResponse | null>(null)
 const healthScoreError = ref('')
 
 const timeEstimateLoading = ref(false)
+const tagGenerateLoading = ref(false)
 const timeEstimateError = ref('')
 
 const showWouldCookAgainPrompt = ref(false)
@@ -808,6 +815,7 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): (Partial<RecipeForm
     cook_time_source: recipe.cook_time_source ?? null,
     prep_time_confidence: recipe.prep_time_confidence ?? null,
     cook_time_confidence: recipe.cook_time_confidence ?? null,
+    tags: recipe.tags ?? [],
   }
 }
 
@@ -819,6 +827,21 @@ function onImportDone(recipe: Recipe) {
   formInitial.value = buildFormInitialFromImportedRecipe(recipe)
   showRecipeForm.value = true
   loadList()
+  const rid = recipe.id
+  void postGenerateRecipeTags(rid)
+    .then(() => getRecipe(rid))
+    .then((r) => {
+      if (editingId.value === rid) {
+        formInitial.value = buildFormInitialFromImportedRecipe(r)
+      }
+      if (viewingRecipe.value?.id === rid) {
+        viewingRecipe.value = r
+      }
+      return loadList()
+    })
+    .catch(() => {
+      /* optional AI tagging */
+    })
 }
 
 const nutritionPerServing = computed(() => {
@@ -1116,6 +1139,10 @@ function formatRecipeMinutes(
   return `${tilde}${n} min`
 }
 
+function formatTagChip(t: string) {
+  return t.replace(/_/g, ' ')
+}
+
 function mergeTimesIntoFormInitial(recipe: Recipe) {
   if (!formInitial.value) return
   formInitial.value = {
@@ -1126,6 +1153,7 @@ function mergeTimesIntoFormInitial(recipe: Recipe) {
     cook_time_source: recipe.cook_time_source ?? null,
     prep_time_confidence: recipe.prep_time_confidence ?? null,
     cook_time_confidence: recipe.cook_time_confidence ?? null,
+    tags: recipe.tags ?? [],
   }
 }
 
@@ -1198,6 +1226,22 @@ async function onFormEstimateTimes() {
   await runEstimateTimesFlow(id)
 }
 
+async function onFormGenerateTags() {
+  const id = editingId.value
+  if (id == null || tagGenerateLoading.value) return
+  tagGenerateLoading.value = true
+  error.value = ''
+  try {
+    const res = await postGenerateRecipeTags(id)
+    mergeTimesIntoFormInitial(res.recipe)
+    await loadList()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Tag generation failed'
+  } finally {
+    tagGenerateLoading.value = false
+  }
+}
+
 function closeDetailView() {
   viewingRecipe.value = null
   displayServings.value = 1
@@ -1258,6 +1302,7 @@ function startEdit(id: number) {
       cook_time_source: recipe.cook_time_source ?? null,
       prep_time_confidence: recipe.prep_time_confidence ?? null,
       cook_time_confidence: recipe.cook_time_confidence ?? null,
+      tags: recipe.tags ?? [],
     }
     showRecipeForm.value = true
   }).catch((e) => {
@@ -1915,6 +1960,22 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
   margin: 0 0 var(--spacing-lg) 0;
   line-height: 1.4;
+}
+
+.recipe-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin: calc(var(--spacing-md) * -1) 0 var(--spacing-lg) 0;
+}
+
+.recipe-detail-tag-chip {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  background: var(--color-bg-muted, rgba(0, 0, 0, 0.06));
+  border: 1px solid var(--color-border);
 }
 
 .recipe-detail-description {

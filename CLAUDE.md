@@ -34,6 +34,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
   - `recipeNormalizationService.js` - LLM normalization of scraped raw recipe (`normalizeRecipeWithLLM`, `isLowQuality`); same JSON schema as vision extract; optional after `extract-from-url` when `normalize: true`
   - `recipeHealthScoreService.js` - `estimateRecipeHealthScore(recipe)` / `estimateRecipeHealthScoreById(id)` — practical 0–100 health estimate from **already structured** recipe JSON (separate step; not wired into OCR/URL extract)
   - `recipeTimeEstimateService.js` - `estimateRecipePrepCookTimes(recipe)` — separate chat completion (`gpt-4o-mini` default) for prep/cook minutes + confidence; applied via `recipeService.applyRecipeTimeEstimate`
+  - `recipeTagGenerationService.js` - `generateRecipeTags(recipe)` — structured JSON-only tagging (`gpt-4o-mini` default); `recipeTagValidation.js` enforces controlled vocabulary + group rules; `recipeTagPersistence.js` stores rows in `recipe_tags`; not part of vision/URL extract (`usage_kind: recipe_tag`)
   - `recipeHealthScorePersistence.js` - upsert/read `recipe_health_scores` (estimate fields only); model/tokens for health calls go to `ai_token_usage` via `logAiTokenUsage`
   - `recipeService.js` - Recipe CRUD operations
   - `sourceService.js` - Book source management
@@ -41,7 +42,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
   - `cropPerspectiveService.js` - Optional 4-point perspective crop (Python + OpenCV)
 
 ### Database Schema
-Tables: `recipe_sources`, `recipes`, `recipe_ingredient_sections`, `ingredients`, `recipe_steps`, `recipe_tips`, `recipe_health_scores`, `ai_token_usage`, `recipe_history`
+Tables: `recipe_sources`, `recipes`, `recipe_ingredient_sections`, `ingredients`, `recipe_steps`, `recipe_tips`, `recipe_health_scores`, `recipe_tags`, `ai_token_usage`, `recipe_history`
 
 Key features:
 - Cascading deletes (ON DELETE CASCADE)
@@ -108,6 +109,8 @@ python3 -m venv venv
 - `POST /api/recipes/:id/estimate-health-score` - Practical health score + summary + tips from structured recipe; **persists** only successful estimates to `recipe_health_scores` and logs model/tokens to `ai_token_usage` (`usage_kind: health_score`); failures return **502**/**503** with `{ error }` (no DB row)
 - `POST /api/recipes/estimate-health-score` - Body `{ recipe }`; same scoring without loading from DB
 - `POST /api/recipes/:id/estimate-times` - First call runs LLM and applies non-original times; response `pendingOriginalReplace` lists originals still to confirm; follow-up with `use_client_estimate: true` + `estimate` + `replace_*` applies without a second LLM; logs `usage_kind: recipe_time_estimate` on LLM calls only
+- `GET /api/recipes/tag-options` - Controlled tag vocabulary (`constants/recipeTags.js`)
+- `POST /api/recipes/:id/generate-tags` - LLM assigns tags from structured recipe only; persists `recipe_tags`; `usage_kind: recipe_tag`; optional `OPENAI_RECIPE_TAG_MODEL`
 
 ### Image Import (Two-step process)
 1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`

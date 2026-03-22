@@ -2,6 +2,8 @@ import { getDb } from '../db/index.js'
 import { getThumbnailPathIfExists } from '../utils/uploadPaths.js'
 import { sanitizeIngredientCategory } from '../constants/ingredientCategories.js'
 import { getRecipeHealthScoreByRecipeId } from './recipeHealthScorePersistence.js'
+import { getTagsForRecipe, getTagsForRecipeIds, replaceRecipeTags } from './recipeTagPersistence.js'
+import { sanitizeRecipeTags } from './recipeTagValidation.js'
 
 const RECIPE_COLUMNS = [
   'id', 'source_id', 'source_page', 'import_method', 'extract_status', 'extract_confidence', 'extract_warnings', 'extract_missing_fields',
@@ -158,7 +160,7 @@ export function listRecipes() {
     FROM recipes r LEFT JOIN recipe_sources s ON r.source_id = s.id
     ORDER BY r.updated_at DESC, r.id DESC
   `).all()
-  return rows.map(row => ({
+  const mapped = rows.map((row) => ({
     ...rowToRecipe(row),
     source_type: row.source_type ?? 'manual',
     source_name: row.source_name ?? null,
@@ -169,6 +171,8 @@ export function listRecipes() {
     source_page: row.source_page ?? null,
     source_image_path: row.source_image_path ?? null,
   }))
+  const tagMap = getTagsForRecipeIds(mapped.map((r) => r.id))
+  return mapped.map((r) => ({ ...r, tags: tagMap.get(r.id) ?? [] }))
 }
 
 export function listRecipeHistory(recipeId) {
@@ -232,6 +236,7 @@ export function listRecipesWithIngredients(options = {}) {
   return filtered.map((recipe) => ({
     ...recipe,
     ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
+    tags: recipe.tags ?? [],
   }))
 }
 
@@ -303,11 +308,13 @@ export function getRecipeById(id) {
   )
 
   const health_score = getRecipeHealthScoreByRecipeId(Number(id))
+  const tags = getTagsForRecipe(Number(id))
 
   return {
     ...rowToRecipe(recipeRow),
     source_type: sourceData?.source_type ?? 'manual',
     ...(sourceData || {}),
+    tags,
     ingredients: flatIngredients,
     recipe_steps: recipeSteps.map((row) => ({
       id: row.id,
@@ -488,6 +495,11 @@ export function createRecipe(body) {
     })
   }
 
+  if (Array.isArray(body.tags)) {
+    const { tags } = sanitizeRecipeTags(body.tags, { title: (body.title ?? '').trim() || 'Recipe' })
+    replaceRecipeTags(id, tags)
+  }
+
   return getRecipeById(id)
 }
 
@@ -624,6 +636,12 @@ export function updateRecipe(id, body) {
     body.tips.forEach((t, i) => {
       insertTip.run(Number(id), i, typeof t === 'string' ? t : (t?.text ?? ''))
     })
+  }
+
+  if (Array.isArray(body.tags)) {
+    const titleForTags = (body && body.title !== undefined) ? (recipe.title ?? '') : existingRow.title
+    const { tags } = sanitizeRecipeTags(body.tags, { title: String(titleForTags ?? '').trim() || 'Recipe' })
+    replaceRecipeTags(id, tags)
   }
 
   return getRecipeById(id)

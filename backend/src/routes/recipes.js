@@ -17,6 +17,16 @@ import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistenc
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
 import { estimateRecipePrepCookTimes, normalizeEstimatePayload } from '../services/recipeTimeEstimateService.js'
+import { generateRecipeTags } from '../services/recipeTagGenerationService.js'
+import { replaceRecipeTags } from '../services/recipeTagPersistence.js'
+import { ALL_ALLOWED_TAGS } from '../constants/recipeTags.js'
+import {
+  MEAL_TYPES,
+  CUISINE_TYPES,
+  DISH_TYPES,
+  DIET_TYPES,
+  CONTEXT_TYPES,
+} from '../constants/recipeTags.js'
 import { buildThumbnailPath } from '../utils/uploadPaths.js'
 
 const router = Router()
@@ -53,6 +63,27 @@ router.get('/', (req, res) => {
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Failed to list recipes' })
+  }
+})
+
+/**
+ * GET /api/recipes/tag-options – controlled tag vocabulary for UI / validation (no AI).
+ */
+router.get('/tag-options', (req, res) => {
+  try {
+    res.json({
+      groups: {
+        meal_type: [...MEAL_TYPES],
+        cuisine: [...CUISINE_TYPES],
+        dish_type: [...DISH_TYPES],
+        diet: [...DIET_TYPES],
+        context: [...CONTEXT_TYPES],
+      },
+      all_allowed: ALL_ALLOWED_TAGS,
+    })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to load tag options' })
   }
 })
 
@@ -184,6 +215,39 @@ router.post('/:id/estimate-times', async (req, res) => {
     const status = msg === 'OPENAI_API_KEY is not set' ? 503 : 502
     console.error('estimate-times failed:', e)
     res.status(status).json({ error: msg })
+  }
+})
+
+/**
+ * POST /api/recipes/:id/generate-tags – AI tags from structured recipe data (separate from vision/URL extract). Persists validated tags.
+ */
+router.post('/:id/generate-tags', async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' })
+  }
+  try {
+    const recipe = recipeService.getRecipeById(id)
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' })
+    }
+    const result = await generateRecipeTags(recipe)
+    replaceRecipeTags(id, result.tags)
+    logAiTokenUsage(id, result.tokenUsage, { tags: result.tags, warnings: result.warnings }, {
+      model: result.model,
+      usage_kind: 'recipe_tag',
+      request_json: result.requestPayload != null ? JSON.stringify(result.requestPayload) : null,
+    })
+    const after = recipeService.getRecipeById(id)
+    res.json({
+      recipe: after,
+      tags: result.tags,
+      warnings: result.warnings,
+      fallbacks: result.fallbacks,
+    })
+  } catch (e) {
+    console.error('generate-tags failed:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to generate tags' })
   }
 })
 

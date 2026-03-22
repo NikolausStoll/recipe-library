@@ -220,6 +220,38 @@
           </div>
         </div>
 
+        <div class="form-section">
+          <h4 class="form-section__title">Tags</h4>
+          <p class="form-hint form-hint--tags">
+            Recipe tags for future filtering (controlled list). Hold Ctrl/Cmd to pick multiple.
+          </p>
+          <div v-if="form.tags.length" class="tag-chip-row">
+            <span v-for="t in form.tags" :key="t" class="recipe-tag-chip">{{ formatTagLabel(t) }}</span>
+          </div>
+          <div class="form-field">
+            <label for="recipe-tags-multiselect">Select tags</label>
+            <select
+              id="recipe-tags-multiselect"
+              v-model="form.tags"
+              multiple
+              class="form-input tag-multiselect"
+              :size="tagSelectSize"
+            >
+              <option v-for="t in allAllowedTags" :key="t" :value="t">{{ formatTagLabel(t) }}</option>
+            </select>
+          </div>
+          <div v-if="editingId != null" class="form-field">
+            <button
+              type="button"
+              class="btn btn--secondary"
+              :disabled="tagGenerateLoading"
+              @click="emit('generateTags')"
+            >
+              {{ tagGenerateLoading ? 'Tagging…' : 'Suggest tags (AI)' }}
+            </button>
+          </div>
+        </div>
+
         <!-- Source Selection -->
         <div class="form-section">
           <h4 class="form-section__title">Source</h4>
@@ -652,6 +684,7 @@ import type {
   RecipeStepInput,
   ParsedRecipeFromOcr,
 } from '../api/recipes'
+import { getRecipeTagOptions } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
 import { INGREDIENT_CATEGORY_OPTIONS, getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
@@ -685,10 +718,12 @@ const props = defineProps<{
     cook_time_source?: 'original' | 'estimated' | null
     prep_time_confidence?: number | null
     cook_time_confidence?: number | null
+    tags?: string[]
   }) | null
   editingId?: number | null
   editingStatus?: 'draft' | 'confirmed' | null
   timeEstimateLoading?: boolean
+  tagGenerateLoading?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -701,6 +736,7 @@ const emit = defineEmits<{
   confirm: []
   cancel: []
   estimateTimes: []
+  generateTags: []
 }>()
 
 const currentStep = ref(0)
@@ -873,9 +909,19 @@ const form = reactive({
   cook_time: null as number | null,
   would_cook_again: null as 'yes' | 'maybe' | 'no' | null,
   source_page: '',
+  tags: [] as string[],
   ingredients: [] as IngredientRow[],
   recipe_steps: [] as { instruction: string }[],
 })
+
+const allAllowedTags = ref<string[]>([])
+const tagSelectSize = computed(() => Math.min(12, Math.max(6, allAllowedTags.value.length || 8)))
+
+function formatTagLabel(t: string) {
+  return t.replace(/_/g, ' ')
+}
+
+const tagGenerateLoading = computed(() => props.tagGenerateLoading === true)
 
 const hasExtractionFeedback = computed(() => {
   const i = props.initial
@@ -1068,6 +1114,7 @@ function assignFromInitial() {
     form.prep_time = props.initial.prep_time_min ?? null
     form.cook_time = props.initial.cook_time_min ?? null
     form.would_cook_again = (props.initial as any).would_cook_again ?? null
+    form.tags = Array.isArray(props.initial.tags) ? [...props.initial.tags] : []
     form.source_page = props.initial.source_page ?? ''
     // Set current image URL if exists
     currentImageUrl.value = (props.initial as any).image_path ?? null
@@ -1107,6 +1154,7 @@ function assignFromInitial() {
     form.prep_time = null
     form.cook_time = null
     form.would_cook_again = null
+    form.tags = []
     form.source_page = ''
     form.ingredients = [{ amount: '', unit: '', name: '', category: null, additional_info: '', section_heading: '', section_id: null }]
     form.recipe_steps = [{ instruction: '' }]
@@ -1155,6 +1203,12 @@ onMounted(async () => {
     bookSources.value = all.filter((s) => s.type === 'book')
   } catch {
     bookSources.value = []
+  }
+  try {
+    const opt = await getRecipeTagOptions()
+    allAllowedTags.value = opt.all_allowed
+  } catch {
+    allAllowedTags.value = []
   }
 })
 
@@ -1242,6 +1296,7 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
     ingredients,
     recipe_steps,
     ...(tips != null ? { tips } : {}),
+    tags: [...form.tags],
   }
 
   // Pass image file or delete marker, and optional 4-point crop (for new image upload)
@@ -2362,5 +2417,30 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
 
 .form-hint--muted {
   color: var(--color-text-muted);
+}
+
+.form-hint--tags {
+  margin-top: 0;
+}
+
+.tag-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+.recipe-tag-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: var(--color-bg-muted, rgba(0, 0, 0, 0.06));
+  border: 1px solid var(--color-border);
+}
+
+.tag-multiselect {
+  min-height: 8rem;
+  font-family: inherit;
 }
 </style>

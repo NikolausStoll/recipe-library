@@ -118,6 +118,7 @@ Create a `.env` file in the **project root** based on [.env.example](.env.exampl
 - `OPENAI_HEALTH_SCORE_MODEL` – Model for health score estimation (`POST .../estimate-health-score`, default: `gpt-4o-mini`)
 - `OPENAI_HEALTH_SCORE_TEMPERATURE` – Optional, clamped 0–0.3 (default: `0.2`)
 - `OPENAI_TIME_ESTIMATE_MODEL` – Model for prep/cook time estimate (`POST .../estimate-times`, default: `gpt-4o-mini`)
+- `OPENAI_RECIPE_TAG_MODEL` / `OPENAI_RECIPE_TAG_TEMPERATURE` – Optional; recipe tag assignment (`POST .../generate-tags`, defaults: `gpt-4o-mini`, `0.2`)
 - `OPENAI_TIME_ESTIMATE_TEMPERATURE` – Optional, clamped 0–0.3 (default: `0.2`)
 - `CROP_PYTHON` – Python executable path for perspective crop (optional)
 - `RECIPE_URL_FETCH_TIMEOUT_MS` – Max wait for URL fetch (default: `25000`)
@@ -200,13 +201,18 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Response: Updated recipe object
 
 - **`DELETE /api/recipes/:id`** – Delete recipe
-  - Cascades to ingredients, steps, tips, sections, `recipe_health_scores`, history
+  - Cascades to ingredients, steps, tips, sections, `recipe_health_scores`, `recipe_tags`, history
+
+#### Recipe tags (controlled vocabulary)
+- **`GET /api/recipes/tag-options`** – Returns `{ groups: { meal_type, cuisine, dish_type, diet, context }, all_allowed }` for UI validation (no AI).
+- **`POST /api/recipes/:id/generate-tags`** – Assigns tags with OpenAI from **structured** recipe data only (title, ingredients, steps, tips, times, etc.). Does **not** run inside vision extract or URL import; call separately when the recipe is saved. Persists validated tags to `recipe_tags`; logs to `ai_token_usage` with `usage_kind: recipe_tag`. Response: `{ recipe, tags, warnings, fallbacks }`.
+- **`POST /api/recipes`** / **`PUT /api/recipes/:id`** – Optional body field `tags: string[]` (only allowed tag strings; server sanitizes to group rules). Omit `tags` on update to leave tags unchanged.
 
 #### AI helpers (structured recipe only; not part of OCR/URL extract)
 - **`POST /api/recipes/:id/estimate-nutrition`** – Estimate kcal/macros from structured ingredients (persists `nutrition_*` on the recipe)
 - **`POST /api/recipes/:id/estimate-health-score`** – Practical **health score** (0–100), summary, positives, concerns, tips, confidence (0–1). **Persists** the latest estimate in `recipe_health_scores` (one row per recipe); **model** and **token usage** are appended to `ai_token_usage` with `usage_kind: health_score`. `GET /api/recipes/:id` includes `health_score` (estimate fields only; not model/tokens from DB). Not medical advice.
 - **`POST /api/recipes/:id/estimate-times`** – Runs the time model (`gpt-4o-mini` by default) unless `use_client_estimate: true` with a prior `estimate` (confirmation step). Applies AI values immediately for non-`original` fields; `original` prep/cook stay until the client confirms with `replace_*` and the same `estimate`. Response includes `pendingOriginalReplace` when originals still block an overwrite. Body: `replace_prep_if_original`, `replace_cook_if_original`, optional `apply_prep` / `apply_cook`, optional `use_client_estimate` + `estimate`. Logged to `ai_token_usage` with `usage_kind: recipe_time_estimate` (LLM calls only).
-  - Response (HTTP 200): `{ estimate, model, tokenUsage }` — successful estimate only. On failure (missing API key, model error, invalid output): **HTTP 503** (no key) or **502** with `{ error: string }`; nothing is written to `recipe_health_scores`.
+  - On failure (missing API key, model error): **HTTP 503** (no key) or **502** with `{ error: string }`.
 - **`POST /api/recipes/estimate-health-score`** – Same model as by id, but with a structured recipe in the body (no DB id, no persist). Same **200** vs **502**/**503** behavior as above.
   - Body: `{ recipe: object }` — same fields as a full recipe payload (title, ingredients, recipe_steps, tips, optional nutrition_* , …)
 

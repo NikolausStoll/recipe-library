@@ -175,6 +175,13 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_recipes_source_id ON recipes(source_id);
     CREATE INDEX IF NOT EXISTS idx_ai_token_usage_recipe_id ON ai_token_usage(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_history_recipe_id ON recipe_history(recipe_id);
+
+    CREATE TABLE IF NOT EXISTS recipe_tags (
+      recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+      tag TEXT NOT NULL,
+      PRIMARY KEY (recipe_id, tag)
+    );
+    CREATE INDEX IF NOT EXISTS idx_recipe_tags_tag ON recipe_tags(tag);
   `)
 
   // Migrations for existing DBs
@@ -463,6 +470,17 @@ export function initDb() {
       CREATE INDEX IF NOT EXISTS idx_recipe_history_recipe_id ON recipe_history(recipe_id);
     `)
   }
+
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS recipe_tags (
+        recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        tag TEXT NOT NULL,
+        PRIMARY KEY (recipe_id, tag)
+      );
+      CREATE INDEX IF NOT EXISTS idx_recipe_tags_tag ON recipe_tags(tag);
+    `)
+  } catch (_) {}
 }
 
 export { dbPath }
