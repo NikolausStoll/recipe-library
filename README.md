@@ -309,6 +309,8 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 ### Docker Production
 
+The image installs **Python 3**, **pip**, and **`backend/requirements.txt`** (`opencv-python-headless`, `numpy`) so perspective crop works without a local venv. Rebuild the image after changing Python deps.
+
 ```bash
 # Build image
 docker build -t recipe-library .

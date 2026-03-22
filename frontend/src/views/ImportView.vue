@@ -1,5 +1,5 @@
 <template>
-  <div class="view view--import">
+  <div class="view view--import" :class="{ 'view--step2-crop': step2Files.length > 0 }">
     <h1>Import</h1>
     <p class="view__intro">
       Zwei Schritte: Optional ein Foto vom Rezeptbild (z. B. das Gericht oder die Buchseite), dann ein oder mehrere Fotos vom Rezepttext zur Texterkennung.
@@ -145,7 +145,7 @@
     </section>
 
     <!-- Step 2: Recipe text image(s) -->
-    <section v-if="currentRecipe" class="import-step">
+    <section v-if="currentRecipe" class="import-step import-step--step2">
       <h2 class="import-step__title">Schritt 2: Foto(s) vom Rezepttext</h2>
       <p class="import-step__desc">
         Ein oder mehrere Fotos des Rezepttexts (Zutaten, Zubereitung). Beim Klick auf „Text erkennen“ skaliert der Server jedes Bild im Arbeitsspeicher und sendet es direkt an OpenAI—
@@ -192,7 +192,7 @@
           </template>
         </div>
       </div>
-      <div v-if="step2Files.length" class="import-preview">
+      <div v-if="step2Files.length" class="import-preview import-preview--step2-crop">
         <p class="import-preview__meta">{{ step2Files.length }} Bild(er) ausgewählt. Pro Bild optional 4 Ecken setzen (Reihenfolge egal), dann Perspektive vor dem Senden an die KI zuschneiden.</p>
         <div class="step2-crop-list">
           <div
@@ -992,8 +992,45 @@ onBeforeUnmount(() => {
 .step2-crop-item { padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg-muted); }
 .step2-crop-item__label { margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
 .step2-crop-item__wrap { max-width: 100%; }
-.step2-crop-item__img { max-height: 280px; }
 .step2-crop-item__reset { margin-top: 0.5rem; }
+
+.step2-crop-item .crop-editor__wrap {
+  display: block;
+  width: 100%;
+}
+.step2-crop-item .crop-editor__img {
+  max-height: min(78vh, 800px);
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 639px) {
+  .view--import.view--step2-crop {
+    max-width: 100%;
+  }
+  .view--step2-crop .import-step--step2 {
+    padding: 0.4rem;
+  }
+  .view--step2-crop .import-preview--step2-crop {
+    padding: 0.35rem 0.25rem;
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+  }
+  .view--step2-crop .step2-crop-item {
+    padding: 0.35rem;
+  }
+  .view--step2-crop .step2-crop-item .crop-editor__img {
+    max-height: min(86vh, 1200px);
+  }
+  .view--step2-crop .crop-editor__point {
+    width: 28px;
+    height: 28px;
+    margin-left: -14px;
+    margin-top: -14px;
+    font-size: 13px;
+  }
+}
 
 .import-result {
   margin-top: 1.5rem;

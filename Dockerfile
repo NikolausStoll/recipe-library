@@ -18,8 +18,13 @@ FROM node:20-bullseye AS runtime
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  python3 make g++ sqlite3 \
+  python3 python3-pip make g++ sqlite3 \
   && rm -rf /var/lib/apt/lists/*
+
+# OpenCV + NumPy for backend/scripts/crop_perspective.py (4-point crop in extract-from-images & crop routes)
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip3 install --no-cache-dir -r backend/requirements.txt \
+  && rm -rf /root/.cache/pip
 
 ENV PORT=8097
 ENV DB_PATH=/data/recipe-library.db

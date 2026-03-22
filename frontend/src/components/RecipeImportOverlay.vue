@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="overlay" @click.self="emit('close')">
+    <div class="overlay" :class="{ 'overlay--step2-crop': step2Files.length > 0 }" @click.self="emit('close')">
       <div class="overlay__panel">
         <div class="overlay__header">
           <h2 class="overlay__title">Add Recipe from Image</h2>
@@ -100,7 +100,7 @@
           </section>
 
           <!-- Step 2 -->
-          <section v-if="currentRecipe" class="import-step">
+          <section v-if="currentRecipe" class="import-step import-step--step2">
             <h3 class="import-step__title">Step 2: Photo(s) of Recipe Text</h3>
             <p class="import-step__desc">
               One or more photos of the recipe text. When you run extraction, each image is resized on the server and sent to OpenAI immediately in memory—it is
@@ -137,7 +137,7 @@
                 </template>
               </div>
             </div>
-            <div v-if="step2Files.length" class="import-preview">
+            <div v-if="step2Files.length" class="import-preview import-preview--step2-crop">
               <p class="import-preview__meta">{{ step2Files.length }} image(s). Optionally 4 corners per image for cropping.</p>
               <div class="step2-crop-list">
                 <div v-for="(file, idx) in step2Files" :key="idx" class="step2-crop-item">
@@ -838,6 +838,17 @@ onBeforeUnmount(() => {
 .crop-editor { margin-top: 0.75rem; }
 .crop-editor__wrap { position: relative; display: inline-block; max-width: 100%; cursor: crosshair; }
 .crop-editor__img { display: block; max-width: 100%; max-height: 320px; vertical-align: top; }
+/* Step 2 text crop: use vertical space — do not cap at 240px (too small for touch) */
+.step2-crop-item .crop-editor__wrap {
+  display: block;
+  width: 100%;
+}
+.step2-crop-item .crop-editor__img {
+  max-height: min(78vh, 800px);
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
 .crop-editor__overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 .crop-editor__lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 .crop-editor__point {
@@ -851,8 +862,50 @@ onBeforeUnmount(() => {
 .step2-crop-item { padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); }
 .step2-crop-item__label { margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
 .step2-crop-item__wrap { max-width: 100%; }
-.step2-crop-item__img { max-height: 240px; }
 .step2-crop-item__reset { margin-top: 0.5rem; }
+
+/* Mobile: minimize nested padding + maximize crop area when placing 4 corners */
+@media (max-width: 639px) {
+  .overlay--step2-crop {
+    padding: max(0.25rem, env(safe-area-inset-top, 0px)) max(0.25rem, env(safe-area-inset-right, 0px))
+      max(0.25rem, env(safe-area-inset-bottom, 0px)) max(0.25rem, env(safe-area-inset-left, 0px));
+    align-items: stretch;
+  }
+  .overlay--step2-crop .overlay__panel {
+    max-width: 100%;
+    width: 100%;
+    max-height: 100%;
+    min-height: min(100dvh, 100vh);
+    border-radius: 0;
+  }
+  .overlay--step2-crop .overlay__body {
+    padding: 0.5rem max(0.5rem, env(safe-area-inset-left, 0px)) 0.75rem max(0.5rem, env(safe-area-inset-right, 0px));
+  }
+  .overlay--step2-crop .import-step--step2 {
+    padding: 0.4rem;
+    margin-bottom: 0.75rem;
+  }
+  .overlay--step2-crop .import-preview--step2-crop {
+    margin-left: -0.15rem;
+    margin-right: -0.15rem;
+    padding: 0.35rem 0.25rem;
+  }
+  .overlay--step2-crop .step2-crop-item {
+    padding: 0.35rem;
+    border-width: 1px;
+  }
+  .overlay--step2-crop .step2-crop-item .crop-editor__img {
+    max-height: min(86vh, 1200px);
+  }
+  .overlay--step2-crop .crop-editor__point {
+    width: 28px;
+    height: 28px;
+    margin-left: -14px;
+    margin-top: -14px;
+    font-size: 13px;
+  }
+}
+
 .btn { padding: 0.5rem 1rem; border-radius: 4px; font: inherit; cursor: pointer; border: 1px solid transparent; }
 .btn:disabled { opacity: 0.7; cursor: not-allowed; }
 .btn--primary { background: var(--color-btn-primary-bg); color: var(--color-header-fg); border-color: var(--color-btn-primary-bg); }

@@ -217,13 +217,18 @@ Currently manual testing. When adding tests:
 docker build -t recipe-library .
 docker run -p 8097:8097 --env-file .env -v $(pwd)/data:/data recipe-library
 ```
+The **Dockerfile** installs `python3`, `pip`, and `backend/requirements.txt` (`opencv-python-headless`, `numpy`) so `crop_perspective.py` works in the container without mounting a venv.
 
 ### Environment Requirements
 - Node.js 20+
-- Python 3 (optional, for perspective crop)
+- Python 3 + OpenCV + NumPy (optional on bare metal; **included in the Docker image** for perspective crop)
 - OpenAI API key
 
 ## Troubleshooting
+
+### `ModuleNotFoundError: No module named 'cv2'` (Docker / Home Assistant)
+- Rebuild the image from the current `Dockerfile` (it runs `pip3 install -r backend/requirements.txt`).
+- On bare metal, run `pip3 install -r backend/requirements.txt` (or use `backend/venv` and set `CROP_PYTHON`).
 
 ### OpenAI API Issues
 - Check `OPENAI_API_KEY` is set correctly

@@ -28,6 +28,8 @@ The container entrypoint (`docker/entrypoint.js`) reads **`/data/options.json`**
 | `text_image_max_dimension` | `TEXT_IMAGE_MAX_DIMENSION` | `1400` | Longest side for images sent to OpenAI for text extraction. |
 | `thumbnail_max_dimension` | `THUMBNAIL_MAX_DIMENSION` | `600` | Thumbnail longest side (px). |
 
+The official container image installs **OpenCV** and **NumPy** (`backend/requirements.txt`) so 4-point perspective crop works. If you see `No module named 'cv2'`, rebuild the add-on/image from an up-to-date `Dockerfile`.
+
 ---
 
 ## Recipe URL fetch
