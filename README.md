@@ -205,7 +205,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 #### AI helpers (structured recipe only; not part of OCR/URL extract)
 - **`POST /api/recipes/:id/estimate-nutrition`** – Estimate kcal/macros from structured ingredients (persists `nutrition_*` on the recipe)
 - **`POST /api/recipes/:id/estimate-health-score`** – Practical **health score** (0–100), summary, positives, concerns, tips, confidence (0–1). **Persists** the latest estimate in `recipe_health_scores` (one row per recipe); **model** and **token usage** are appended to `ai_token_usage` with `usage_kind: health_score`. `GET /api/recipes/:id` includes `health_score` (estimate fields only; not model/tokens from DB). Not medical advice.
-- **`POST /api/recipes/:id/estimate-times`** – Separate OpenAI call (`gpt-4o-mini` by default) for **prep** and **cook** minutes + per-field confidence. Updates `prep_time_min` / `cook_time_min` and sets `prep_time_source` / `cook_time_source` to `estimated` when applied. If times came from URL scrape or image extract (`original`), returns **409** with suggested values until the client sends `replace_prep_if_original` and/or `replace_cook_if_original: true`. Logged to `ai_token_usage` with `usage_kind: recipe_time_estimate`.
+- **`POST /api/recipes/:id/estimate-times`** – Runs the time model (`gpt-4o-mini` by default) unless `use_client_estimate: true` with a prior `estimate` (confirmation step). Applies AI values immediately for non-`original` fields; `original` prep/cook stay until the client confirms with `replace_*` and the same `estimate`. Response includes `pendingOriginalReplace` when originals still block an overwrite. Body: `replace_prep_if_original`, `replace_cook_if_original`, optional `apply_prep` / `apply_cook`, optional `use_client_estimate` + `estimate`. Logged to `ai_token_usage` with `usage_kind: recipe_time_estimate` (LLM calls only).
   - Response (HTTP 200): `{ estimate, model, tokenUsage }` — successful estimate only. On failure (missing API key, model error, invalid output): **HTTP 503** (no key) or **502** with `{ error: string }`; nothing is written to `recipe_health_scores`.
 - **`POST /api/recipes/estimate-health-score`** – Same model as by id, but with a structured recipe in the body (no DB id, no persist). Same **200** vs **502**/**503** behavior as above.
   - Body: `{ recipe: object }` — same fields as a full recipe payload (title, ingredients, recipe_steps, tips, optional nutrition_* , …)
@@ -361,6 +361,14 @@ npm run start
 - SQLite doesn't handle concurrent writes well – use connection pooling or queue
 - Check no other process has the database open
 - For `:memory:` database, data is lost on restart (use file path)
+
+### Prep / cook time estimate shows HTTP 409 (Conflict)
+
+**Problem**: After the AI returns prep/cook estimates, the browser shows **409 Conflict** (or error text "Conflict") instead of overwrite prompts.
+
+**Solutions**:
+- **Restart the Node backend** (or **rebuild/restart Docker**) so it runs the current `POST /api/recipes/:id/estimate-times` handler. The current API returns **200** with `pendingOriginalReplace` when imported "original" times need confirmation; older builds used **409** for that case.
+- If the response JSON includes an `estimate` object, the frontend can still open the confirmation flow from that legacy shape; otherwise update the server.
 
 ### Image Upload Issues
 

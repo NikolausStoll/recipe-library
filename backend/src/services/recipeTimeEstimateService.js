@@ -58,6 +58,29 @@ function clampMinutes(n) {
 }
 
 /**
+ * Normalize client-provided estimate (replay after user confirms overwriting original times).
+ * @param {object} body
+ * @returns {{ prepTimeMinutes: number|null, prepTimeConfidence: number, cookTimeMinutes: number|null, cookTimeConfidence: number, model: null, tokenUsage: null }|null}
+ */
+export function normalizeEstimatePayload(body) {
+  if (!body || typeof body !== 'object') return null
+  const prepTimeMinutes = clampMinutes(body.prepTimeMinutes)
+  const cookTimeMinutes = clampMinutes(body.cookTimeMinutes)
+  let prepTimeConfidence = clampConfidence(body.prepTimeConfidence)
+  let cookTimeConfidence = clampConfidence(body.cookTimeConfidence)
+  if (prepTimeConfidence == null) prepTimeConfidence = 0
+  if (cookTimeConfidence == null) cookTimeConfidence = 0
+  return {
+    prepTimeMinutes,
+    prepTimeConfidence,
+    cookTimeMinutes,
+    cookTimeConfidence,
+    model: null,
+    tokenUsage: null,
+  }
+}
+
+/**
  * Build LLM input payload from a full recipe (e.g. getRecipeById).
  * @param {object} recipe
  */

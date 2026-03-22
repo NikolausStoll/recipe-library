@@ -36,7 +36,7 @@ export function recipeTimeReplaceConflicts(row) {
  * Apply LLM time estimate; respects original imported times unless flags allow replacement.
  * @param {number|string} recipeId
  * @param {{ prepTimeMinutes: number|null, prepTimeConfidence: number, cookTimeMinutes: number|null, cookTimeConfidence: number }} llm
- * @param {{ replace_prep_if_original?: boolean, replace_cook_if_original?: boolean }} flags
+ * @param {{ replace_prep_if_original?: boolean, replace_cook_if_original?: boolean, apply_prep?: boolean, apply_cook?: boolean }} flags
  */
 export function applyRecipeTimeEstimate(recipeId, llm, flags = {}) {
   const db = getDb()
@@ -50,6 +50,8 @@ export function applyRecipeTimeEstimate(recipeId, llm, flags = {}) {
   const conflicts = recipeTimeReplaceConflicts(row)
   const replacePrep = flags.replace_prep_if_original === true
   const replaceCook = flags.replace_cook_if_original === true
+  const wantPrep = flags.apply_prep !== false
+  const wantCook = flags.apply_cook !== false
 
   let prepMin = row.prep_time_min
   let cookMin = row.cook_time_min
@@ -58,8 +60,8 @@ export function applyRecipeTimeEstimate(recipeId, llm, flags = {}) {
   let prepConf = row.prep_time_confidence
   let cookConf = row.cook_time_confidence
 
-  const applyPrep = llm.prepTimeMinutes != null && (!conflicts.prep || replacePrep)
-  const applyCook = llm.cookTimeMinutes != null && (!conflicts.cook || replaceCook)
+  const applyPrep = wantPrep && llm.prepTimeMinutes != null && (!conflicts.prep || replacePrep)
+  const applyCook = wantCook && llm.cookTimeMinutes != null && (!conflicts.cook || replaceCook)
 
   if (applyPrep) {
     prepMin = llm.prepTimeMinutes

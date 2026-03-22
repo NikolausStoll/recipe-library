@@ -16,7 +16,7 @@ import {
 import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistence.js'
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
-import { estimateRecipePrepCookTimes } from '../services/recipeTimeEstimateService.js'
+import { estimateRecipePrepCookTimes, normalizeEstimatePayload } from '../services/recipeTimeEstimateService.js'
 import { buildThumbnailPath } from '../utils/uploadPaths.js'
 
 const router = Router()
@@ -102,8 +102,7 @@ router.post('/:id/estimate-health-score', async (req, res) => {
 
 /**
  * POST /api/recipes/:id/estimate-times – prep/cook minutes via gpt-4o-mini (separate from vision extract).
- * Body: { replace_prep_if_original?: boolean, replace_cook_if_original?: boolean }
- * If imported times are marked original and the model suggests new values, returns 409 until flags confirm replacement.
+ * First call runs the LLM and applies estimates for non-original fields; original fields stay until confirmed via a follow-up request with `use_client_estimate` + `estimate` + `replace_*`.
  */
 router.post('/:id/estimate-times', async (req, res) => {
   const id = Number(req.params.id)
@@ -112,6 +111,9 @@ router.post('/:id/estimate-times', async (req, res) => {
   }
   const replacePrep = req.body?.replace_prep_if_original === true
   const replaceCook = req.body?.replace_cook_if_original === true
+  const applyPrep = req.body?.apply_prep !== false
+  const applyCook = req.body?.apply_cook !== false
+  const useClientEstimate = req.body?.use_client_estimate === true
 
   try {
     const recipe = recipeService.getRecipeById(id)
@@ -119,14 +121,35 @@ router.post('/:id/estimate-times', async (req, res) => {
       return res.status(404).json({ error: 'Recipe not found' })
     }
 
-    const conflicts = recipeService.recipeTimeReplaceConflicts(recipe)
-    const estimate = await estimateRecipePrepCookTimes(recipe)
+    let estimate
+    if (useClientEstimate) {
+      estimate = normalizeEstimatePayload(req.body?.estimate)
+      if (!estimate) {
+        return res.status(400).json({ error: 'estimate object is required when use_client_estimate is true' })
+      }
+    } else {
+      estimate = await estimateRecipePrepCookTimes(recipe)
+      const logged = {
+        prepTimeMinutes: estimate.prepTimeMinutes,
+        prepTimeConfidence: estimate.prepTimeConfidence,
+        cookTimeMinutes: estimate.cookTimeMinutes,
+        cookTimeConfidence: estimate.cookTimeConfidence,
+      }
+      logAiTokenUsage(id, estimate.tokenUsage, logged, {
+        model: estimate.model,
+        usage_kind: 'recipe_time_estimate',
+      })
+    }
 
-    const prepBlocked =
-      conflicts.prep && !replacePrep && estimate.prepTimeMinutes != null
-    const cookBlocked =
-      conflicts.cook && !replaceCook && estimate.cookTimeMinutes != null
+    recipeService.applyRecipeTimeEstimate(id, estimate, {
+      replace_prep_if_original: replacePrep,
+      replace_cook_if_original: replaceCook,
+      apply_prep: applyPrep,
+      apply_cook: applyCook,
+    })
 
+    const after = recipeService.getRecipeById(id)
+    const conflAfter = recipeService.recipeTimeReplaceConflicts(after)
     const logPayload = {
       prepTimeMinutes: estimate.prepTimeMinutes,
       prepTimeConfidence: estimate.prepTimeConfidence,
@@ -134,34 +157,28 @@ router.post('/:id/estimate-times', async (req, res) => {
       cookTimeConfidence: estimate.cookTimeConfidence,
     }
 
-    if (prepBlocked || cookBlocked) {
-      logAiTokenUsage(id, estimate.tokenUsage, logPayload, {
-        model: estimate.model,
-        usage_kind: 'recipe_time_estimate',
-      })
-      return res.status(409).json({
-        error: 'Original imported times require confirmation to replace',
-        conflicts: { prep: conflicts.prep, cook: conflicts.cook },
-        blocked: { prep: prepBlocked, cook: cookBlocked },
-        estimate: logPayload,
-        current: {
-          prep_time_min: recipe.prep_time_min,
-          cook_time_min: recipe.cook_time_min,
-          prep_time_source: recipe.prep_time_source,
-          cook_time_source: recipe.cook_time_source,
-        },
-      })
+    const pendingOriginalReplace = {}
+    if (conflAfter.prep && estimate.prepTimeMinutes != null) {
+      pendingOriginalReplace.prep = {
+        current: after.prep_time_min,
+        suggested: estimate.prepTimeMinutes,
+        confidence: estimate.prepTimeConfidence,
+      }
+    }
+    if (conflAfter.cook && estimate.cookTimeMinutes != null) {
+      pendingOriginalReplace.cook = {
+        current: after.cook_time_min,
+        suggested: estimate.cookTimeMinutes,
+        confidence: estimate.cookTimeConfidence,
+      }
     }
 
-    const updated = recipeService.applyRecipeTimeEstimate(id, estimate, {
-      replace_prep_if_original: replacePrep,
-      replace_cook_if_original: replaceCook,
+    res.json({
+      recipe: after,
+      estimate: logPayload,
+      pendingOriginalReplace:
+        Object.keys(pendingOriginalReplace).length > 0 ? pendingOriginalReplace : null,
     })
-    logAiTokenUsage(id, estimate.tokenUsage, logPayload, {
-      model: estimate.model,
-      usage_kind: 'recipe_time_estimate',
-    })
-    res.json({ recipe: updated, estimate: logPayload })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to estimate times'
     const status = msg === 'OPENAI_API_KEY is not set' ? 503 : 502

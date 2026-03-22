@@ -107,7 +107,7 @@ python3 -m venv venv
 - `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize`
 - `POST /api/recipes/:id/estimate-health-score` - Practical health score + summary + tips from structured recipe; **persists** only successful estimates to `recipe_health_scores` and logs model/tokens to `ai_token_usage` (`usage_kind: health_score`); failures return **502**/**503** with `{ error }` (no DB row)
 - `POST /api/recipes/estimate-health-score` - Body `{ recipe }`; same scoring without loading from DB
-- `POST /api/recipes/:id/estimate-times` - Body `{ replace_prep_if_original?, replace_cook_if_original? }`; separate LLM (`recipeTimeEstimateService.js`, default `gpt-4o-mini`) for prep/cook minutes + confidence; sets `*_source` to `estimated` when applied; **409** if `original` imported times would be replaced without flags; logs `usage_kind: recipe_time_estimate`
+- `POST /api/recipes/:id/estimate-times` - First call runs LLM and applies non-original times; response `pendingOriginalReplace` lists originals still to confirm; follow-up with `use_client_estimate: true` + `estimate` + `replace_*` applies without a second LLM; logs `usage_kind: recipe_time_estimate` on LLM calls only
 
 ### Image Import (Two-step process)
 1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`
@@ -223,6 +223,10 @@ docker run -p 8097:8097 --env-file .env -v $(pwd)/data:/data recipe-library
 - Review `ai_token_usage` table for error responses
 - Verify image sizes don't exceed OpenAI limits
 - Check model availability and pricing
+
+### Prep / cook time estimate returns HTTP 409
+- Current code returns **200** with `pendingOriginalReplace` (no 409 in repo). **409** usually means a **stale backend process** (restart Node or rebuild Docker).
+- Frontend `estimateRecipeTimes` may recover legacy **409** responses that include an `estimate` in the JSON body by loading the recipe and showing the same confirm flow.
 
 ### Database Issues
 - Ensure `DB_PATH` directory exists

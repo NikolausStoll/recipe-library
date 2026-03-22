@@ -167,6 +167,11 @@
               class="form-input"
             />
           </div>
+        </div>
+        <div
+          class="form-row form-row--prep-cook-estimate"
+          :class="{ 'form-row--prep-cook-estimate--three': editingId != null }"
+        >
           <div class="form-field">
             <label for="recipe-prep-time">Prep Time (min)</label>
             <input
@@ -189,8 +194,19 @@
               class="form-input"
             />
           </div>
+          <div v-if="editingId != null" class="form-field form-field--estimate-after-times">
+            <span class="form-field__label-spacer" aria-hidden="true"></span>
+            <button
+              type="button"
+              class="btn btn--secondary form-field--estimate-btn"
+              :disabled="timeEstimateLoading"
+              title="Estimate prep and cook times with AI"
+              @click="emit('estimateTimes')"
+            >
+              Estimate
+            </button>
+          </div>
         </div>
-        <p v-if="timeSourceHint" class="form-hint form-hint--muted">{{ timeSourceHint }}</p>
 
         <div class="form-row">
           <div class="form-field">
@@ -672,6 +688,7 @@ const props = defineProps<{
   }) | null
   editingId?: number | null
   editingStatus?: 'draft' | 'confirmed' | null
+  timeEstimateLoading?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -683,6 +700,7 @@ const emit = defineEmits<{
   ]
   confirm: []
   cancel: []
+  estimateTimes: []
 }>()
 
 const currentStep = ref(0)
@@ -857,23 +875,6 @@ const form = reactive({
   source_page: '',
   ingredients: [] as IngredientRow[],
   recipe_steps: [] as { instruction: string }[],
-})
-
-const timeSourceHint = computed(() => {
-  const i = props.initial
-  if (!i) return ''
-  const bits: string[] = []
-  if (i.prep_time_min != null && i.prep_time_min > 0 && i.prep_time_source === 'original') {
-    bits.push('Prep time from import or extraction (marked original)')
-  } else if (i.prep_time_min != null && i.prep_time_min > 0 && i.prep_time_source === 'estimated') {
-    bits.push('Prep time from AI estimate')
-  }
-  if (i.cook_time_min != null && i.cook_time_min > 0 && i.cook_time_source === 'original') {
-    bits.push('Cook time from import or extraction (marked original)')
-  } else if (i.cook_time_min != null && i.cook_time_min > 0 && i.cook_time_source === 'estimated') {
-    bits.push('Cook time from AI estimate')
-  }
-  return bits.length ? bits.join(' · ') : ''
 })
 
 const hasExtractionFeedback = computed(() => {
@@ -2184,6 +2185,33 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
 
 .btn--block {
   width: 100%;
+}
+
+.form-row--prep-cook-estimate {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  align-items: end;
+}
+
+.form-row--prep-cook-estimate--three {
+  grid-template-columns: 1fr 1fr auto;
+}
+
+.form-field--estimate-after-times {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+  min-width: 5.5rem;
+}
+
+.form-field__label-spacer {
+  min-height: 1.25rem;
+}
+
+.form-field--estimate-btn {
+  white-space: nowrap;
 }
 
 .btn-icon {

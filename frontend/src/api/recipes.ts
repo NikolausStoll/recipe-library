@@ -360,41 +360,85 @@ export interface RecipeTimeEstimatePayload {
   cookTimeConfidence: number
 }
 
+export interface PendingOriginalTimeReplace {
+  current: number
+  suggested: number
+  confidence: number
+}
+
 export interface RecipeTimeEstimateSuccess {
   recipe: Recipe
   estimate: RecipeTimeEstimatePayload
+  /** Present when original imported times still need user confirmation to overwrite */
+  pendingOriginalReplace: {
+    prep?: PendingOriginalTimeReplace
+    cook?: PendingOriginalTimeReplace
+  } | null
 }
 
-export interface RecipeTimeEstimateConflictBody {
-  error: string
-  conflicts: { prep: boolean; cook: boolean }
-  blocked: { prep: boolean; cook: boolean }
+function coerceEstimateFromResponse(raw: unknown): RecipeTimeEstimatePayload | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const num = (v: unknown) =>
+    typeof v === 'number' && !Number.isNaN(v) ? Math.round(v) : null
+  const conf = (v: unknown) =>
+    typeof v === 'number' && !Number.isNaN(v) ? Math.min(1, Math.max(0, v)) : 0
+  const prepTimeMinutes = num(o.prepTimeMinutes ?? o.prep_time_minutes)
+  const cookTimeMinutes = num(o.cookTimeMinutes ?? o.cook_time_minutes)
+  return {
+    prepTimeMinutes,
+    prepTimeConfidence: conf(o.prepTimeConfidence ?? o.prep_time_confidence),
+    cookTimeMinutes,
+    cookTimeConfidence: conf(o.cookTimeConfidence ?? o.cook_time_confidence),
+  }
+}
+
+/** Same rules as backend `recipeTimeReplaceConflicts` + pending payload. */
+function buildPendingOriginalReplaceFromRecipe(
+  recipe: Recipe,
   estimate: RecipeTimeEstimatePayload
-  current: {
-    prep_time_min: number | null
-    cook_time_min: number | null
-    prep_time_source: RecipeTimeSource
-    cook_time_source: RecipeTimeSource
+): RecipeTimeEstimateSuccess['pendingOriginalReplace'] {
+  const pending: NonNullable<RecipeTimeEstimateSuccess['pendingOriginalReplace']> = {}
+  if (
+    recipe.prep_time_source === 'original' &&
+    recipe.prep_time_min != null &&
+    estimate.prepTimeMinutes != null
+  ) {
+    pending.prep = {
+      current: recipe.prep_time_min,
+      suggested: estimate.prepTimeMinutes,
+      confidence: estimate.prepTimeConfidence,
+    }
   }
-}
-
-export class RecipeTimeEstimateConflictError extends Error {
-  readonly conflict: RecipeTimeEstimateConflictBody
-
-  constructor(conflict: RecipeTimeEstimateConflictBody) {
-    super(conflict.error || 'Time estimate conflict')
-    this.name = 'RecipeTimeEstimateConflictError'
-    this.conflict = conflict
+  if (
+    recipe.cook_time_source === 'original' &&
+    recipe.cook_time_min != null &&
+    estimate.cookTimeMinutes != null
+  ) {
+    pending.cook = {
+      current: recipe.cook_time_min,
+      suggested: estimate.cookTimeMinutes,
+      confidence: estimate.cookTimeConfidence,
+    }
   }
+  return Object.keys(pending).length > 0 ? pending : null
 }
 
 /**
- * AI estimate for prep/cook minutes (gpt-4o-mini). Returns 409 as RecipeTimeEstimateConflictError when
- * imported "original" times would be overwritten — retry with replace_* flags after user confirms.
+ * AI estimate for prep/cook minutes (gpt-4o-mini). First call runs the model and applies non-original fields.
+ * Use `use_client_estimate` + same `estimate` from the prior response to apply after user confirms overwriting originals.
  */
 export async function estimateRecipeTimes(
   recipeId: number,
-  options?: { replace_prep_if_original?: boolean; replace_cook_if_original?: boolean }
+  options?: {
+    replace_prep_if_original?: boolean
+    replace_cook_if_original?: boolean
+    apply_prep?: boolean
+    apply_cook?: boolean
+    /** Skip LLM; apply `estimate` from a previous response (after user confirms) */
+    use_client_estimate?: boolean
+    estimate?: RecipeTimeEstimatePayload
+  }
 ): Promise<RecipeTimeEstimateSuccess> {
   const res = await fetch(`${API_BASE}/recipes/${recipeId}/estimate-times`, {
     method: 'POST',
@@ -402,16 +446,50 @@ export async function estimateRecipeTimes(
     body: JSON.stringify({
       replace_prep_if_original: options?.replace_prep_if_original === true,
       replace_cook_if_original: options?.replace_cook_if_original === true,
+      apply_prep: options?.apply_prep !== false,
+      apply_cook: options?.apply_cook !== false,
+      use_client_estimate: options?.use_client_estimate === true,
+      estimate: options?.estimate ?? undefined,
     }),
   })
   const data = await res.json().catch(() => ({}))
+
+  if (res.ok) {
+    return data as RecipeTimeEstimateSuccess
+  }
+
+  // Older backends returned HTTP 409 after the LLM when originals blocked apply. Current API returns 200 + pendingOriginalReplace.
   if (res.status === 409) {
-    throw new RecipeTimeEstimateConflictError(data as RecipeTimeEstimateConflictBody)
+    const payload = data as { error?: string; estimate?: unknown; recipe?: Recipe }
+    const est = coerceEstimateFromResponse(payload.estimate)
+    if (est && (est.prepTimeMinutes != null || est.cookTimeMinutes != null)) {
+      let recipe = payload.recipe
+      if (!recipe) {
+        try {
+          recipe = await getRecipe(recipeId)
+        } catch {
+          recipe = undefined
+        }
+      }
+      if (recipe) {
+        const pending = buildPendingOriginalReplaceFromRecipe(recipe, est)
+        if (pending) {
+          return {
+            recipe,
+            estimate: est,
+            pendingOriginalReplace: pending,
+          }
+        }
+      }
+    }
   }
-  if (!res.ok) {
-    throw new Error((data as { error?: string }).error || res.statusText)
-  }
-  return data as RecipeTimeEstimateSuccess
+
+  const errMsg = (data as { error?: string }).error || res.statusText
+  const hint =
+    res.status === 409
+      ? ' Restart the backend (or rebuild Docker) so POST /api/recipes/:id/estimate-times returns 200 with pendingOriginalReplace instead of 409.'
+      : ''
+  throw new Error(errMsg + hint)
 }
 
 /** Same scoring as by id, but with a structured recipe object in the body (no DB row). */
