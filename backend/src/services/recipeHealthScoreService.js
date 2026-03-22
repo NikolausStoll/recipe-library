@@ -163,7 +163,7 @@ function usageFromResponse(usage) {
 /**
  * Call OpenAI and return a sanitized health estimate. Throws on any failure (no fallback).
  * @param {object} recipe – structured recipe (same shape as buildHealthScorePayload output is fine)
- * @returns {Promise<{ estimate: object, model: string, tokenUsage: object|null }>}
+ * @returns {Promise<{ estimate: object, model: string, tokenUsage: object|null, requestPayload: object }>}
  */
 export async function estimateRecipeHealthScore(recipe) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -223,6 +223,7 @@ export async function estimateRecipeHealthScore(recipe) {
       estimate: sanitized,
       model,
       tokenUsage,
+      requestPayload: payload,
     }
   } catch (e) {
     if (e instanceof HealthScoreEstimateError) throw e

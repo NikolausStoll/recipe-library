@@ -12,11 +12,16 @@ import {
   estimateRecipeHealthScore,
   estimateRecipeHealthScoreById,
   HealthScoreEstimateError,
+  buildHealthScorePayload,
 } from '../services/recipeHealthScoreService.js'
 import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistence.js'
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
-import { estimateRecipePrepCookTimes, normalizeEstimatePayload } from '../services/recipeTimeEstimateService.js'
+import {
+  estimateRecipePrepCookTimes,
+  normalizeEstimatePayload,
+  buildTimeEstimateInput,
+} from '../services/recipeTimeEstimateService.js'
 import { generateRecipeTags } from '../services/recipeTagGenerationService.js'
 import { replaceRecipeTags } from '../services/recipeTagPersistence.js'
 import { ALL_ALLOWED_TAGS } from '../constants/recipeTags.js'
@@ -115,6 +120,7 @@ router.post('/:id/estimate-health-score', async (req, res) => {
     logAiTokenUsage(id, result.tokenUsage, result.estimate, {
       model: result.model,
       usage_kind: 'health_score',
+      request_json: result.requestPayload,
     })
     res.json(result)
   } catch (e) {
@@ -122,7 +128,13 @@ router.post('/:id/estimate-health-score', async (req, res) => {
       return res.status(404).json({ error: 'Recipe not found' })
     }
     if (e instanceof HealthScoreEstimateError && e.tokenUsage) {
-      logAiTokenUsage(id, e.tokenUsage, { error: e.message }, { model: e.model, usage_kind: 'health_score' })
+      const row = recipeService.getRecipeById(id)
+      const requestPayload = row ? buildHealthScorePayload(row) : null
+      logAiTokenUsage(id, e.tokenUsage, { error: e.message }, {
+        model: e.model,
+        usage_kind: 'health_score',
+        request_json: requestPayload,
+      })
     }
     const msg = e instanceof Error ? e.message : 'Failed to estimate health score'
     const status = msg === 'OPENAI_API_KEY is not set' ? 503 : 502
@@ -169,6 +181,7 @@ router.post('/:id/estimate-times', async (req, res) => {
       logAiTokenUsage(id, estimate.tokenUsage, logged, {
         model: estimate.model,
         usage_kind: 'recipe_time_estimate',
+        request_json: buildTimeEstimateInput(recipe),
       })
     }
 
@@ -265,7 +278,11 @@ router.post('/estimate-health-score', async (req, res) => {
     res.json(result)
   } catch (e) {
     if (e instanceof HealthScoreEstimateError && e.tokenUsage) {
-      logAiTokenUsage(null, e.tokenUsage, { error: e.message }, { model: e.model, usage_kind: 'health_score' })
+      logAiTokenUsage(null, e.tokenUsage, { error: e.message }, {
+        model: e.model,
+        usage_kind: 'health_score',
+        request_json: buildHealthScorePayload(recipe),
+      })
     }
     const msg = e instanceof Error ? e.message : 'Failed to estimate health score'
     const status = msg === 'OPENAI_API_KEY is not set' ? 503 : 502

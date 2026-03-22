@@ -21,6 +21,7 @@ ports_description:
 
 image: "ghcr.io/nikolausstoll/recipe-library"
 
+# Options map to environment variables (see DOCS.md). Same keys as project .env.example (UPPER_SNAKE → snake_case).
 options:
   port: 8097
   db_path: "/data/recipe-library.db"
@@ -28,11 +29,47 @@ options:
   upload_dir: "/data/uploads"
   image_quality: 80
   image_max_dimension: 2400
+  text_image_max_dimension: 1400
+  thumbnail_max_dimension: 600
+  recipe_url_fetch_timeout_ms: 25000
+  recipe_url_max_bytes: 2000000
+  recipe_url_user_agent: "RecipeLibrary/1.0"
+  openai_api_key: ""
+  openai_extract_model: "gpt-4.1-mini"
+  openai_extract_detail: "high"
+  openai_normalize_model_primary: "gpt-4o-mini"
+  openai_normalize_temperature: 0.2
+  openai_nutrition_model: "gpt-4o-mini"
+  openai_nutrition_model_temperature: 0.2
+  openai_health_score_model: "gpt-4o-mini"
+  openai_health_score_temperature: 0.2
+  openai_time_estimate_model: "gpt-4o-mini"
+  openai_time_estimate_temperature: 0.2
+  openai_recipe_tag_model: "gpt-4o-mini"
+  openai_recipe_tag_temperature: 0.2
 
 schema:
   port: int(1024,65535)
   db_path: str
   static_dir: str
   upload_dir: str
-  image_quality: int
-  image_max_dimension: int
+  image_quality: int(1,100)
+  image_max_dimension: int(100,8192)
+  text_image_max_dimension: int(100,8192)
+  thumbnail_max_dimension: int(100,8192)
+  recipe_url_fetch_timeout_ms: int(1000,120000)
+  recipe_url_max_bytes: int(100000,50000000)
+  recipe_url_user_agent: str
+  openai_api_key: password
+  openai_extract_model: str
+  openai_extract_detail: list(low|high|auto)
+  openai_normalize_model_primary: str
+  openai_normalize_temperature: float(0,1)
+  openai_nutrition_model: str
+  openai_nutrition_model_temperature: float(0,1)
+  openai_health_score_model: str
+  openai_health_score_temperature: float(0,1)
+  openai_time_estimate_model: str
+  openai_time_estimate_temperature: float(0,1)
+  openai_recipe_tag_model: str
+  openai_recipe_tag_temperature: float(0,1)

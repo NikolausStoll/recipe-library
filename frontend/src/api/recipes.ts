@@ -346,6 +346,8 @@ export interface RecipeHealthScoreResponse {
   estimate: RecipeHealthScoreEstimate
   model: string | null
   tokenUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null
+  /** Echo of structured JSON sent to the model (also stored in ai_token_usage.request_json). */
+  requestPayload?: Record<string, unknown>
 }
 
 /** By recipe id: estimates, persists to DB, returns the estimate. Body-only POST does not persist. */

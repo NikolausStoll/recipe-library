@@ -205,7 +205,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | `sourceService.js` | Source CRUD operations | createSource, updateSource, getSourceById, listSources | Database |
 | `extractRecipeService.js` | OpenAI vision integration | extractRecipeFromImages, logAiTokenUsage | OpenAI SDK, Database |
 | `recipeUrlExtractService.js` | URL → raw recipe fields | extractRecipeFromUrl (JSON-LD + HTML) | fetch, cheerio |
-| `recipeNormalizationService.js` | Raw URL recipe → structured JSON | normalizeRecipeWithLLM, isLowQuality | OpenAI SDK, RECIPE_JSON_SCHEMA |
+| `recipeNormalizationService.js` | Raw URL recipe → structured JSON | normalizeRecipeWithLLM | OpenAI SDK, RECIPE_JSON_SCHEMA |
 | `imageProcessingService.js` | Image resize/convert | prepareTextImage, resizeImage | Sharp |
 | `cropPerspectiveService.js` | 4-point perspective crop | cropPerspective, cropPerspectiveBuffer | Python subprocess, OpenCV |
 | **Database Layer** |

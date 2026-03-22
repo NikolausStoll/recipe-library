@@ -48,6 +48,7 @@ const NUTRITION_JSON_SCHEMA = {
 }
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
+const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_NUTRITION_MODEL_TEMPERATURE) || 0.2))
 
 function buildNutritionPayload(recipe) {
   return {
@@ -85,7 +86,7 @@ export async function estimateRecipeNutrition(id) {
 
   const response = await client.chat.completions.create({
     model,
-    temperature: 0.2,
+    temperature: TEMPERATURE,
     messages: [
       { role: 'system', content: NUTRITION_PROMPT },
       { role: 'user', content: JSON.stringify(payload) },

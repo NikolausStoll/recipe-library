@@ -8,7 +8,6 @@ import { RECIPE_JSON_SCHEMA } from './extractRecipeService.js'
 import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
 
 const PRIMARY_MODEL = process.env.OPENAI_NORMALIZE_MODEL_PRIMARY || 'gpt-4o-mini'
-const FALLBACK_MODEL = process.env.OPENAI_NORMALIZE_MODEL_FALLBACK || 'gpt-4.1-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_NORMALIZE_TEMPERATURE) || 0.2))
 
 /** User-requested instructions; schema uses `amount` / `amountMax` (not amountMin). */
@@ -143,61 +142,6 @@ Steps:
 
 Return JSON only. No markdown, no explanations, no code fences.`
 
-function collectIngredientItems(parsed) {
-  const inner = parsed?.recipe
-  if (!inner?.ingredientsSections || !Array.isArray(inner.ingredientsSections)) return []
-  const items = []
-  for (const sec of inner.ingredientsSections) {
-    if (sec?.items && Array.isArray(sec.items)) items.push(...sec.items)
-  }
-  return items
-}
-
-/**
- * Heuristic quality check for retry with fallback model.
- * @param {object} result - Parsed LLM output { status, confidence, warnings, missingFields, recipe }
- * @param {object} raw - RawRecipeFromUrl shape from recipeUrlExtractService
- * @returns {boolean}
- */
-export function isLowQuality(result, raw) {
-  if (!result || typeof result !== 'object') return true
-  const inner = result.recipe
-  if (result.status === 'failed' || inner == null) return true
-
-  const items = collectIngredientItems(result)
-  const steps = Array.isArray(inner.steps) ? inner.steps : []
-
-  if (items.length === 0) return true
-  if (steps.length === 0) return true
-
-  const nullIngredientCount = items.filter((i) => {
-    if (!i || i.ingredient == null) return true
-    return String(i.ingredient).trim() === ''
-  }).length
-  if (items.length > 0 && nullIngredientCount / items.length > 0.4) return true
-
-  const rawHasServings = raw?.servings_raw != null && String(raw.servings_raw).trim() !== ''
-  const servings = inner.servings
-  const servingsEmpty =
-    servings == null ||
-    (servings.value == null &&
-      (servings.unitText == null || String(servings.unitText).trim() === ''))
-  if (rawHasServings && servingsEmpty) return true
-
-  let nullFields = 0
-  let totalFields = 0
-  for (const it of items) {
-    for (const k of ['amount', 'amountMax', 'unit', 'ingredient', 'originalText']) {
-      totalFields += 1
-      const v = it?.[k]
-      if (v == null || (typeof v === 'string' && v.trim() === '')) nullFields += 1
-    }
-  }
-  if (totalFields > 0 && nullFields / totalFields > 0.55) return true
-
-  return false
-}
-
 /**
  * @param {object} rawRecipe - RawRecipeFromUrl (title, description, ingredient_lines, steps, …)
  * @param {string} model
@@ -253,30 +197,27 @@ async function callLLM(rawRecipe, model) {
 }
 
 /**
- * Normalize URL-scraped raw recipe via LLM (primary model, optional fallback).
+ * Normalize URL-scraped raw recipe via LLM (`OPENAI_NORMALIZE_MODEL_PRIMARY`).
  * @param {object} rawRecipe - Same shape as extractRecipeFromUrl().recipe
  * @returns {Promise<{ recipe: object, usage?: object, model: string, attempts: Array<{ recipe: object, usage?: object, model: string, request_json: string }> }>}
  */
 export async function normalizeRecipeWithLLM(rawRecipe) {
   const raw = rawRecipe && typeof rawRecipe === 'object' ? rawRecipe : {}
 
-  const attempts = []
   const first = await callLLM(raw, PRIMARY_MODEL)
-  let { recipe, usage } = first
-  attempts.push({ recipe: first.recipe, usage: first.usage, model: PRIMARY_MODEL, request_json: first.request_json })
+  const attempts = [
+    {
+      recipe: first.recipe,
+      usage: first.usage,
+      model: PRIMARY_MODEL,
+      request_json: first.request_json,
+    },
+  ]
 
-  if (isLowQuality(recipe, raw)) {
-    const second = await callLLM(raw, FALLBACK_MODEL)
-    recipe = second.recipe
-    usage = second.usage
-    attempts.push({
-      recipe: second.recipe,
-      usage: second.usage,
-      model: FALLBACK_MODEL,
-      request_json: second.request_json,
-    })
+  return {
+    recipe: first.recipe,
+    usage: first.usage,
+    model: PRIMARY_MODEL,
+    attempts,
   }
-
-  const last = attempts[attempts.length - 1]
-  return { recipe: last.recipe, usage: last.usage, model: last.model, attempts }
 }
