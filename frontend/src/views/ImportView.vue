@@ -87,7 +87,7 @@
         Klicken Sie nacheinander auf die vier Ecken der Buchseite / des Covers. Punkte können Sie per Drag verschieben. Anschließend „Bild zuschneiden“ wählen.
       </p>
       <div class="crop-editor">
-        <div ref="cropEditorRef" class="crop-editor__wrap" @click="onCropImageClick">
+        <div ref="cropEditorRef" class="crop-editor__wrap" @pointerdown="onCropImagePointerDown">
           <img
             ref="cropImageRef"
             :src="cropImageUrl"
@@ -115,7 +115,7 @@
               :key="i"
               class="crop-editor__point"
               :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }"
-              @mousedown.stop="onCropPointMouseDown($event, i)"
+              @pointerdown.stop="onCropPointPointerDown($event, i)"
             >
               {{ i + 1 }}
             </span>
@@ -204,7 +204,7 @@
             <div
               :ref="(el) => setStep2CropWrapRef(idx, el)"
               class="crop-editor__wrap step2-crop-item__wrap"
-              @click="onStep2CropClick($event, idx)"
+              @pointerdown="onStep2CropPointerDown($event, idx)"
             >
               <img
                 :ref="(el) => setStep2CropImageRef(idx, el)"
@@ -233,7 +233,7 @@
                   :key="pi"
                   class="crop-editor__point"
                   :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }"
-                  @mousedown.stop="onStep2PointMouseDown($event, idx, pi)"
+                  @pointerdown.stop="onStep2PointPointerDown($event, idx, pi)"
                 >
                   {{ pi + 1 }}
                 </span>
@@ -306,6 +306,7 @@
 import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
 import { extractRecipeFromImages } from '../api/recipes'
 import type { Recipe } from '../api/recipes'
+import { attachCropPointPointerDrag } from '../utils/cropPointerDrag'
 
 const step1FileRef = ref<HTMLInputElement | null>(null)
 const step2FileRef = ref<HTMLInputElement | null>(null)
@@ -322,7 +323,7 @@ const step2CropPoints = ref<Array<Array<{ x: number; y: number }>>>([])
 const step2DisplaySize = ref<Array<{ w: number; h: number }>>([])
 const step2CropImageRefs = ref<(HTMLImageElement | null)[]>([])
 const step2CropWrapRefs = ref<(HTMLDivElement | null)[]>([])
-let step2DragState: { imageIdx: number; pointIdx: number; unsubscribe: () => void } | null = null
+let step2DragState: { unsubscribe: () => void } | null = null
 const extracting = ref(false)
 const extractError = ref('')
 const extractUsage = ref<{ prompt_tokens: number; completion_tokens: number; total_tokens: number } | null>(null)
@@ -346,7 +347,6 @@ const cropPoints = ref<Array<{ x: number; y: number }>>([])
 const cropDisplaySize = ref({ w: 0, h: 0 })
 const cropping = ref(false)
 const cropError = ref('')
-let draggingPointIndex: number | null = null
 let cropDragUnsubscribe: (() => void) | null = null
 const step1DeferUpload = ref(false)
 
@@ -402,9 +402,10 @@ function onCropImageLoad() {
   updateCropDisplaySize()
 }
 
-function onCropImageClick(e: MouseEvent) {
+function onCropImagePointerDown(e: PointerEvent) {
   if (cropPoints.value.length >= 4 || !cropEditorRef.value) return
   if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const target = e.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
@@ -413,27 +414,20 @@ function onCropImageClick(e: MouseEvent) {
   cropError.value = ''
 }
 
-function onCropPointMouseDown(e: MouseEvent, index: number) {
-  if (!cropEditorRef.value) return
-  draggingPointIndex = index
+function onCropPointPointerDown(e: PointerEvent, index: number) {
   const wrap = cropEditorRef.value
-  const move = (ev: MouseEvent) => {
-    const r = wrap.getBoundingClientRect()
-    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left))
-    const y = Math.max(0, Math.min(r.height, ev.clientY - r.top))
-    const next = [...cropPoints.value]
-    next[index] = { x, y }
-    cropPoints.value = next
-  }
-  const up = () => {
-    document.removeEventListener('mousemove', move)
-    document.removeEventListener('mouseup', up)
-    draggingPointIndex = null
-    cropDragUnsubscribe = null
-  }
-  cropDragUnsubscribe = up
-  document.addEventListener('mousemove', move)
-  document.addEventListener('mouseup', up)
+  if (!wrap) return
+  attachCropPointPointerDrag(e, {
+    wrap,
+    onMove: (x, y) => {
+      const next = [...cropPoints.value]
+      next[index] = { x, y }
+      cropPoints.value = next
+    },
+    onActiveCleanup: (fn) => {
+      cropDragUnsubscribe = fn
+    },
+  })
 }
 
 function resetCropPoints() {
@@ -754,10 +748,11 @@ function onStep2CropImageLoad(idx: number) {
   })
 }
 
-function onStep2CropClick(e: MouseEvent, idx: number) {
+function onStep2CropPointerDown(e: PointerEvent, idx: number) {
   const pts = step2CropPoints.value[idx] ?? []
   if (pts.length >= 4) return
   if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const wrap = step2CropWrapRefs.value[idx]
   if (!wrap) return
   const rect = wrap.getBoundingClientRect()
@@ -770,26 +765,21 @@ function onStep2CropClick(e: MouseEvent, idx: number) {
   extractError.value = ''
 }
 
-function onStep2PointMouseDown(e: MouseEvent, imageIdx: number, pointIdx: number) {
+function onStep2PointPointerDown(e: PointerEvent, imageIdx: number, pointIdx: number) {
   const wrap = step2CropWrapRefs.value[imageIdx]
   if (!wrap) return
-  const move = (ev: MouseEvent) => {
-    const r = wrap!.getBoundingClientRect()
-    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left))
-    const y = Math.max(0, Math.min(r.height, ev.clientY - r.top))
-    const next = step2CropPoints.value.map((arr, i) => (i === imageIdx ? [...(arr ?? [])] : arr ?? []))
-    const imgPts = next[imageIdx]
-    if (imgPts[pointIdx] !== undefined) imgPts[pointIdx] = { x, y }
-    step2CropPoints.value = next
-  }
-  const up = () => {
-    document.removeEventListener('mousemove', move)
-    document.removeEventListener('mouseup', up)
-    step2DragState = null
-  }
-  step2DragState = { imageIdx, pointIdx, unsubscribe: up }
-  document.addEventListener('mousemove', move)
-  document.addEventListener('mouseup', up)
+  attachCropPointPointerDrag(e, {
+    wrap,
+    onMove: (x, y) => {
+      const next = step2CropPoints.value.map((arr, i) => (i === imageIdx ? [...(arr ?? [])] : arr ?? []))
+      const imgPts = next[imageIdx]
+      if (imgPts[pointIdx] !== undefined) imgPts[pointIdx] = { x, y }
+      step2CropPoints.value = next
+    },
+    onActiveCleanup: (fn) => {
+      step2DragState = fn ? { unsubscribe: fn } : null
+    },
+  })
 }
 
 function resetStep2CropPoints(idx: number) {
@@ -963,7 +953,13 @@ onBeforeUnmount(() => {
 .import-preview__error { margin: 0; color: var(--color-error); font-size: 0.9rem; }
 
 .crop-editor { margin-top: 1rem; }
-.crop-editor__wrap { position: relative; display: inline-block; max-width: 100%; cursor: crosshair; }
+.crop-editor__wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
 .crop-editor__img { display: block; max-width: 100%; max-height: 400px; vertical-align: top; }
 .crop-editor__overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 .crop-editor__lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }

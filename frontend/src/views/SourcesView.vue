@@ -64,7 +64,7 @@
           <span>Upload original now; crop and optimize later</span>
         </label>
         <div v-if="coverPreview && (coverFile || coverFinalizeMode)" class="sources-form__cover-crop">
-          <div ref="coverCropWrapRef" class="crop-editor__wrap" @click="onCoverCropClick">
+          <div ref="coverCropWrapRef" class="crop-editor__wrap" @pointerdown="onCoverCropPointerDown">
             <img
               ref="coverCropImgRef"
               :src="coverPreview"
@@ -92,7 +92,7 @@
                 :key="i"
                 class="crop-editor__point"
                 :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }"
-                @mousedown.stop="onCoverPointMouseDown($event, i)"
+                @pointerdown.stop="onCoverPointPointerDown($event, i)"
               >
                 {{ i + 1 }}
               </span>
@@ -166,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import {
   listSources,
   createSource,
@@ -176,6 +176,7 @@ import {
   finalizeSourceCoverCrop,
 } from '../api/sources'
 import type { RecipeSource, RecipeSourceInput } from '../api/sources'
+import { attachCropPointPointerDrag } from '../utils/cropPointerDrag'
 
 const sources = ref<RecipeSource[]>([])
 const loading = ref(true)
@@ -384,9 +385,10 @@ function onCoverCropLoad() {
   }
 }
 
-function onCoverCropClick(e: MouseEvent) {
+function onCoverCropPointerDown(e: PointerEvent) {
   if (coverCropPoints.value.length >= 4 || !coverCropWrapRef.value) return
   if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const r = coverCropWrapRef.value.getBoundingClientRect()
   const x = Math.max(0, Math.min(r.width, e.clientX - r.left))
   const y = Math.max(0, Math.min(r.height, e.clientY - r.top))
@@ -394,25 +396,20 @@ function onCoverCropClick(e: MouseEvent) {
   coverError.value = ''
 }
 
-function onCoverPointMouseDown(e: MouseEvent, index: number) {
-  if (!coverCropWrapRef.value) return
+function onCoverPointPointerDown(e: PointerEvent, index: number) {
   const wrap = coverCropWrapRef.value
-  const move = (ev: MouseEvent) => {
-    const r = wrap.getBoundingClientRect()
-    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left))
-    const y = Math.max(0, Math.min(r.height, ev.clientY - r.top))
-    const next = [...coverCropPoints.value]
-    next[index] = { x, y }
-    coverCropPoints.value = next
-  }
-  const up = () => {
-    document.removeEventListener('mousemove', move)
-    document.removeEventListener('mouseup', up)
-    coverDragUnsub = null
-  }
-  coverDragUnsub = up
-  document.addEventListener('mousemove', move)
-  document.addEventListener('mouseup', up)
+  if (!wrap) return
+  attachCropPointPointerDrag(e, {
+    wrap,
+    onMove: (x, y) => {
+      const next = [...coverCropPoints.value]
+      next[index] = { x, y }
+      coverCropPoints.value = next
+    },
+    onActiveCleanup: (fn) => {
+      coverDragUnsub = fn
+    },
+  })
 }
 
 async function uploadCover() {
@@ -498,6 +495,10 @@ async function onDelete(id: number) {
 }
 
 onMounted(() => loadList())
+
+onBeforeUnmount(() => {
+  coverDragUnsub?.()
+})
 </script>
 
 <style scoped>
@@ -552,7 +553,13 @@ onMounted(() => loadList())
 .form__actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
 .form__error { margin: 0.5rem 0 0; color: var(--color-error); font-size: 0.9rem; }
 
-.crop-editor__wrap { position: relative; display: inline-block; max-width: 100%; cursor: crosshair; }
+.crop-editor__wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
 .crop-editor__img { display: block; max-width: 100%; }
 .crop-editor__overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 .crop-editor__lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }

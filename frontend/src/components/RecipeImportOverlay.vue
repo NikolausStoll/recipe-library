@@ -75,13 +75,13 @@
               <template v-else>Click four corners in sequence, then click Crop Image.</template>
             </p>
             <div class="crop-editor">
-              <div ref="cropEditorRef" class="crop-editor__wrap" @click="onCropImageClick">
+              <div ref="cropEditorRef" class="crop-editor__wrap" @pointerdown="onCropImagePointerDown">
                 <img ref="cropImageRef" :src="cropImageUrl" alt="Recipe Image" class="crop-editor__img" @load="onCropImageLoad" />
                 <div class="crop-editor__overlay">
                   <svg v-if="cropPoints.length === 4 && cropDisplaySize.w > 0 && cropDisplaySize.h > 0" class="crop-editor__lines" :viewBox="`0 0 ${cropDisplaySize.w} ${cropDisplaySize.h}`" preserveAspectRatio="none">
                     <polyline :points="cropPolylinePoints" fill="none" stroke="var(--color-primary, #2563eb)" stroke-width="2" stroke-dasharray="6 4" />
                   </svg>
-                  <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @mousedown.stop="onCropPointMouseDown($event, i)">{{ i + 1 }}</span>
+                  <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @pointerdown.stop="onCropPointPointerDown($event, i)">{{ i + 1 }}</span>
                 </div>
               </div>
               <div class="crop-editor__actions">
@@ -142,13 +142,13 @@
               <div class="step2-crop-list">
                 <div v-for="(file, idx) in step2Files" :key="idx" class="step2-crop-item">
                   <p class="step2-crop-item__label">Image {{ idx + 1 }}</p>
-                  <div :ref="(el) => setStep2CropWrapRef(idx, el)" class="crop-editor__wrap step2-crop-item__wrap" @click="onStep2CropClick($event, idx)">
+                  <div :ref="(el) => setStep2CropWrapRef(idx, el)" class="crop-editor__wrap step2-crop-item__wrap" @pointerdown="onStep2CropPointerDown($event, idx)">
                     <img :ref="(el) => setStep2CropImageRef(idx, el)" :src="step2Previews[idx]" :alt="'Text image ' + (idx + 1)" class="crop-editor__img step2-crop-item__img" @load="onStep2CropImageLoad(idx)" />
                     <div class="crop-editor__overlay">
                       <svg v-if="(step2CropPoints[idx]?.length ?? 0) === 4 && (step2DisplaySize[idx]?.w ?? 0) > 0" class="crop-editor__lines" :viewBox="`0 0 ${step2DisplaySize[idx]?.w ?? 0} ${step2DisplaySize[idx]?.h ?? 0}`" preserveAspectRatio="none">
                         <polyline :points="step2PolylinePoints(idx)" fill="none" stroke="var(--color-primary, #2563eb)" stroke-width="2" stroke-dasharray="6 4" />
                       </svg>
-                      <span v-for="(pt, pi) in (step2CropPoints[idx] ?? [])" :key="pi" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @mousedown.stop="onStep2PointMouseDown($event, idx, pi)">{{ pi + 1 }}</span>
+                      <span v-for="(pt, pi) in (step2CropPoints[idx] ?? [])" :key="pi" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @pointerdown.stop="onStep2PointPointerDown($event, idx, pi)">{{ pi + 1 }}</span>
                     </div>
                   </div>
                   <button type="button" class="btn btn--secondary step2-crop-item__reset" @click="resetStep2CropPoints(idx)">Reset Points</button>
@@ -173,6 +173,7 @@
 import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
 import { extractRecipeFromImages } from '../api/recipes'
 import type { Recipe } from '../api/recipes'
+import { attachCropPointPointerDrag } from '../utils/cropPointerDrag'
 
 const emit = defineEmits<{ done: [recipe: Recipe]; close: [] }>()
 
@@ -258,9 +259,10 @@ function onCropImageLoad() {
   updateCropDisplaySize()
 }
 
-function onCropImageClick(e: MouseEvent) {
+function onCropImagePointerDown(e: PointerEvent) {
   if (cropPoints.value.length >= 4 || !cropEditorRef.value) return
   if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const target = e.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
@@ -269,25 +271,20 @@ function onCropImageClick(e: MouseEvent) {
   cropError.value = ''
 }
 
-function onCropPointMouseDown(e: MouseEvent, index: number) {
-  if (!cropEditorRef.value) return
+function onCropPointPointerDown(e: PointerEvent, index: number) {
   const wrap = cropEditorRef.value
-  const move = (ev: MouseEvent) => {
-    const r = wrap.getBoundingClientRect()
-    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left))
-    const y = Math.max(0, Math.min(r.height, ev.clientY - r.top))
-    const next = [...cropPoints.value]
-    next[index] = { x, y }
-    cropPoints.value = next
-  }
-  const up = () => {
-    document.removeEventListener('mousemove', move)
-    document.removeEventListener('mouseup', up)
-    cropDragUnsubscribe = null
-  }
-  cropDragUnsubscribe = up
-  document.addEventListener('mousemove', move)
-  document.addEventListener('mouseup', up)
+  if (!wrap) return
+  attachCropPointPointerDrag(e, {
+    wrap,
+    onMove: (x, y) => {
+      const next = [...cropPoints.value]
+      next[index] = { x, y }
+      cropPoints.value = next
+    },
+    onActiveCleanup: (fn) => {
+      cropDragUnsubscribe = fn
+    },
+  })
 }
 
 function resetCropPoints() {
@@ -605,10 +602,11 @@ function onStep2CropImageLoad(idx: number) {
   })
 }
 
-function onStep2CropClick(e: MouseEvent, idx: number) {
+function onStep2CropPointerDown(e: PointerEvent, idx: number) {
   const pts = step2CropPoints.value[idx] ?? []
   if (pts.length >= 4) return
   if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const wrap = step2CropWrapRefs.value[idx]
   if (!wrap) return
   const rect = wrap.getBoundingClientRect()
@@ -621,26 +619,21 @@ function onStep2CropClick(e: MouseEvent, idx: number) {
   extractError.value = ''
 }
 
-function onStep2PointMouseDown(e: MouseEvent, imageIdx: number, pointIdx: number) {
+function onStep2PointPointerDown(e: PointerEvent, imageIdx: number, pointIdx: number) {
   const wrap = step2CropWrapRefs.value[imageIdx]
   if (!wrap) return
-  const move = (ev: MouseEvent) => {
-    const r = wrap!.getBoundingClientRect()
-    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left))
-    const y = Math.max(0, Math.min(r.height, ev.clientY - r.top))
-    const next = step2CropPoints.value.map((arr, i) => (i === imageIdx ? [...(arr ?? [])] : arr ?? []))
-    const imgPts = next[imageIdx]
-    if (imgPts[pointIdx] !== undefined) imgPts[pointIdx] = { x, y }
-    step2CropPoints.value = next
-  }
-  const up = () => {
-    document.removeEventListener('mousemove', move)
-    document.removeEventListener('mouseup', up)
-    step2DragState = null
-  }
-  step2DragState = { imageIdx, pointIdx, unsubscribe: up }
-  document.addEventListener('mousemove', move)
-  document.addEventListener('mouseup', up)
+  attachCropPointPointerDrag(e, {
+    wrap,
+    onMove: (x, y) => {
+      const next = step2CropPoints.value.map((arr, i) => (i === imageIdx ? [...(arr ?? [])] : arr ?? []))
+      const imgPts = next[imageIdx]
+      if (imgPts[pointIdx] !== undefined) imgPts[pointIdx] = { x, y }
+      step2CropPoints.value = next
+    },
+    onActiveCleanup: (fn) => {
+      step2DragState = fn ? { unsubscribe: fn } : null
+    },
+  })
 }
 
 function resetStep2CropPoints(idx: number) {
@@ -836,7 +829,13 @@ onBeforeUnmount(() => {
 .import-preview__meta { margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--color-text-muted); }
 .import-preview__error { margin: 0; color: var(--color-error); font-size: 0.9rem; }
 .crop-editor { margin-top: 0.75rem; }
-.crop-editor__wrap { position: relative; display: inline-block; max-width: 100%; cursor: crosshair; }
+.crop-editor__wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
 .crop-editor__img { display: block; max-width: 100%; max-height: 320px; vertical-align: top; }
 /* Step 2 text crop: use vertical space — do not cap at 240px (too small for touch) */
 .step2-crop-item .crop-editor__wrap {

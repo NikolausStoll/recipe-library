@@ -32,13 +32,13 @@
           <div class="image-upload">
             <template v-if="showCropForExisting">
               <div class="crop-editor">
-                <div ref="cropEditorRef" class="crop-editor__wrap" @click="onCropImageClick">
+                <div ref="cropEditorRef" class="crop-editor__wrap" @pointerdown="onCropImagePointerDown">
                   <img ref="cropImageRef" :src="cropImageUrl" alt="Crop" class="crop-editor__img" @load="onCropImageLoad" />
                   <div class="crop-editor__overlay">
                     <svg v-if="cropPoints.length === 4 && cropDisplaySize.w > 0 && cropDisplaySize.h > 0" class="crop-editor__lines" :viewBox="`0 0 ${cropDisplaySize.w} ${cropDisplaySize.h}`" preserveAspectRatio="none">
                       <polyline :points="cropPolylinePoints" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-dasharray="6 4" />
                     </svg>
-                    <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @mousedown.stop="onCropPointMouseDown($event, i)">{{ i + 1 }}</span>
+                    <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @pointerdown.stop="onCropPointPointerDown($event, i)">{{ i + 1 }}</span>
                   </div>
                 </div>
                 <div class="crop-editor__actions">
@@ -131,13 +131,13 @@
           <!-- 4-point crop for newly selected image (before submit) -->
           <div v-if="imagePreview && imageFile && !showCropForExisting" class="crop-editor crop-editor--new">
             <p class="crop-editor__hint">Optional: click four corners in order to correct perspective, then save the recipe. Points are sent with the upload unless you chose “crop later”.</p>
-            <div ref="newCropEditorRef" class="crop-editor__wrap" @click="onNewCropClick">
+            <div ref="newCropEditorRef" class="crop-editor__wrap" @pointerdown="onNewCropPointerDown">
               <img ref="newCropImageRef" :src="imagePreview" alt="Crop" class="crop-editor__img" @load="onNewCropImageLoad" />
               <div class="crop-editor__overlay">
                 <svg v-if="cropPoints.length === 4 && cropDisplaySize.w > 0 && cropDisplaySize.h > 0" class="crop-editor__lines" :viewBox="`0 0 ${cropDisplaySize.w} ${cropDisplaySize.h}`" preserveAspectRatio="none">
                   <polyline :points="cropPolylinePoints" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-dasharray="6 4" />
                 </svg>
-                <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @mousedown.stop="onCropPointMouseDown($event, i)">{{ i + 1 }}</span>
+                <span v-for="(pt, i) in cropPoints" :key="i" class="crop-editor__point" :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }" @pointerdown.stop="onCropPointPointerDown($event, i)">{{ i + 1 }}</span>
               </div>
             </div>
             <div class="crop-editor__actions">
@@ -703,7 +703,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, watch, onMounted } from 'vue'
+import { reactive, ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import type {
   RecipeFormPayload,
   IngredientInput,
@@ -715,6 +715,7 @@ import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
 import { INGREDIENT_CATEGORY_OPTIONS, getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 import { getRecipeFormPreviewUrl } from '../utils/recipeDisplayImage'
+import { attachCropPointPointerDrag } from '../utils/cropPointerDrag'
 
 interface IngredientRow {
   amount: string
@@ -790,6 +791,7 @@ const cropDisplaySize = ref({ w: 0, h: 0 })
 const cropping = ref(false)
 const cropError = ref('')
 const deferImageProcessing = ref(false)
+let cropDragUnsubscribe: (() => void) | null = null
 
 const imageProcessingPending = computed(
   () => !!(props.initial as { image_processing_pending?: boolean } | null)?.image_processing_pending
@@ -825,9 +827,10 @@ function onNewCropImageLoad() {
   updateCropDisplaySize(newCropEditorRef.value)
 }
 
-function onCropImageClick(e: MouseEvent) {
+function onCropImagePointerDown(e: PointerEvent) {
   if (cropPoints.value.length >= 4 || !cropEditorRef.value) return
   if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const target = e.currentTarget as HTMLDivElement
   const rect = target.getBoundingClientRect()
   const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
@@ -836,9 +839,10 @@ function onCropImageClick(e: MouseEvent) {
   cropError.value = ''
 }
 
-function onNewCropClick(e: MouseEvent) {
+function onNewCropPointerDown(e: PointerEvent) {
   if (cropPoints.value.length >= 4 || !newCropEditorRef.value) return
   if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const target = e.currentTarget as HTMLDivElement
   const rect = target.getBoundingClientRect()
   const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
@@ -846,23 +850,20 @@ function onNewCropClick(e: MouseEvent) {
   cropPoints.value = [...cropPoints.value, { x, y }]
 }
 
-function onCropPointMouseDown(e: MouseEvent, index: number) {
+function onCropPointPointerDown(e: PointerEvent, index: number) {
   const wrap = showCropForExisting.value ? cropEditorRef.value : newCropEditorRef.value
   if (!wrap) return
-  const move = (ev: MouseEvent) => {
-    const r = wrap!.getBoundingClientRect()
-    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left))
-    const y = Math.max(0, Math.min(r.height, ev.clientY - r.top))
-    const next = [...cropPoints.value]
-    next[index] = { x, y }
-    cropPoints.value = next
-  }
-  const up = () => {
-    document.removeEventListener('mousemove', move)
-    document.removeEventListener('mouseup', up)
-  }
-  document.addEventListener('mousemove', move)
-  document.addEventListener('mouseup', up)
+  attachCropPointPointerDrag(e, {
+    wrap,
+    onMove: (x, y) => {
+      const next = [...cropPoints.value]
+      next[index] = { x, y }
+      cropPoints.value = next
+    },
+    onActiveCleanup: (fn) => {
+      cropDragUnsubscribe = fn
+    },
+  })
 }
 
 function resetCropPoints() {
@@ -1265,6 +1266,10 @@ onMounted(async () => {
   } catch {
     allAllowedTags.value = []
   }
+})
+
+onBeforeUnmount(() => {
+  cropDragUnsubscribe?.()
 })
 
 function timeFieldPayload(
@@ -1724,6 +1729,7 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
   display: inline-block;
   max-width: 100%;
   cursor: crosshair;
+  touch-action: none;
 }
 .crop-editor__img {
   display: block;
