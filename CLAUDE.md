@@ -14,7 +14,8 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 
 ### Frontend (`frontend/`)
 - **Framework**: Vue 3 with Composition API, TypeScript
-- **Routing**: Vue Router with AppLayout wrapper
+- **Routing**: Vue Router with AppLayout wrapper (`createWebHistory`)
+- **Vite `base`**: Use `base: '/'` (root-relative built assets). A relative base (`./`) breaks reloads on nested routes (e.g. `/admin/extract-usage`): the browser requests `/admin/assets/…` and gets a non-JS response (Firefox: `NS_ERROR_CORRUPTED_CONTENT`).
 - **Views**: Dashboard, Recipes, Sources (Buchquellen), Shopping
 - **Styling**: CSS custom properties for light/dark mode theming
 - **Key Components**:
