@@ -2,10 +2,11 @@ import { Router } from 'express'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
-import { createRecipe } from '../services/recipeService.js'
+import { createRecipe, setRecipeImagePathAndPending } from '../services/recipeService.js'
 import { cropPerspectiveBuffer } from '../services/cropPerspectiveService.js'
 import { writeResizedWebp } from '../services/imageProcessingService.js'
 import { getBaseUploadDir } from '../utils/uploadPaths.js'
+import { savePendingUploadBuffer } from '../utils/pendingImageUpload.js'
 
 const router = Router()
 
@@ -46,13 +47,38 @@ router.post('/', ensureUploadDir, (req, res, next) => {
   })
 }, async (req, res) => {
   if (!req.file) {
-    const recipe = await createRecipe({
-      title: 'Rezept aus Bild',
+    const recipe = createRecipe({
+      title: 'Recipe from image',
       import_method: 'image',
       image_path: null,
       extract_status: 'pending',
     })
     return res.status(201).json({ recipe })
+  }
+
+  const processLater =
+    req.body?.processImageLater === 'true' ||
+    req.body?.processImageLater === '1' ||
+    req.body?.processImageLater === true
+
+  if (processLater) {
+    const draft = createRecipe({
+      title: 'Recipe from image',
+      import_method: 'image',
+      image_path: null,
+      extract_status: 'pending',
+    })
+    try {
+      const { url } = savePendingUploadBuffer('recipe', draft.id, req.file.buffer, req.file.mimetype)
+      const recipe = setRecipeImagePathAndPending(draft.id, {
+        image_path: url,
+        image_processing_pending: true,
+      })
+      return res.status(201).json({ url, thumbUrl: null, recipe })
+    } catch (err) {
+      console.error('Deferred upload save failed:', err)
+      return res.status(500).json({ error: 'Image upload failed' })
+    }
   }
 
   let buf = req.file.buffer
@@ -89,8 +115,8 @@ router.post('/', ensureUploadDir, (req, res, next) => {
 
   const imageUrl = `/uploads/recipe/${filename}`
   const thumbUrl = `/uploads/recipe/${thumbFilename}`
-  const recipe = await createRecipe({
-    title: 'Rezept aus Bild',
+  const recipe = createRecipe({
+    title: 'Recipe from image',
     import_method: 'image',
     image_path: imageUrl,
     extract_status: 'pending',

@@ -18,6 +18,7 @@ export interface RecipeSourceInfo {
   source_year?: number | null
   source_page?: string | null
   source_image_path?: string | null
+  source_image_processing_pending?: boolean
 }
 
 /** Single ingredient line from OCR (new schema) */
@@ -86,6 +87,8 @@ export interface RecipeListItem extends RecipeSourceInfo {
   prep_time_confidence?: number | null
   cook_time_confidence?: number | null
   image_path: string | null
+  /** True when the file is stored raw (not yet WebP/resized); finalize via crop-perspective. */
+  image_processing_pending?: boolean
   image_thumb_path?: string | null
   parsed_recipe?: ParsedRecipeFromOcr | null
   created_at: string

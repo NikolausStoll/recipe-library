@@ -9,7 +9,7 @@ const SOURCE_TYPES = ['book', 'url', 'manual', 'other']
 export function listSources() {
   const db = getDb()
   const rows = db.prepare(`
-    SELECT id, type, name, subtitle, url, book_title, author, year, image_path, created_at
+    SELECT id, type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending, created_at
     FROM recipe_sources
     ORDER BY name, id
   `).all()
@@ -22,7 +22,7 @@ export function listSources() {
 export function getSourceById(id) {
   const db = getDb()
   const row = db.prepare(`
-    SELECT id, type, name, subtitle, url, book_title, author, year, image_path, created_at
+    SELECT id, type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending, created_at
     FROM recipe_sources WHERE id = ?
   `).get(Number(id))
   return row ? rowToSource(row) : null
@@ -37,8 +37,8 @@ export function createSource(body) {
   const type = SOURCE_TYPES.includes(p.type) ? p.type : 'book'
   const name = (p.name ?? p.book_title ?? '').trim() || 'Unnamed'
   db.prepare(`
-    INSERT INTO recipe_sources (type, name, subtitle, url, book_title, author, year, image_path)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO recipe_sources (type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
   `).run(
     type,
     name,
@@ -50,6 +50,22 @@ export function createSource(body) {
     (p.image_path ?? '').trim() || null
   )
   const id = db.prepare('SELECT last_insert_rowid() as id').get().id
+  return getSourceById(id)
+}
+
+/**
+ * Set source cover URL and processing flag (internal: finalize deferred upload).
+ * @param {number|string} id
+ * @param {{ image_path: string | null, image_processing_pending: boolean }} params
+ */
+export function setSourceImagePathAndPending(id, { image_path, image_processing_pending }) {
+  const db = getDb()
+  const pending = image_processing_pending === true || image_processing_pending === 1 ? 1 : 0
+  db.prepare(`UPDATE recipe_sources SET image_path = ?, image_processing_pending = ? WHERE id = ?`).run(
+    image_path ?? null,
+    pending,
+    Number(id),
+  )
   return getSourceById(id)
 }
 
@@ -79,7 +95,12 @@ export function updateSource(id, body) {
   if (book_title !== undefined) { updates.push('book_title = ?'); values.push(book_title) }
   if (author !== undefined) { updates.push('author = ?'); values.push(author) }
   if (year !== undefined) { updates.push('year = ?'); values.push(year) }
-  if (image_path !== undefined) { updates.push('image_path = ?'); values.push(image_path) }
+  if (image_path !== undefined) {
+    updates.push('image_path = ?')
+    values.push(image_path)
+    updates.push('image_processing_pending = ?')
+    values.push(0)
+  }
   if (updates.length) {
     values.push(Number(id))
     db.prepare(`UPDATE recipe_sources SET ${updates.join(', ')} WHERE id = ?`).run(...values)
@@ -109,7 +130,9 @@ function rowToSource(row) {
     author: row.author ?? null,
     year: row.year ?? null,
     image_path: row.image_path ?? null,
-    image_thumb_path: getThumbnailPathIfExists(row.image_path),
+    image_processing_pending: row.image_processing_pending === 1,
+    image_thumb_path:
+      row.image_processing_pending === 1 ? null : getThumbnailPathIfExists(row.image_path),
     created_at: row.created_at,
   }
 }

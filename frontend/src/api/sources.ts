@@ -19,6 +19,7 @@ export interface RecipeSource {
   author: string | null
   year: number | null
   image_path: string | null
+  image_processing_pending?: boolean
   image_thumb_path?: string | null
   created_at: string
 }
@@ -65,13 +66,31 @@ export function deleteSource(id: number): Promise<void> {
 export async function uploadSourceCover(
   sourceId: number,
   imageFile: File,
-  points?: Array<{ x: number; y: number }>
-): Promise<{ source: RecipeSource; url: string }> {
+  points?: Array<{ x: number; y: number }>,
+  options?: { processImageLater?: boolean }
+): Promise<{ source: RecipeSource; url: string; thumbUrl?: string | null }> {
   const form = new FormData()
   form.append('image', imageFile)
   if (points && points.length === 4) {
     form.append('points', JSON.stringify(points))
   }
+  if (options?.processImageLater) {
+    form.append('processImageLater', '1')
+  }
   const res = await fetch(`${API_BASE}/sources/${sourceId}/cover`, { method: 'POST', body: form })
+  return handleResponse(res)
+}
+
+export async function finalizeSourceCoverCrop(
+  sourceId: number,
+  points?: Array<{ x: number; y: number }>
+): Promise<{ source: RecipeSource; url: string }> {
+  const body =
+    points && points.length === 4 ? JSON.stringify({ points }) : JSON.stringify({})
+  const res = await fetch(`${API_BASE}/sources/${sourceId}/crop-perspective`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  })
   return handleResponse(res)
 }

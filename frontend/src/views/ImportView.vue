@@ -46,6 +46,10 @@
         </div>
       </div>
       <div v-if="step1Preview" class="import-preview">
+        <label class="import-defer">
+          <input v-model="step1DeferUpload" type="checkbox" />
+          <span>Upload original now; crop and optimize later</span>
+        </label>
         <img :src="step1Preview" alt="Vorschau" class="import-preview__img" />
         <div class="import-preview__actions">
           <button type="button" class="btn btn--primary" :disabled="uploading" @click="uploadStep1">
@@ -112,10 +116,16 @@
           <button
             type="button"
             class="btn btn--primary"
-            :disabled="cropPoints.length !== 4 || cropping"
+            :disabled="!canRunCropImport || cropping"
             @click="runCropPerspective"
           >
-            {{ cropping ? 'Schneide zu…' : 'Bild zuschneiden' }}
+            {{
+              cropping
+                ? '…'
+                : currentRecipe?.image_processing_pending
+                  ? 'Finalize image'
+                  : 'Bild zuschneiden'
+            }}
           </button>
           <button type="button" class="btn btn--secondary" @click="resetCropPoints">
             Punkte zurücksetzen
@@ -294,6 +304,15 @@ const cropping = ref(false)
 const cropError = ref('')
 let draggingPointIndex: number | null = null
 let cropDragUnsubscribe: (() => void) | null = null
+const step1DeferUpload = ref(false)
+
+const imagePending = computed(() => currentRecipe.value?.image_processing_pending === true)
+const canRunCropImport = computed(() => {
+  const n = cropPoints.value.length
+  if (cropping.value) return false
+  if (imagePending.value) return n === 0 || n === 4
+  return n === 4
+})
 
 function formatParsedItem(item: import('../api/recipes').ParsedIngredientItem): string {
   if (item.originalText?.trim()) return item.originalText.trim()
@@ -382,7 +401,14 @@ function resetCropPoints() {
 async function runCropPerspective() {
   const recipe = currentRecipe.value
   const img = cropImageRef.value
-  if (!recipe || !recipe.image_path || cropPoints.value.length !== 4 || !img) return
+  if (!recipe || !recipe.image_path || !img) return
+  const pending = recipe.image_processing_pending === true
+  const n = cropPoints.value.length
+  if (!pending && n !== 4) return
+  if (pending && n !== 0 && n !== 4) {
+    cropError.value = 'Use four corners, or reset points to finalize the full image.'
+    return
+  }
   const rect = img.getBoundingClientRect()
   const nw = img.naturalWidth
   const nh = img.naturalHeight
@@ -390,17 +416,20 @@ async function runCropPerspective() {
     cropError.value = 'Bildgröße konnte nicht ermittelt werden.'
     return
   }
-  const points = cropPoints.value.map((p) => ({
-    x: Math.round((p.x / rect.width) * nw),
-    y: Math.round((p.y / rect.height) * nh),
-  }))
+  const body: { points?: Array<{ x: number; y: number }> } = {}
+  if (n === 4) {
+    body.points = cropPoints.value.map((p) => ({
+      x: Math.round((p.x / rect.width) * nw),
+      y: Math.round((p.y / rect.height) * nh),
+    }))
+  }
   cropping.value = true
   cropError.value = ''
   try {
     const res = await fetch(`/api/recipes/${recipe.id}/crop-perspective`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ points }),
+      body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText)
@@ -477,6 +506,7 @@ async function uploadStep1() {
   try {
     const form = new FormData()
     form.append('image', file)
+    if (step1DeferUpload.value) form.append('processImageLater', '1')
     const res = await fetch('/api/upload', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText)
@@ -521,6 +551,7 @@ function clearStep1() {
   if (step1Preview.value) URL.revokeObjectURL(step1Preview.value)
   step1Preview.value = null
   step1File.value = null
+  step1DeferUpload.value = false
   currentRecipe.value = null
   uploadError.value = ''
   step2Files.value = []
@@ -688,6 +719,17 @@ onBeforeUnmount(() => {
 }
 .import-step__title { margin: 0 0 0.5rem 0; font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
 .import-step__desc { margin: 0 0 1rem 0; font-size: 0.95rem; color: var(--color-text-muted); }
+
+.import-defer {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.import-defer input { margin-top: 0.15em; }
 
 .import-options { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
 @media (max-width: 480px) { .import-options { grid-template-columns: 1fr; } }

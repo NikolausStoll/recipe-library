@@ -19,7 +19,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 ### Boundaries
 **In Scope:**
 - Recipe CRUD operations (manual entry and AI import)
-- Image upload and processing (resize, crop, format conversion)
+- Image upload and processing (resize, crop, format conversion), including **optional two-stage upload** (store original under `uploads/*/pending/`, `image_processing_pending` flag, finalize via crop-perspective to WebP)
 - OpenAI vision API integration for text extraction
 - SQLite database for local data storage
 - Book source management (cookbook metadata)

@@ -40,6 +40,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
   - `sourceService.js` - Book source management
   - `imageProcessingService.js` - Image resizing, format conversion (Sharp)
   - `cropPerspectiveService.js` - Optional 4-point perspective crop (Python + OpenCV)
+  - `utils/pendingImageUpload.js` - Helpers for **deferred** recipe/source images: save raw bytes under `recipe/pending/` or `source/pending/` when `processImageLater` is set; finalize via existing `crop-perspective` routes (then Sharp WebP + thumbnail)
 
 ### Database Schema
 Tables: `recipe_sources`, `recipes`, `recipe_ingredient_sections`, `ingredients`, `recipe_steps`, `recipe_tips`, `recipe_health_scores`, `recipe_tags`, `ai_token_usage`, `recipe_history`
@@ -52,6 +53,7 @@ Key features:
 - Extract status: `pending` | `done` | `failed`
 - Import method: `manual` | `url` | `image`
 - Source types: `book` | `url` | `manual` | `other`
+- **Image processing**: `recipes.image_processing_pending` and `recipe_sources.image_processing_pending` (0/1). When `1`, `image_path` points at a raw file in `uploads/*/pending/` until `POST .../crop-perspective` produces WebP + `_thumb.webp` and clears the flag.
 
 ## Development Workflow
 

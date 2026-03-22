@@ -110,11 +110,18 @@
       >
         <div class="recipe-card__image">
           <img
-            v-if="recipe.image_path"
+            v-if="recipe.image_path && !recipe.image_processing_pending"
             :src="recipe.image_thumb_path ?? recipe.image_path"
             :alt="recipe.title"
             loading="lazy"
           />
+          <div
+            v-else-if="recipe.image_processing_pending"
+            class="recipe-card__placeholder recipe-card__placeholder--pending"
+            title="Image not processed yet"
+          >
+            <span class="recipe-card__pending-label">Pending crop</span>
+          </div>
           <div v-else class="recipe-card__placeholder">
             <svg viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -220,7 +227,15 @@
         <div class="recipe-detail-content">
           <!-- Hero Image -->
           <div v-if="viewingRecipe.image_path" class="recipe-detail-hero note-block note-block--image">
-            <img :src="viewingRecipe.image_path" :alt="viewingRecipe.title" />
+            <button
+              v-if="viewingRecipe.image_processing_pending"
+              type="button"
+              class="recipe-detail-pending-hero"
+              @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
+            >
+              <span class="recipe-detail-pending-hero__text">Image not processed yet — open editor to crop and optimize</span>
+            </button>
+            <img v-else :src="viewingRecipe.image_path" :alt="viewingRecipe.title" />
           </div>
 
           <!-- Header -->
@@ -1275,6 +1290,7 @@ function startEdit(id: number) {
       source_id: recipe.source_id ?? null,
       source_page: recipe.source_page ?? '',
       image_path: recipe.image_path ?? null,
+      image_processing_pending: recipe.image_processing_pending ?? false,
       would_cook_again: recipe.would_cook_again ?? null,
       ingredients: recipe.ingredients.map((ing) => ({
         amount: ing.amount != null ? String(ing.amount) : '',
@@ -1328,7 +1344,7 @@ async function onFormSubmit(
   payload: RecipeFormPayload,
   imageFile: File | string | null,
   cropPoints?: Array<{ x: number; y: number }>,
-  options?: { estimateNutrition?: boolean }
+  options?: { estimateNutrition?: boolean; processImageLater?: boolean }
 ) {
   error.value = ''
   try {
@@ -1348,7 +1364,9 @@ async function onFormSubmit(
       } else if (imageFile instanceof File) {
         const formData = new FormData()
         formData.append('image', imageFile)
-        if (cropPoints && cropPoints.length === 4) {
+        if (options?.processImageLater) {
+          formData.append('processImageLater', '1')
+        } else if (cropPoints && cropPoints.length === 4) {
           formData.append('points', JSON.stringify(cropPoints))
         }
         const response = await fetch(`/api/recipes/${recipeId}/image`, {
@@ -1654,6 +1672,21 @@ onBeforeUnmount(() => {
   opacity: 0.3;
 }
 
+.recipe-card__placeholder--pending {
+  background: var(--color-bg-elevated);
+  border: 1px dashed var(--color-border);
+  padding: var(--spacing-sm);
+}
+
+.recipe-card__pending-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  max-width: 100%;
+}
+
 .recipe-card__badge {
   position: absolute;
   top: var(--spacing-sm);
@@ -1938,6 +1971,29 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.recipe-detail-pending-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 200px;
+  padding: var(--spacing-xl);
+  margin: 0;
+  border: none;
+  border-radius: inherit;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.recipe-detail-pending-hero:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-text);
 }
 
 .recipe-detail-header {

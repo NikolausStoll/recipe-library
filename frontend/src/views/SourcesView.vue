@@ -38,10 +38,16 @@
       <div v-if="formOpen" class="sources-form__cover">
         <h3 class="sources-form__cover-title">Book Cover / Image</h3>
         <div v-if="editingId && currentSource?.image_path" class="sources-form__cover-current">
-          <img :src="coverDisplayUrl" alt="Cover" class="sources-form__cover-img" />
-          <span class="sources-form__cover-hint">Select new image to replace</span>
+          <div v-if="currentSource.image_processing_pending" class="sources-form__cover-pending">
+            <p class="sources-form__cover-pending-text">Cover not processed yet — crop and optimize to create the WebP preview.</p>
+            <button type="button" class="btn btn--secondary" @click="openPendingCoverCrop">Crop and optimize</button>
+          </div>
+          <template v-else>
+            <img :src="coverDisplayUrl" alt="Cover" class="sources-form__cover-img" />
+            <span class="sources-form__cover-hint">Select new image to replace</span>
+          </template>
         </div>
-        <div v-if="!coverFile" class="sources-form__cover-upload">
+        <div v-if="!coverFile && !coverFinalizeMode" class="sources-form__cover-upload">
           <input
             ref="coverInputRef"
             type="file"
@@ -53,7 +59,11 @@
             {{ editingId ? 'Select Cover…' : 'Select Image (optional 4 points for crop, then Save)' }}
           </button>
         </div>
-        <div v-if="coverFile && coverPreview" class="sources-form__cover-crop">
+        <label v-if="coverFile && !coverFinalizeMode" class="sources-form__defer">
+          <input v-model="coverDeferRaw" type="checkbox" />
+          <span>Upload original now; crop and optimize later</span>
+        </label>
+        <div v-if="coverPreview && (coverFile || coverFinalizeMode)" class="sources-form__cover-crop">
           <div ref="coverCropWrapRef" class="crop-editor__wrap" @click="onCoverCropClick">
             <img
               ref="coverCropImgRef"
@@ -92,10 +102,22 @@
             <button
               type="button"
               class="btn btn--primary"
-              :disabled="coverUploading || !editingId"
+              :disabled="coverUploading || !editingId || (coverFinalizeMode && !canApplyCoverCrop)"
               @click="uploadCover"
             >
-              {{ coverUploading ? 'Uploading…' : (editingId ? (coverCropPoints.length === 4 ? 'Save Cover (with crop)' : 'Save Cover (without crop)') : 'Click "Save" first') }}
+              {{
+                coverUploading
+                  ? 'Uploading…'
+                  : coverFinalizeMode
+                    ? (coverCropPoints.length === 4 ? 'Finalize (with perspective)' : 'Finalize (full image)')
+                    : editingId
+                      ? coverDeferRaw
+                        ? 'Save original (crop later)'
+                        : coverCropPoints.length === 4
+                          ? 'Save Cover (with crop)'
+                          : 'Save Cover (without crop)'
+                      : 'Click "Save" first'
+              }}
             </button>
             <button type="button" class="btn btn--secondary" @click="clearCoverFile">Cancel</button>
           </div>
@@ -113,7 +135,13 @@
     <ul v-else class="sources-list">
       <li v-for="s in sources" :key="s.id" class="sources-list__item">
         <div class="sources-list__thumb" @click="startEdit(s.id)">
-          <img v-if="s.image_path" :src="s.image_thumb_path ?? s.image_path" :alt="s.name" class="sources-list__img" />
+          <img
+            v-if="s.image_path && !s.image_processing_pending"
+            :src="s.image_thumb_path ?? s.image_path"
+            :alt="s.name"
+            class="sources-list__img"
+          />
+          <span v-else-if="s.image_processing_pending" class="sources-list__pending">Pending</span>
           <span v-else class="sources-list__no-img">No Cover</span>
         </div>
         <div class="sources-list__main" @click="startEdit(s.id)">
@@ -145,6 +173,7 @@ import {
   updateSource,
   deleteSource,
   uploadSourceCover,
+  finalizeSourceCoverCrop,
 } from '../api/sources'
 import type { RecipeSource, RecipeSourceInput } from '../api/sources'
 
@@ -178,7 +207,15 @@ const coverCropWrapRef = ref<HTMLDivElement | null>(null)
 const coverCropImgRef = ref<HTMLImageElement | null>(null)
 const coverUploading = ref(false)
 const coverError = ref('')
+/** True when cropping an already-uploaded raw pending file (finalize flow). */
+const coverFinalizeMode = ref(false)
+const coverDeferRaw = ref(false)
 let coverDragUnsub: (() => void) | null = null
+
+const canApplyCoverCrop = computed(() => {
+  const n = coverCropPoints.value.length
+  return n === 0 || n === 4
+})
 
 const coverPolylinePoints = computed(() => {
   if (coverCropPoints.value.length !== 4) return ''
@@ -207,6 +244,8 @@ function openNewForm() {
   coverPreview.value = null
   coverCropPoints.value = []
   coverError.value = ''
+  coverFinalizeMode.value = false
+  coverDeferRaw.value = false
   formOpen.value = true
 }
 
@@ -226,7 +265,19 @@ function startEdit(id: number) {
   coverPreview.value = null
   coverCropPoints.value = []
   coverError.value = ''
+  coverFinalizeMode.value = false
+  coverDeferRaw.value = false
   formOpen.value = true
+}
+
+function openPendingCoverCrop() {
+  const p = currentSource.value?.image_path
+  if (!p) return
+  coverFinalizeMode.value = true
+  coverPreview.value = p.startsWith('/') ? p : `/${p}`
+  coverCropPoints.value = []
+  coverFile.value = null
+  coverError.value = ''
 }
 
 function closeForm() {
@@ -234,8 +285,10 @@ function closeForm() {
   editingId.value = null
   currentSource.value = null
   coverFile.value = null
-  if (coverPreview.value) URL.revokeObjectURL(coverPreview.value)
+  if (coverPreview.value?.startsWith('blob:')) URL.revokeObjectURL(coverPreview.value)
   coverPreview.value = null
+  coverFinalizeMode.value = false
+  coverDeferRaw.value = false
   coverDragUnsub?.()
 }
 
@@ -281,7 +334,9 @@ async function saveSource() {
         }
         coverUploading.value = true
         try {
-          const { source } = await uploadSourceCover(created.id, file, imagePoints)
+          const { source } = await uploadSourceCover(created.id, file, imagePoints, {
+            processImageLater: coverDeferRaw.value,
+          })
           const idx = sources.value.findIndex((x) => x.id === source.id)
           if (idx >= 0) sources.value[idx] = source
           currentSource.value = source
@@ -308,15 +363,17 @@ function onCoverFileSelected(e: Event) {
   coverPreview.value = URL.createObjectURL(file)
   coverCropPoints.value = []
   coverError.value = ''
+  coverFinalizeMode.value = false
   input.value = ''
 }
 
 function clearCoverFile() {
   coverFile.value = null
-  if (coverPreview.value) URL.revokeObjectURL(coverPreview.value)
+  if (coverPreview.value?.startsWith('blob:')) URL.revokeObjectURL(coverPreview.value)
   coverPreview.value = null
   coverCropPoints.value = []
   coverError.value = ''
+  coverFinalizeMode.value = false
 }
 
 function onCoverCropLoad() {
@@ -360,9 +417,45 @@ function onCoverPointMouseDown(e: MouseEvent, index: number) {
 
 async function uploadCover() {
   const id = editingId.value
-  const file = coverFile.value
   const img = coverCropImgRef.value
-  if (!id || !file) return
+  if (!id) return
+
+  if (coverFinalizeMode.value && currentSource.value?.image_processing_pending) {
+    const n = coverCropPoints.value.length
+    if (n !== 0 && n !== 4) {
+      coverError.value = 'Use four corner points, or none to finalize the full image.'
+      return
+    }
+    let points: Array<{ x: number; y: number }> | undefined
+    if (n === 4 && img) {
+      const rect = img.getBoundingClientRect()
+      const nw = img.naturalWidth
+      const nh = img.naturalHeight
+      if (rect.width > 0 && rect.height > 0 && nw > 0 && nh > 0) {
+        points = coverCropPoints.value.map((p) => ({
+          x: Math.round((p.x / rect.width) * nw),
+          y: Math.round((p.y / rect.height) * nh),
+        }))
+      }
+    }
+    coverUploading.value = true
+    coverError.value = ''
+    try {
+      const { source } = await finalizeSourceCoverCrop(id, points)
+      const idx = sources.value.findIndex((x) => x.id === source.id)
+      if (idx >= 0) sources.value[idx] = source
+      currentSource.value = source
+      clearCoverFile()
+    } catch (e) {
+      coverError.value = e instanceof Error ? e.message : 'Finalize failed'
+    } finally {
+      coverUploading.value = false
+    }
+    return
+  }
+
+  const file = coverFile.value
+  if (!file) return
   let points: Array<{ x: number; y: number }> | undefined
   if (coverCropPoints.value.length === 4 && img) {
     const rect = img.getBoundingClientRect()
@@ -378,11 +471,14 @@ async function uploadCover() {
   coverUploading.value = true
   coverError.value = ''
   try {
-    const { source } = await uploadSourceCover(id, file, points)
+    const { source } = await uploadSourceCover(id, file, points, {
+      processImageLater: coverDeferRaw.value,
+    })
     const idx = sources.value.findIndex((x) => x.id === source.id)
     if (idx >= 0) sources.value[idx] = source
     currentSource.value = source
     clearCoverFile()
+    coverDeferRaw.value = false
   } catch (e) {
     coverError.value = e instanceof Error ? e.message : 'Cover upload failed'
   } finally {
@@ -422,6 +518,27 @@ onMounted(() => loadList())
 .sources-form__cover-current { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
 .sources-form__cover-img { max-width: 120px; max-height: 160px; object-fit: contain; border-radius: 4px; border: 1px solid var(--color-border); }
 .sources-form__cover-hint { font-size: 0.9rem; color: var(--color-text-muted); }
+.sources-form__cover-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-muted);
+}
+.sources-form__cover-pending-text { margin: 0; font-size: 0.9rem; color: var(--color-text-muted); max-width: 28rem; }
+.sources-form__defer {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.sources-form__defer input { margin-top: 0.15em; }
 .sources-form__cover-upload { margin-bottom: 0.5rem; }
 .sources-form__cover-crop { margin-top: 0.75rem; }
 .sources-form__crop-img { max-height: 280px; }
@@ -475,6 +592,15 @@ onMounted(() => loadList())
 }
 .sources-list__img { width: 100%; height: 100%; object-fit: cover; }
 .sources-list__no-img { font-size: 0.7rem; color: var(--color-text-muted); text-align: center; padding: 0.25rem; }
+.sources-list__pending {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 0.25rem;
+}
 .sources-list__main { flex: 1; min-width: 0; cursor: pointer; }
 .sources-list__name { display: block; color: var(--color-text); }
 .sources-list__subtitle { display: block; font-size: 0.9rem; color: var(--color-text-muted); }

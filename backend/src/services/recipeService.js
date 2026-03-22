@@ -13,7 +13,7 @@ const RECIPE_COLUMNS = [
   'nutrition_kcal', 'nutrition_protein', 'nutrition_carbs', 'nutrition_fat',
   'prep_time_min', 'cook_time_min',
   'prep_time_source', 'cook_time_source', 'prep_time_confidence', 'cook_time_confidence',
-  'image_path', 'image_urls_json',
+  'image_path', 'image_urls_json', 'image_processing_pending',
   'created_at', 'updated_at',
 ]
 
@@ -154,9 +154,10 @@ export function listRecipes() {
            r.title, r.subtitle, r.description, r.language, r.servings_value, r.servings_unit_text,
            r.prep_time_min, r.cook_time_min,
            r.prep_time_source, r.cook_time_source, r.prep_time_confidence, r.cook_time_confidence,
-           r.image_path, r.created_at, r.updated_at,
+           r.image_path, r.image_processing_pending, r.created_at, r.updated_at,
            s.type AS source_type, s.name AS source_name, s.subtitle AS source_subtitle, s.book_title AS source_book_title,
-           s.author AS source_author, s.year AS source_year, s.image_path AS source_image_path
+           s.author AS source_author, s.year AS source_year, s.image_path AS source_image_path,
+           s.image_processing_pending AS source_image_processing_pending
     FROM recipes r LEFT JOIN recipe_sources s ON r.source_id = s.id
     ORDER BY r.updated_at DESC, r.id DESC
   `).all()
@@ -170,6 +171,7 @@ export function listRecipes() {
     source_year: row.source_year ?? null,
     source_page: row.source_page ?? null,
     source_image_path: row.source_image_path ?? null,
+    source_image_processing_pending: row.source_image_processing_pending === 1,
   }))
   const tagMap = getTagsForRecipeIds(mapped.map((r) => r.id))
   return mapped.map((r) => ({ ...r, tags: tagMap.get(r.id) ?? [] }))
@@ -274,7 +276,11 @@ export function getRecipeById(id) {
 
   let sourceData = null
   if (recipeRow.source_id) {
-    const s = db.prepare('SELECT type, name, subtitle, book_title, author, year, image_path FROM recipe_sources WHERE id = ?').get(recipeRow.source_id)
+    const s = db
+      .prepare(
+        'SELECT type, name, subtitle, book_title, author, year, image_path, image_processing_pending FROM recipe_sources WHERE id = ?',
+      )
+      .get(recipeRow.source_id)
     if (s) {
       sourceData = {
         source_type: s.type ?? 'manual',
@@ -284,6 +290,7 @@ export function getRecipeById(id) {
         source_author: s.author ?? null,
         source_year: s.year ?? null,
         source_image_path: s.image_path ?? null,
+        source_image_processing_pending: s.image_processing_pending === 1,
       }
     }
   }
@@ -419,16 +426,19 @@ export function createRecipe(body) {
     sourceId = resolveSource(db, body)
   }
 
+  const imageProcessingPending =
+    body && (body.image_processing_pending === true || body.image_processing_pending === 1) ? 1 : 0
+
   const result = db.prepare(`
     INSERT INTO recipes (
       source_id, source_page, import_method, extract_status, status,
       title, subtitle, description, language, servings_value, servings_unit_text,
       would_cook_again, prep_time_min, cook_time_min,
       prep_time_source, cook_time_source, prep_time_confidence, cook_time_confidence,
-      image_path, image_urls_json,
+      image_path, image_urls_json, image_processing_pending,
       created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     sourceId,
     (recipe.source_page ?? '').trim() || null,
@@ -449,6 +459,7 @@ export function createRecipe(body) {
     recipe.cook_time_confidence != null ? Number(recipe.cook_time_confidence) : null,
     recipe.image_path ?? null,
     recipe.image_urls_json ?? null,
+    imageProcessingPending,
     now,
     now,
   )
@@ -548,6 +559,10 @@ export function updateRecipe(id, body) {
       : existingRow.cook_time_confidence
   const image_path = (body && 'image_path' in body) ? recipe.image_path : existingRow.image_path
   const image_urls_json = (body && 'image_urls_json' in body) ? recipe.image_urls_json : existingRow.image_urls_json
+  let image_processing_pending = existingRow.image_processing_pending ?? 0
+  if (body && 'image_path' in body) {
+    image_processing_pending = 0
+  }
   const import_method = (body && 'import_method' in body) ? (recipe.import_method ?? 'manual') : existingRow.import_method
   const extract_status = (body && 'extract_status' in body) ? recipe.extract_status : existingRow.extract_status
   const source_page = (body && 'source_page' in body) ? ((recipe.source_page ?? '').trim() || null) : (existingRow.source_page ?? null)
@@ -558,7 +573,7 @@ export function updateRecipe(id, body) {
       title = ?, subtitle = ?, description = ?, language = ?, servings_value = ?, servings_unit_text = ?,
       would_cook_again = ?, prep_time_min = ?, cook_time_min = ?,
       prep_time_source = ?, cook_time_source = ?, prep_time_confidence = ?, cook_time_confidence = ?,
-      image_path = ?, image_urls_json = ?,
+      image_path = ?, image_urls_json = ?, image_processing_pending = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -582,6 +597,7 @@ export function updateRecipe(id, body) {
     cook_time_confidence ?? null,
     image_path ?? null,
     image_urls_json ?? null,
+    image_processing_pending,
     now,
     Number(id),
   )
@@ -644,6 +660,21 @@ export function updateRecipe(id, body) {
     replaceRecipeTags(id, tags)
   }
 
+  return getRecipeById(id)
+}
+
+/**
+ * Set recipe image URL and processing flag (used when finalizing deferred uploads or internal flows).
+ * @param {number|string} id
+ * @param {{ image_path: string | null, image_processing_pending: boolean }} params
+ */
+export function setRecipeImagePathAndPending(id, { image_path, image_processing_pending }) {
+  const db = getDb()
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  const pending = image_processing_pending === true || image_processing_pending === 1 ? 1 : 0
+  db.prepare(
+    `UPDATE recipes SET image_path = ?, image_processing_pending = ?, updated_at = ? WHERE id = ?`,
+  ).run(image_path ?? null, pending, now, Number(id))
   return getRecipeById(id)
 }
 
@@ -845,7 +876,9 @@ function rowToRecipe(row) {
     cook_time_confidence: row.cook_time_confidence != null ? Number(row.cook_time_confidence) : null,
     image_path: row.image_path,
     image_urls_json: row.image_urls_json ?? null,
-    image_thumb_path: getThumbnailPathIfExists(row.image_path),
+    image_processing_pending: row.image_processing_pending === 1,
+    image_thumb_path:
+      row.image_processing_pending === 1 ? null : getThumbnailPathIfExists(row.image_path),
     created_at: row.created_at,
     updated_at: row.updated_at,
   }

@@ -64,6 +64,7 @@ export function initDb() {
       author TEXT,
       year INTEGER,
       image_path TEXT,
+      image_processing_pending INTEGER NOT NULL DEFAULT 0 CHECK (image_processing_pending IN (0, 1)),
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -97,6 +98,7 @@ export function initDb() {
       cook_time_confidence REAL,
       image_path TEXT,
       image_urls_json TEXT,
+      image_processing_pending INTEGER NOT NULL DEFAULT 0 CHECK (image_processing_pending IN (0, 1)),
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -201,6 +203,8 @@ export function initDb() {
   addCol('recipes', 'cook_time_source', 'TEXT')
   addCol('recipes', 'prep_time_confidence', 'REAL')
   addCol('recipes', 'cook_time_confidence', 'REAL')
+  addCol('recipes', 'image_processing_pending', 'INTEGER NOT NULL DEFAULT 0')
+  addCol('recipe_sources', 'image_processing_pending', 'INTEGER NOT NULL DEFAULT 0')
 
   addCol('ai_token_usage', 'response_json', 'TEXT')
   addCol('ai_token_usage', 'model', 'TEXT')
@@ -303,6 +307,7 @@ export function initDb() {
           cook_time_confidence REAL,
           image_path TEXT,
           image_urls_json TEXT,
+          image_processing_pending INTEGER NOT NULL DEFAULT 0 CHECK (image_processing_pending IN (0, 1)),
           created_at TEXT DEFAULT (datetime('now')),
           updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -398,6 +403,7 @@ export function initDb() {
         cook_time_confidence REAL,
         image_path TEXT,
         image_urls_json TEXT,
+        image_processing_pending INTEGER NOT NULL DEFAULT 0 CHECK (image_processing_pending IN (0, 1)),
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );

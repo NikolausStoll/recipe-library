@@ -131,11 +131,17 @@
         >
           <div class="recipe-mini-card__image">
             <img
-              v-if="recipe.image_path"
+              v-if="recipe.image_path && !recipe.image_processing_pending"
               :src="recipe.image_thumb_path ?? recipe.image_path"
               :alt="recipe.title"
               loading="lazy"
             />
+            <div
+              v-else-if="recipe.image_processing_pending"
+              class="recipe-mini-card__placeholder recipe-mini-card__placeholder--pending"
+            >
+              <span>Pending crop</span>
+            </div>
             <div v-else class="recipe-mini-card__placeholder">
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2"/>
@@ -157,6 +163,31 @@
       </div>
     </section>
 
+    <!-- Pending image processing -->
+    <section v-if="pendingImageRecipes.length" class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">Images awaiting crop / optimization</h2>
+        <router-link to="/recipes" class="section-link">All recipes →</router-link>
+      </div>
+      <p class="dashboard-pending-intro">
+        These recipe or book images were uploaded as originals. Open a recipe to crop and save as WebP.
+      </p>
+      <ul class="dashboard-pending-list">
+        <li v-for="r in pendingImageRecipes" :key="'p-' + r.id">
+          <router-link :to="`/recipes?edit=${r.id}`" class="dashboard-pending-link">
+            {{ r.title }}
+            <span class="dashboard-pending-meta">Recipe image</span>
+          </router-link>
+        </li>
+        <li v-for="s in pendingSourceCovers" :key="'s-' + s.id">
+          <router-link :to="`/sources`" class="dashboard-pending-link">
+            {{ s.name }}
+            <span class="dashboard-pending-meta">Book cover</span>
+          </router-link>
+        </li>
+      </ul>
+    </section>
+
     <!-- Empty State -->
     <div v-if="!loading && stats.totalRecipes === 0" class="empty-state">
       <svg viewBox="0 0 24 24" fill="none">
@@ -176,8 +207,10 @@ import { ref, computed, onMounted } from 'vue'
 import { listRecipes } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeListItem } from '../api/recipes'
+import type { RecipeSource } from '../api/sources'
 
 const recipes = ref<RecipeListItem[]>([])
+const sources = ref<RecipeSource[]>([])
 const sourcesCount = ref(0)
 const loading = ref(true)
 
@@ -203,14 +236,23 @@ const recentRecipes = computed(() => {
     .slice(0, 6)
 })
 
+const pendingImageRecipes = computed(() =>
+  recipes.value.filter((r) => r.image_processing_pending === true)
+)
+
+const pendingSourceCovers = computed(() =>
+  sources.value.filter((s) => s.image_processing_pending === true)
+)
+
 async function loadData() {
   loading.value = true
   try {
     const [recipesData, sourcesData] = await Promise.all([
       listRecipes(),
-      listSources().catch(() => [])
+      listSources().catch(() => []),
     ])
     recipes.value = recipesData
+    sources.value = sourcesData
     sourcesCount.value = sourcesData.length
   } catch (e) {
     console.error('Failed to load dashboard data:', e)
@@ -507,6 +549,18 @@ onMounted(loadData)
   opacity: 0.3;
 }
 
+.recipe-mini-card__placeholder--pending {
+  background: var(--color-bg-elevated);
+  border: 1px dashed var(--color-border);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  padding: var(--spacing-sm);
+  text-align: center;
+}
+
 .recipe-mini-card__badge {
   position: absolute;
   top: var(--spacing-sm);
@@ -541,6 +595,48 @@ onMounted(loadData)
   font-size: 0.8rem;
   color: var(--color-text-muted);
   margin: 0;
+}
+
+.dashboard-pending-intro {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-md) 0;
+  max-width: 640px;
+}
+
+.dashboard-pending-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.dashboard-pending-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+  font-weight: 600;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.dashboard-pending-link:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.dashboard-pending-meta {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
 }
 
 /* Empty State */

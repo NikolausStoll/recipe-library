@@ -235,10 +235,11 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 #### Step 1: Upload Recipe Photo (Optional)
 - **`POST /api/upload`** – Upload recipe image
-  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point perspective crop)
-  - Creates draft recipe with `image_path`
-  - Image: optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/recipe/`
-  - Response: `{ url: string, recipe: { id, image_path, ... } }`
+  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point perspective crop), optional **`processImageLater`** (`true` / `1`) to **defer** resize/WebP
+  - **Immediate processing** (default): optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/recipe/`
+  - **Defer** (`processImageLater`): stores the **original bytes** under `data/uploads/recipe/pending/` (JPEG/PNG/WebP/GIF as uploaded), sets `recipe.image_processing_pending = 1`. Finalize later via `POST /api/recipes/:id/crop-perspective` (same endpoint as processed images; for pending, omit `points` for full-frame resize or send 4 points for perspective crop, then WebP + thumbnail are written and the raw file is removed).
+  - Creates draft recipe with `image_path` (and `image_processing_pending` when deferring)
+  - Response: `{ url: string, recipe: { id, image_path, image_processing_pending, ... }, thumbUrl? }` (`thumbUrl` is null when deferred)
 
 #### Step 2: Extract Recipe from Text Images
 - **`POST /api/recipes/:id/extract-from-images`** – AI extraction via OpenAI
@@ -267,14 +268,16 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Fails if recipes reference this source (foreign key constraint)
 
 - **`POST /api/sources/:id/cover`** – Upload book cover image
-  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point crop)
-  - Image: optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/source/`
-  - Response: `{ source, url }`
+  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point crop), optional **`processImageLater`** to store raw under `data/uploads/source/pending/` and set `image_processing_pending` on the source (same semantics as recipe upload)
+  - **Immediate processing** (default): optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/source/`
+  - Response: `{ source, url, thumbUrl? }`
+
+- **`POST /api/sources/:id/crop-perspective`** – Finalize deferred cover or crop an existing WebP cover (same behavior as recipe crop endpoint: pending = optional `points`; processed = exactly 4 `points`)
 
 - **`POST /api/recipes/:id/image`** – Upload or replace recipe image
-  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point crop)
-  - Image: optional 4-point crop, then resize only down, saved as WebP in `data/uploads/recipe/`
-  - Response: `{ recipe, url }`
+  - Body: `multipart/form-data` with `image` field, optional `points`, optional **`processImageLater`**
+  - **Immediate processing** (default): optional 4-point crop, then resize only down, saved as WebP in `data/uploads/recipe/`
+  - Response: `{ recipe, url, thumbUrl? }`
 
 ### Static Files
 - **`GET /uploads/*`** – Serve uploaded images; recipe images under `/uploads/recipe/`, source covers under `/uploads/source/`

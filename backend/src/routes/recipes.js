@@ -33,6 +33,11 @@ import {
   CONTEXT_TYPES,
 } from '../constants/recipeTags.js'
 import { buildThumbnailPath } from '../utils/uploadPaths.js'
+import {
+  savePendingUploadBuffer,
+  deleteUploadedFileIfExists,
+  extForPerspectiveCrop,
+} from '../utils/pendingImageUpload.js'
 
 const router = Router()
 const uploadDirRaw = process.env.UPLOAD_DIR || path.join(process.cwd(), 'data', 'uploads')
@@ -562,9 +567,10 @@ router.delete('/:id', (req, res) => {
 })
 
 /**
- * POST /api/recipes/:id/crop-perspective – Perspective crop with 4 user-defined points.
- * Body: { points: [ {x, y}, {x, y}, {x, y}, {x, y} ] } in original image coordinates.
- * Overwrites the recipe image file. Returns { recipe, url } (url has ?v= for cache bust).
+ * POST /api/recipes/:id/crop-perspective – Perspective crop and/or finalize deferred upload.
+ * - Processed WebP: Body { points: [ 4× {x,y} ] } — overwrites file, refreshes thumbnail.
+ * - Raw pending upload: Body { points?: [ 4× {x,y} ] } — omit points to resize full frame only; then WebP + thumbnail, clears pending.
+ * Returns { recipe, url } (url has ?v= for cache bust).
  */
 router.post('/:id/crop-perspective', async (req, res) => {
   const id = req.params.id
@@ -572,6 +578,53 @@ router.post('/:id/crop-perspective', async (req, res) => {
   if (!recipe) return res.status(404).json({ error: 'Recipe not found' })
   if (!recipe.image_path) return res.status(400).json({ error: 'Recipe has no image to crop' })
   const points = req.body?.points
+  const pending = recipe.image_processing_pending === true
+
+  if (pending) {
+    const filepath = resolveRecipeImagePath(recipe.image_path)
+    if (!filepath || !fs.existsSync(filepath)) {
+      return res.status(404).json({ error: 'Image file not found' })
+    }
+    try {
+      const buf = await fs.promises.readFile(filepath)
+      const extRaw = path.extname(filepath).replace(/^\./, '') || 'jpg'
+      const extCrop = extForPerspectiveCrop(extRaw)
+      let workBuf = buf
+      if (Array.isArray(points) && points.length === 4) {
+        workBuf = await cropPerspectiveBuffer(buf, points, extCrop)
+      } else if (points != null && !Array.isArray(points)) {
+        return res.status(400).json({ error: 'points must be an array of 4 {x,y} or omitted' })
+      } else if (Array.isArray(points) && points.length > 0 && points.length !== 4) {
+        return res.status(400).json({ error: 'Provide exactly 4 points or omit for full-frame resize' })
+      }
+
+      if (!fs.existsSync(recipeUploadDir)) {
+        fs.mkdirSync(recipeUploadDir, { recursive: true })
+      }
+      const timestamp = Date.now()
+      const filename = `recipe-${id}-${timestamp}.webp`
+      const filepathOut = path.join(recipeUploadDir, filename)
+      const thumbFilename = `${path.basename(filename, path.extname(filename))}_thumb.webp`
+      const thumbFilepath = path.join(recipeUploadDir, thumbFilename)
+
+      await writeResizedWebp(workBuf, filepathOut, maxDimension, quality)
+      await writeResizedWebp(workBuf, thumbFilepath, 600, quality)
+
+      deleteUploadedFileIfExists(recipe.image_path)
+
+      const imagePath = `/uploads/recipe/${filename}`
+      const updated = recipeService.setRecipeImagePathAndPending(id, {
+        image_path: imagePath,
+        image_processing_pending: false,
+      })
+      const url = `${imagePath}?v=${Date.now()}`
+      return res.json({ recipe: updated, url })
+    } catch (e) {
+      console.error('Finalize pending recipe image failed:', e)
+      return res.status(500).json({ error: e.message || 'Crop failed' })
+    }
+  }
+
   if (!Array.isArray(points) || points.length !== 4) {
     return res.status(400).json({ error: 'Exactly 4 points {x, y} required' })
   }
@@ -594,7 +647,8 @@ router.post('/:id/crop-perspective', async (req, res) => {
       console.error('Failed to refresh thumbnail after cropping:', thumbErr)
     }
     const url = `${recipe.image_path}?v=${Date.now()}`
-    res.json({ recipe, url })
+    const updated = recipeService.getRecipeById(id)
+    res.json({ recipe: updated, url })
   } catch (e) {
     console.error('Crop perspective failed:', e)
     res.status(500).json({ error: e.message || 'Crop failed' })
@@ -603,9 +657,8 @@ router.post('/:id/crop-perspective', async (req, res) => {
 
 /**
  * POST /api/recipes/:id/image – Upload or update recipe image.
- * Body: multipart "image" (file), optional "points" (JSON array of 4 {x,y} for 4-point crop).
- * Crop if 4 points, then resize only down (longest side <= IMAGE_MAX_DIMENSION), save as WebP in data/uploads/recipe.
- * Returns { recipe, url }.
+ * Multipart: "image" (file), optional "points" (JSON 4× {x,y}), optional "processImageLater" (true = store raw, defer WebP/resize).
+ * Returns { recipe, url, thumbUrl? }.
  */
 router.post('/:id/image', (req, res, next) => {
   upload.single('image')(req, res, (err) => {
@@ -617,6 +670,30 @@ router.post('/:id/image', (req, res, next) => {
   const recipe = recipeService.getRecipeById(id)
   if (!recipe) return res.status(404).json({ error: 'Recipe not found' })
   if (!req.file) return res.status(400).json({ error: 'No image file provided' })
+
+  const processLater =
+    req.body?.processImageLater === 'true' ||
+    req.body?.processImageLater === '1' ||
+    req.body?.processImageLater === true
+
+  if (processLater) {
+    if (recipe.image_path) {
+      deleteUploadedFileIfExists(recipe.image_path)
+      const oldThumb = buildThumbnailPath(recipe.image_path)
+      if (oldThumb) deleteUploadedFileIfExists(oldThumb)
+    }
+    try {
+      const { url } = savePendingUploadBuffer('recipe', Number(id), req.file.buffer, req.file.mimetype)
+      const updated = recipeService.setRecipeImagePathAndPending(id, {
+        image_path: url,
+        image_processing_pending: true,
+      })
+      return res.json({ recipe: updated, url, thumbUrl: null })
+    } catch (e) {
+      console.error('Deferred recipe image upload failed:', e)
+      return res.status(500).json({ error: e.message || 'Image upload failed' })
+    }
+  }
 
   let buf = req.file.buffer
   let points = req.body?.points
@@ -657,22 +734,9 @@ router.post('/:id/image', (req, res, next) => {
   }
 
   if (recipe.image_path) {
-    const oldFilepath = resolveRecipeImagePath(recipe.image_path)
-    if (oldFilepath && fs.existsSync(oldFilepath)) {
-      try {
-        fs.unlinkSync(oldFilepath)
-      } catch (err) {
-        console.error('Failed to delete old recipe image:', err)
-      }
-    }
-    const oldThumbPath = resolveRecipeImagePath(buildThumbnailPath(recipe.image_path))
-    if (oldThumbPath && fs.existsSync(oldThumbPath)) {
-      try {
-        fs.unlinkSync(oldThumbPath)
-      } catch (err) {
-        console.error('Failed to delete old recipe thumbnail:', err)
-      }
-    }
+    deleteUploadedFileIfExists(recipe.image_path)
+    const oldThumbPath = buildThumbnailPath(recipe.image_path)
+    if (oldThumbPath) deleteUploadedFileIfExists(oldThumbPath)
   }
 
   const imagePath = `/uploads/recipe/${filename}`

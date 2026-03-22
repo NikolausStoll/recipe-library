@@ -23,7 +23,7 @@
     </div>
 
     <!-- Form Content -->
-    <form class="form-content" @submit.prevent="handleSubmit">
+    <form class="form-content" @submit.prevent="onSubmitForm">
       <!-- Step 1: Basic Info -->
       <div v-if="currentStep === 0" class="form-step">
         <!-- Recipe Image Upload -->
@@ -42,7 +42,14 @@
                   </div>
                 </div>
                 <div class="crop-editor__actions">
-                  <button type="button" class="btn btn--primary" :disabled="cropPoints.length !== 4 || cropping" @click="applyCropExisting">{{ cropping ? 'Cropping…' : 'Apply crop' }}</button>
+                  <button
+                    type="button"
+                    class="btn btn--primary"
+                    :disabled="!canApplyPerspectiveCrop || cropping"
+                    @click="applyCropExisting"
+                  >
+                    {{ cropping ? 'Applying…' : imageProcessingPending ? 'Apply crop / finalize' : 'Apply crop' }}
+                  </button>
                   <button type="button" class="btn btn--secondary" @click="cancelCropExisting">Cancel</button>
                   <button type="button" class="btn btn--secondary" @click="resetCropPoints">Reset points</button>
                 </div>
@@ -51,7 +58,22 @@
             </template>
             <template v-else>
               <div v-if="(currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview" class="image-upload__preview">
-                <img :src="imagePreview || currentImageUrl" alt="Recipe preview" />
+                <button
+                  v-if="imageProcessingPending && currentImageUrl && currentImageUrl !== '__DELETE__' && !imagePreview"
+                  type="button"
+                  class="image-upload__preview-pending"
+                  @click="startCropExisting"
+                >
+                  <span class="image-upload__pending-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="2" />
+                      <path d="M21 15L16 10L5 21" stroke="currentColor" stroke-width="2" />
+                    </svg>
+                  </span>
+                  <span class="image-upload__pending-text">Image not processed yet — click to crop and optimize</span>
+                </button>
+                <img v-else :src="(imagePreview || currentImageUrl) ?? undefined" alt="Recipe preview" />
                 <button
                   type="button"
                   class="image-upload__remove"
@@ -92,7 +114,7 @@
                   {{ (currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview ? 'Change Image' : 'Upload Image' }}
                 </button>
                 <button
-                  v-if="currentImageUrl && currentImageUrl !== '__DELETE__'"
+                  v-if="currentImageUrl && currentImageUrl !== '__DELETE__' && !imageProcessingPending"
                   type="button"
                   class="btn btn--secondary"
                   @click="startCropExisting"
@@ -102,9 +124,13 @@
               </div>
             </template>
           </div>
+          <label v-if="imageFile && imagePreview && !showCropForExisting" class="image-upload__defer">
+            <input v-model="deferImageProcessing" type="checkbox" />
+            <span>Upload original now; crop and optimize later (recommended for photos from your phone)</span>
+          </label>
           <!-- 4-point crop for newly selected image (before submit) -->
           <div v-if="imagePreview && imageFile && !showCropForExisting" class="crop-editor crop-editor--new">
-            <p class="crop-editor__hint">Optional: click four corners in order to correct perspective, then save the recipe. Points are sent with the upload.</p>
+            <p class="crop-editor__hint">Optional: click four corners in order to correct perspective, then save the recipe. Points are sent with the upload unless you chose “crop later”.</p>
             <div ref="newCropEditorRef" class="crop-editor__wrap" @click="onNewCropClick">
               <img ref="newCropImageRef" :src="imagePreview" alt="Crop" class="crop-editor__img" @load="onNewCropImageLoad" />
               <div class="crop-editor__overlay">
@@ -719,6 +745,7 @@ const props = defineProps<{
     prep_time_confidence?: number | null
     cook_time_confidence?: number | null
     tags?: string[]
+    image_processing_pending?: boolean
   }) | null
   editingId?: number | null
   editingStatus?: 'draft' | 'confirmed' | null
@@ -731,7 +758,7 @@ const emit = defineEmits<{
     payload: RecipeFormPayload,
     imageFile: File | string | null,
     cropPoints?: Array<{ x: number; y: number }>,
-    options?: { estimateNutrition?: boolean }
+    options?: { estimateNutrition?: boolean; processImageLater?: boolean }
   ]
   confirm: []
   cancel: []
@@ -761,6 +788,19 @@ const cropPoints = ref<Array<{ x: number; y: number }>>([])
 const cropDisplaySize = ref({ w: 0, h: 0 })
 const cropping = ref(false)
 const cropError = ref('')
+const deferImageProcessing = ref(false)
+
+const imageProcessingPending = computed(
+  () => !!(props.initial as { image_processing_pending?: boolean } | null)?.image_processing_pending
+)
+
+/** Pending: allow 0 points (full-frame WebP) or 4 points; processed WebP: 4 points only. */
+const canApplyPerspectiveCrop = computed(() => {
+  if (cropping.value) return false
+  const n = cropPoints.value.length
+  if (imageProcessingPending.value) return n === 0 || n === 4
+  return n === 4
+})
 
 const cropPolylinePoints = computed(() => {
   if (cropPoints.value.length !== 4) return ''
@@ -846,7 +886,14 @@ function cancelCropExisting() {
 async function applyCropExisting() {
   const img = cropImageRef.value
   const recipeId = props.editingId
-  if (!recipeId || !currentImageUrl.value || currentImageUrl.value === '__DELETE__' || cropPoints.value.length !== 4 || !img) return
+  if (!recipeId || !currentImageUrl.value || currentImageUrl.value === '__DELETE__' || !img) return
+  const pending = imageProcessingPending.value
+  const n = cropPoints.value.length
+  if (!pending && n !== 4) return
+  if (pending && n !== 0 && n !== 4) {
+    cropError.value = 'Use four corner points, or reset points to finalize the full image without perspective correction.'
+    return
+  }
   const rect = img.getBoundingClientRect()
   const nw = img.naturalWidth
   const nh = img.naturalHeight
@@ -854,17 +901,20 @@ async function applyCropExisting() {
     cropError.value = 'Could not determine image size.'
     return
   }
-  const points = cropPoints.value.map((p) => ({
-    x: Math.round((p.x / rect.width) * nw),
-    y: Math.round((p.y / rect.height) * nh),
-  }))
+  const body: { points?: Array<{ x: number; y: number }> } = {}
+  if (n === 4) {
+    body.points = cropPoints.value.map((p) => ({
+      x: Math.round((p.x / rect.width) * nw),
+      y: Math.round((p.y / rect.height) * nh),
+    }))
+  }
   cropping.value = true
   cropError.value = ''
   try {
     const res = await fetch(`/api/recipes/${recipeId}/crop-perspective`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ points }),
+      body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText)
@@ -1120,6 +1170,7 @@ function assignFromInitial() {
     currentImageUrl.value = (props.initial as any).image_path ?? null
     imagePreview.value = null
     imageFile.value = null
+    deferImageProcessing.value = false
     form.ingredients = (props.initial.ingredients ?? []).map((ing) => ({
       amount: ing.amount != null ? String(ing.amount) : '',
       unit: ing.unit ?? '',
@@ -1243,7 +1294,11 @@ function timeFieldPayload(
   return { min: v, source: 'original', confidence: null }
 }
 
-function handleSubmit(options?: { estimateNutrition?: boolean }) {
+function onSubmitForm() {
+  handleSubmit()
+}
+
+function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater?: boolean }) {
   const ingredients: IngredientInput[] = form.ingredients
     .filter((ing) => ing.name.trim() !== '')
     .map((ing, i) => ({
@@ -1301,8 +1356,13 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
 
   // Pass image file or delete marker, and optional 4-point crop (for new image upload)
   const imageToUpload = imageFile.value || (currentImageUrl.value === '__DELETE__' ? ('DELETE' as any) : null)
-  const cropPointsForUpload = imageToUpload instanceof File ? getNewImageCropPoints() : undefined
-  emit('submit', payload, imageToUpload, cropPointsForUpload, options)
+  const cropLater = !!(imageToUpload instanceof File && deferImageProcessing.value)
+  const cropPointsForUpload =
+    imageToUpload instanceof File && !cropLater ? getNewImageCropPoints() : undefined
+  emit('submit', payload, imageToUpload, cropPointsForUpload, {
+    ...options,
+    processImageLater: cropLater || options?.processImageLater,
+  })
 }
 </script>
 
@@ -1529,6 +1589,37 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
   flex-shrink: 0;
 }
 
+.image-upload__preview-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  min-height: 160px;
+  padding: var(--spacing-lg);
+  margin: 0;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.image-upload__preview-pending:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.image-upload__pending-icon svg {
+  width: 40px;
+  height: 40px;
+  opacity: 0.9;
+}
+
 .image-upload__preview img {
   width: 100%;
   height: 100%;
@@ -1586,6 +1677,20 @@ function handleSubmit(options?: { estimateNutrition?: boolean }) {
 .image-upload__placeholder p {
   margin: 0;
   font-size: 0.75rem;
+}
+
+.image-upload__defer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.image-upload__defer input {
+  margin-top: 0.2em;
 }
 
 .image-upload__actions {

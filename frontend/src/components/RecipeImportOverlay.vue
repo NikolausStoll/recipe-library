@@ -38,6 +38,10 @@
               </div>
             </div>
             <div v-if="step1Preview" class="import-preview">
+              <label class="import-defer">
+                <input v-model="step1DeferUpload" type="checkbox" />
+                <span>Upload original now; crop and optimize later (good for phone photos)</span>
+              </label>
               <img :src="step1Preview" alt="Preview" class="import-preview__img" />
               <div class="import-preview__actions">
                 <button type="button" class="btn btn--primary" :disabled="uploading" @click="uploadStep1">{{ uploading ? 'Uploading…' : 'Upload' }}</button>
@@ -55,7 +59,12 @@
           <!-- Crop -->
           <section v-if="currentRecipe?.image_path" class="import-step">
             <h3 class="import-step__title">Correct Perspective</h3>
-            <p class=”import-step__desc”>Click four corners in sequence, then optionally click Crop Image.</p>
+            <p class="import-step__desc">
+              <template v-if="currentRecipe?.image_processing_pending">
+                Optional perspective: click four corners, or leave empty and click Finalize to resize the full image. You can also finish later from the recipe editor.
+              </template>
+              <template v-else>Click four corners in sequence, then click Crop Image.</template>
+            </p>
             <div class="crop-editor">
               <div ref="cropEditorRef" class="crop-editor__wrap" @click="onCropImageClick">
                 <img ref="cropImageRef" :src="cropImageUrl" alt="Recipe Image" class="crop-editor__img" @load="onCropImageLoad" />
@@ -67,7 +76,14 @@
                 </div>
               </div>
               <div class="crop-editor__actions">
-                <button type="button" class="btn btn--primary" :disabled="cropPoints.length !== 4 || cropping" @click="runCropPerspective">{{ cropping ? 'Cropping…' : 'Crop Image' }}</button>
+                <button
+                  type="button"
+                  class="btn btn--primary"
+                  :disabled="!canRunCropImport || cropping"
+                  @click="runCropPerspective"
+                >
+                  {{ cropping ? 'Applying…' : currentRecipe?.image_processing_pending ? 'Finalize image' : 'Crop Image' }}
+                </button>
                 <button type="button" class="btn btn--secondary" @click="resetCropPoints">Reset Points</button>
               </div>
               <p v-if="cropError" class="import-preview__error">{{ cropError }}</p>
@@ -152,6 +168,15 @@ const cropDisplaySize = ref({ w: 0, h: 0 })
 const cropping = ref(false)
 const cropError = ref('')
 let cropDragUnsubscribe: (() => void) | null = null
+const step1DeferUpload = ref(false)
+
+const imagePending = computed(() => currentRecipe.value?.image_processing_pending === true)
+const canRunCropImport = computed(() => {
+  const n = cropPoints.value.length
+  if (cropping.value) return false
+  if (imagePending.value) return n === 0 || n === 4
+  return n === 4
+})
 
 const cropPolylinePoints = computed(() => {
   if (cropPoints.value.length !== 4) return ''
@@ -226,7 +251,14 @@ function resetCropPoints() {
 async function runCropPerspective() {
   const recipe = currentRecipe.value
   const img = cropImageRef.value
-  if (!recipe || !recipe.image_path || cropPoints.value.length !== 4 || !img) return
+  if (!recipe || !recipe.image_path || !img) return
+  const pending = recipe.image_processing_pending === true
+  const n = cropPoints.value.length
+  if (!pending && n !== 4) return
+  if (pending && n !== 0 && n !== 4) {
+    cropError.value = 'Use four corners, or reset points to finalize the full image.'
+    return
+  }
   const rect = img.getBoundingClientRect()
   const nw = img.naturalWidth
   const nh = img.naturalHeight
@@ -234,17 +266,20 @@ async function runCropPerspective() {
     cropError.value = 'Could not determine image size.'
     return
   }
-  const points = cropPoints.value.map((p) => ({
-    x: Math.round((p.x / rect.width) * nw),
-    y: Math.round((p.y / rect.height) * nh),
-  }))
+  const body: { points?: Array<{ x: number; y: number }> } = {}
+  if (n === 4) {
+    body.points = cropPoints.value.map((p) => ({
+      x: Math.round((p.x / rect.width) * nw),
+      y: Math.round((p.y / rect.height) * nh),
+    }))
+  }
   cropping.value = true
   cropError.value = ''
   try {
     const res = await fetch(`/api/recipes/${recipe.id}/crop-perspective`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ points }),
+      body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText)
@@ -319,6 +354,7 @@ async function uploadStep1() {
   try {
     const form = new FormData()
     form.append('image', file)
+    if (step1DeferUpload.value) form.append('processImageLater', '1')
     const res = await fetch('/api/upload', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText)
@@ -361,6 +397,7 @@ function clearStep1() {
   if (step1Preview.value) URL.revokeObjectURL(step1Preview.value)
   step1Preview.value = null
   step1File.value = null
+  step1DeferUpload.value = false
   currentRecipe.value = null
   uploadError.value = ''
   step2Files.value = []
@@ -565,6 +602,17 @@ onBeforeUnmount(() => {
 .import-option__input { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
 .import-option__video { display: block; width: 100%; max-height: 200px; border-radius: 6px; margin-bottom: 0.5rem; background: #000; }
 .import-option__camera-actions { display: flex; gap: 0.5rem; }
+.import-defer {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.import-defer input { margin-top: 0.15em; }
+
 .import-preview { margin-top: 0.75rem; padding: 0.75rem; border-radius: 6px; background: var(--color-bg); }
 .import-preview__img { display: block; max-width: 100%; max-height: 240px; border-radius: 6px; margin-bottom: 0.5rem; }
 .import-preview__actions { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }

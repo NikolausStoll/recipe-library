@@ -26,7 +26,8 @@
 ### Image Uploads
 - Recipe images: stored in `data/uploads/recipe/`, WebP with `IMAGE_QUALITY` and `IMAGE_MAX_DIMENSION`, only downscale
 - Source (book) covers: stored in `data/uploads/source/`, same WebP/downscale rules
-- All image uploads support optional 4-point perspective crop (`points` in request body); use `cropPerspectiveBuffer` before resize
+- **Defer crop/optimize**: multipart field `processImageLater` (`true`/`1`) stores the **original** file under `data/uploads/recipe/pending/` or `data/uploads/source/pending/` and sets `image_processing_pending` on the row. No WebP/thumbnail until `POST /api/recipes/:id/crop-perspective` or `POST /api/sources/:id/crop-perspective` (omit `points` for full-frame resize, or send 4 points for perspective crop).
+- All immediate-processing uploads support optional 4-point perspective crop (`points` in request body); use `cropPerspectiveBuffer` before resize
 
 ### Security
 - Never expose `.env` files or API keys
