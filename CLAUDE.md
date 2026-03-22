@@ -183,7 +183,7 @@ All OpenAI API calls log token usage to the `ai_token_usage` table for cost moni
 ## Common Tasks
 
 ### Adding a New Recipe Field
-1. Update database schema in `backend/src/db/index.js` (add column with migration)
+1. Update database schema in `backend/src/db/index.js` (`initDb()` — single `CREATE TABLE IF NOT EXISTS` block; extend when adding columns)
 2. Update `RECIPE_JSON_SCHEMA` in `extractRecipeService.js` if extracted from AI
 3. Update frontend `RecipeForm.vue` component
 4. Update API route handlers in `backend/src/routes/recipes.js`
@@ -237,7 +237,7 @@ docker run -p 8097:8097 --env-file .env -v $(pwd)/data:/data recipe-library
 ### Database Issues
 - Ensure `DB_PATH` directory exists
 - Check foreign keys are enabled
-- Review migration logic in `initDb()`
+- Review `initDb()` in `db/index.js` after schema changes
 - Backup database before schema changes
 
 ### Image Upload Issues

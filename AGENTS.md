@@ -69,6 +69,9 @@
 
 ## Common Patterns
 
+### Database schema
+- All tables are defined in `backend/src/db/index.js` inside `initDb()` (`CREATE TABLE IF NOT EXISTS` + indexes). No separate migration runner; document backup/restore when changing schema in production.
+
 ### Database Queries
 ```javascript
 // Good: prepared statement

@@ -292,7 +292,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 
 ### Adding Features
 
-1. **Database Changes**: Update schema in `backend/src/db/index.js`, add migration if needed
+1. **Database Changes**: Update the `CREATE TABLE` definitions in `backend/src/db/index.js` (`initDb()`). There is no separate migration layer; existing deployments need a DB backup and schema alignment when you change tables.
 2. **Backend**: Service layer (`backend/src/services/`) → Route handler (`backend/src/routes/`)
 3. **Frontend**: API function (`frontend/src/api/`) → Component → View
 4. **Documentation**: Update README.md, AGENTS.md, CLAUDE.md
