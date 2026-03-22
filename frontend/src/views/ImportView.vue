@@ -9,7 +9,7 @@
     <section class="import-step">
       <h2 class="import-step__title">Schritt 1: Foto vom Rezeptbild (optional)</h2>
       <p class="import-step__desc">Ein Bild des Rezepts (z. B. Gericht oder Buchseite). Sie können auch ohne Bild fortfahren.</p>
-      <div class="import-options">
+      <div class="import-options" :class="{ 'import-options--camera-live': !!cameraStream }">
         <div class="import-option">
           <h3 class="import-option__title">Datei wählen</h3>
           <input
@@ -24,7 +24,7 @@
             Bild wählen…
           </button>
         </div>
-        <div class="import-option">
+        <div class="import-option import-option--camera">
           <h3 class="import-option__title">Kamera</h3>
           <template v-if="!cameraStream">
             <button
@@ -37,7 +37,16 @@
             </button>
           </template>
           <template v-else>
-            <video ref="videoRef" class="import-option__video" autoplay playsinline muted />
+            <div class="import-option__camera-viewport" :style="cameraViewportStyle">
+              <video
+                ref="videoRef"
+                class="import-option__video"
+                autoplay
+                playsinline
+                muted
+                @loadedmetadata="onCameraVideoMetadata"
+              />
+            </div>
             <div class="import-option__camera-actions">
               <button type="button" class="btn btn--primary" @click="captureStep1">Aufnehmen</button>
               <button type="button" class="btn btn--secondary" @click="stopCamera">Abbrechen</button>
@@ -293,6 +302,10 @@ const extractError = ref('')
 const extractUsage = ref<{ prompt_tokens: number; completion_tokens: number; total_tokens: number } | null>(null)
 const cameraStream = ref<MediaStream | null>(null)
 const cameraBusy = ref(false)
+/** Matches native stream dimensions to avoid letterboxing; fallback ~ phone portrait 3472×4624 */
+const cameraViewportStyle = ref<Record<string, string>>({
+  aspectRatio: '3472 / 4624',
+})
 
 // Crop perspective: 4 points (display coords), image url, refs
 const cropImageRef = ref<HTMLImageElement | null>(null)
@@ -454,26 +467,60 @@ function onStep1FileSelected(e: Event) {
   input.value = ''
 }
 
+function onCameraVideoMetadata() {
+  const v = videoRef.value
+  if (!v?.videoWidth || !v?.videoHeight) return
+  cameraViewportStyle.value = {
+    aspectRatio: `${v.videoWidth} / ${v.videoHeight}`,
+  }
+}
+
+function attachCameraStream(stream: MediaStream) {
+  cameraStream.value = stream
+  nextTick().then(() => {
+    if (videoRef.value) {
+      videoRef.value.srcObject = stream
+      queueMicrotask(() => onCameraVideoMetadata())
+    }
+  })
+}
+
 function startCamera() {
   cameraBusy.value = true
   uploadError.value = ''
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }).then(
-    (stream) => {
-      cameraStream.value = stream
-      nextTick().then(() => {
-        if (videoRef.value) videoRef.value.srcObject = stream
-      })
+  const w = 3472
+  const h = 4624
+  const ar = w / h
+  const preferred: MediaStreamConstraints = {
+    audio: false,
+    video: {
+      facingMode: 'environment',
+      width: { ideal: w },
+      height: { ideal: h },
+      aspectRatio: { ideal: ar },
     },
-    () => {
+  }
+  const fallback: MediaStreamConstraints = { audio: false, video: { facingMode: 'environment' } }
+
+  navigator.mediaDevices
+    .getUserMedia(preferred)
+    .catch(() => navigator.mediaDevices.getUserMedia(fallback))
+    .then((stream) => {
+      attachCameraStream(stream)
+    })
+    .catch(() => {
       uploadError.value = 'Kamera nicht verfügbar'
-    }
-  ).finally(() => { cameraBusy.value = false })
+    })
+    .finally(() => {
+      cameraBusy.value = false
+    })
 }
 
 function stopCamera() {
   cameraStream.value?.getTracks().forEach((t) => t.stop())
   cameraStream.value = null
   if (videoRef.value) videoRef.value.srcObject = null
+  cameraViewportStyle.value = { aspectRatio: '3472 / 4624' }
 }
 
 function captureStep1() {
@@ -732,6 +779,17 @@ onBeforeUnmount(() => {
 .import-defer input { margin-top: 0.15em; }
 
 .import-options { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.import-options--camera-live {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .import-options--camera-live {
+    grid-template-columns: 1fr 1fr;
+  }
+  .import-options--camera-live .import-option--camera {
+    grid-column: 1 / -1;
+  }
+}
 @media (max-width: 480px) { .import-options { grid-template-columns: 1fr; } }
 .import-option {
   padding: 1rem;
@@ -741,11 +799,43 @@ onBeforeUnmount(() => {
 }
 .import-option__title { margin: 0 0 0.5rem 0; font-size: 0.95rem; font-weight: 600; color: var(--color-text); }
 .import-option__input { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
-.import-option__video { display: block; width: 100%; max-height: 220px; border-radius: 6px; margin-bottom: 0.5rem; background: #000; }
-.import-option__camera-actions { display: flex; gap: 0.5rem; }
+/* Viewport uses inline aspect-ratio from stream (see onCameraVideoMetadata) — avoids black bars */
+.import-option__camera-viewport {
+  width: 100%;
+  max-width: min(100%, 36rem);
+  margin-inline: auto;
+  margin-bottom: 0.5rem;
+  max-height: min(85vh, 52rem);
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.import-option__video {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(85vh, 52rem);
+  object-fit: contain;
+  vertical-align: top;
+}
+.import-option__camera-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 .import-preview { margin-top: 1rem; padding: 1rem; border-radius: 8px; background: var(--color-bg-muted); }
-.import-preview__img { display: block; max-width: 100%; max-height: 280px; border-radius: 6px; margin-bottom: 0.75rem; }
+.import-preview__img {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  max-height: min(78vh, 52rem);
+  margin-inline: auto;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  object-fit: contain;
+}
 .import-preview__actions { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
 .import-preview__meta { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--color-text-muted); }
 .import-preview__error { margin: 0; color: var(--color-error); font-size: 0.9rem; }
