@@ -23,7 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # OpenCV + NumPy for backend/scripts/crop_perspective.py (4-point crop in extract-from-images & crop routes)
 COPY backend/requirements.txt ./backend/requirements.txt
-RUN pip3 install --no-cache-dir -r backend/requirements.txt \
+RUN pip3 install --upgrade pip setuptools wheel \
+  && pip3 install --no-cache-dir -r backend/requirements.txt \
   && rm -rf /root/.cache/pip
 
 ENV PORT=8097
