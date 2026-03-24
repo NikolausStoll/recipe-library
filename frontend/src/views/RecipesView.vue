@@ -353,14 +353,6 @@
               </div>
               <ul class="recipe-ingredients-list">
                 <li v-for="(line, idx) in section.items" :key="`${sidx}-${idx}`" class="recipe-ingredient">
-                  <span
-                    v-if="line.category?.trim()"
-                    class="recipe-ingredient-category"
-                    :title="line.category"
-                  >
-                    <span class="recipe-ingredient-category__de">{{ getIngredientCategoryLabelDe(line.category) }}</span>
-                    <span class="recipe-ingredient-category__key">({{ line.category }})</span>
-                  </span>
                   <span class="recipe-ingredient-text">{{ line.text }}</span>
                 </li>
               </ul>
@@ -1958,6 +1950,7 @@ onBeforeUnmount(() => {
   max-width: 1200px;
   min-height: 100vh;
   position: relative;
+  padding: 1rem;
 }
 
 .recipe-detail-close {
@@ -1990,9 +1983,10 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-content {
-  display: flex;
+  display: grid;
   flex-direction: column;
   gap: var(--spacing-2xl);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .recipe-detail-hero {
@@ -2755,7 +2749,7 @@ onBeforeUnmount(() => {
 .note-block {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   padding: var(--spacing-xl);
   position: relative;
