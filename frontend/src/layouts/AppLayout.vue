@@ -24,7 +24,7 @@
           <router-link
             to="/recipes"
             class="nav-link"
-            :class="{ 'nav-link--active': route.name === 'recipes' }"
+            :class="{ 'nav-link--active': route.path.startsWith('/recipes') }"
           >
             <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -36,7 +36,7 @@
           <router-link
             to="/favorites"
             class="nav-link"
-            :class="{ 'nav-link--active': route.name === 'favorites' }"
+            :class="{ 'nav-link--active': route.path.startsWith('/favorites') }"
           >
             <svg class="nav-link__icon" viewBox="0 0 24 24" fill="none">
               <path
@@ -114,7 +114,7 @@ const route = useRoute()
   box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-header);
   flex-shrink: 0;
 }
 

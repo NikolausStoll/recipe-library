@@ -182,8 +182,8 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 |-----------|---------------|--------------|
 | `RecipesView.vue` | Recipe list, detail view, edit overlay | Card grid, search/sort, servings adjustment, ingredient scaling |
 | `RecipeFormMultiStep.vue` | 4-step recipe form | Progress indicator, image upload, ingredients, steps, review |
-| `RecipeImportOverlay.vue` | AI import workflow | Camera/file upload, 4-point crop UI, OpenAI extraction |
-| `RecipeUrlImportOverlay.vue` | URL import | Paste URL, `POST /import-from-url`, opens same edit flow as image import |
+| `RecipeImportOverlayUnified.vue` | AI import workflow | Camera/file upload, crop modal per photo, OpenAI extraction |
+| `CropPerspectiveModal.vue` | Perspective crop UI | Large image, 4 corner markers; points stored in parent until persist |
 | `AdminExtractUsageView.vue` | Token / cost admin | Table of `ai_token_usage`, JSON expand, sums |
 | `SourcesView.vue` | Book source management | CRUD operations, cover upload with crop |
 | `DashboardView.vue` | Statistics and quick actions | Recipe counts, recent recipes, quick links |

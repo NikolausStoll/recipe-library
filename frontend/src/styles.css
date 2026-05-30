@@ -85,6 +85,11 @@
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
   --transition-slow: 300ms ease;
+
+  /* Stacking */
+  --z-header: 100;
+  --z-modal: 9000;
+  --z-crop-modal: 10000;
 }
 
 [data-theme='dark'] {
@@ -166,6 +171,34 @@ body {
   min-height: 100vh;
   background: var(--color-bg);
   color: var(--color-text);
+}
+
+.app-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--color-bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  isolation: isolate;
+}
+
+body.app-modal-open {
+  overflow: hidden;
+}
+
+.app-crop-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-crop-modal);
+  background: var(--color-bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  isolation: isolate;
 }
 
 /* Hide number input spinners (Chrome, Safari, Edge) */

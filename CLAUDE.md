@@ -21,7 +21,9 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Key Components**:
   - `RecipeForm.vue` - Main recipe entry/edit form
   - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (ingredients & steps: **plain-text summary** by default; click to expand editors; **+ Add** opens new rows in edit mode; ingredient OCR original line hidden for `import_method === 'url'`; categories from `constants/ingredientCategories.ts`)
-  - `RecipeImportOverlay.vue` - Two-step AI import overlay (1: optional recipe image, 2: text images via file picker or camera — separate `getUserMedia` stream from step 1 → OpenAI extraction)
+ - `RecipeImportOverlayUnified.vue` - Unified AI import overlay: add all photos in one flow, mark optional cover image, then run OCR extraction on selected pages
+  - `CropPerspectiveModal.vue` - Shared full-screen 4-point perspective crop dialog (`CropPerspectiveEditor` inside); crop points kept in memory until import/save/upload
+  - `SourceCoverPicker.vue` - Book cover pick/preview with rotate/crop/remove icon row (opens crop modal)
   - `AppLayout.vue` - Main layout with header and navigation
 
 ### Backend (`backend/src/`)
@@ -109,16 +111,16 @@ python3 -m venv venv
 - `GET /api/recipes/with-ingredients?favorite=1` - Same as `with-ingredients`, optionally filtered to favorites only
 - `PUT /api/recipes/:id` - Can update `would_cook_again` with values `yes` | `maybe` | `no`
 - `POST /api/recipes/extract-from-url` - Body `{ url, normalize? }`; returns raw `{ source, warnings, fetched_url, recipe }`; if `normalize: true`, adds `structured`, `normalize_model`, `normalize_usage` (OpenAI, `OPENAI_NORMALIZE_MODEL_PRIMARY`)
-- `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize`
+- `POST /api/recipes/import-from-url` - Body `{ url }`; draft recipe + `findOrCreateUrlSource(fetched_url)` (`type: url`, `source_url` on recipe APIs) + scrape + `normalizeRecipeWithLLM`; logs each OpenAI call to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize`
 - `POST /api/recipes/:id/estimate-health-score` - Practical health score + summary + tips from structured recipe; **persists** only successful estimates to `recipe_health_scores` and logs model/tokens to `ai_token_usage` (`usage_kind: health_score`); failures return **502**/**503** with `{ error }` (no DB row)
 - `POST /api/recipes/estimate-health-score` - Body `{ recipe }`; same scoring without loading from DB
 - `POST /api/recipes/:id/estimate-times` - First call runs LLM and applies non-original times; response `pendingOriginalReplace` lists originals still to confirm; follow-up with `use_client_estimate: true` + `estimate` + `replace_*` applies without a second LLM; logs `usage_kind: recipe_time_estimate` on LLM calls only
 - `GET /api/recipes/tag-options` - Controlled tag vocabulary (`constants/recipeTags.js`)
 - `POST /api/recipes/:id/generate-tags` - LLM assigns tags from structured recipe only; persists `recipe_tags`; `usage_kind: recipe_tag`; optional `OPENAI_RECIPE_TAG_MODEL`
 
-### Image Import (Two-step process)
-1. `POST /api/upload` - Upload recipe image (optional), creates draft recipe with `image_path`; optional `processImageLater` → `pending/` + `image_processing_pending`
-2. `POST /api/recipes/:id/extract-from-images` - Text images for OCR: **multer memory only** → `prepareTextImage` (downscale to `TEXT_IMAGE_MAX_DIMENSION`) → optional perspective crop → OpenAI. **No** `pending/` storage and **no** `image_processing_pending` for these uploads (unrelated to Step 1 defer).
+### Image Import (Unified flow)
+1. `POST /api/upload` - Create draft recipe, optionally with selected cover image. If cover should be cropped later, send `processImageLater` to store raw bytes in `pending/` and set `image_processing_pending`.
+2. `POST /api/recipes/:id/extract-from-images` - OCR images for extraction: **multer memory only** → `prepareTextImage` (downscale to `TEXT_IMAGE_MAX_DIMENSION`) → optional perspective crop → OpenAI. **No** `pending/` storage and **no** `image_processing_pending` for these extraction uploads.
 
 ### Admin
 - `GET /api/admin/extract-usage` - List `ai_token_usage` with recipe title join and per-row cost estimate (see `extractUsagePricing.js`)

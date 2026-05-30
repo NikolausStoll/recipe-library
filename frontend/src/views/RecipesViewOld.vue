@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import RecipeForm from '../components/RecipeForm.vue'
-import RecipeImportOverlay from '../components/RecipeImportOverlay.vue'
+import RecipeImportOverlay from '../components/RecipeImportOverlayUnified.vue'
 import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
 import {
   listRecipes,

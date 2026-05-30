@@ -54,6 +54,7 @@
               <img :src="step1Preview" alt="Preview" class="import-preview__img" />
               <div class="import-preview__actions">
                 <button type="button" class="btn btn--primary" :disabled="uploading" @click="uploadStep1">{{ uploading ? 'Uploading…' : 'Upload' }}</button>
+                <button type="button" class="btn btn--secondary" :disabled="uploading || !step1File" @click="rotateStep1Image">Rotate 90°</button>
                 <button type="button" class="btn btn--secondary" @click="clearStep1">Reset</button>
               </div>
               <p v-if="uploadError" class="import-preview__error">{{ uploadError }}</p>
@@ -152,6 +153,7 @@
                     </div>
                   </div>
                   <button type="button" class="btn btn--secondary step2-crop-item__reset" @click="resetStep2CropPoints(idx)">Reset Points</button>
+                  <button type="button" class="btn btn--secondary step2-crop-item__reset" :disabled="extracting" @click="rotateStep2Image(idx)">Rotate 90°</button>
                 </div>
               </div>
               <div class="import-preview__actions">
@@ -174,6 +176,7 @@ import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
 import { extractRecipeFromImages } from '../api/recipes'
 import type { Recipe } from '../api/recipes'
 import { attachCropPointPointerDrag } from '../utils/cropPointerDrag'
+import { rotateImageFile90 } from '../utils/imageRotate'
 
 const emit = defineEmits<{ done: [recipe: Recipe]; close: [] }>()
 
@@ -346,6 +349,20 @@ function onStep1FileSelected(e: Event) {
   step1Preview.value = URL.createObjectURL(file)
   uploadError.value = ''
   input.value = ''
+}
+
+async function rotateStep1Image() {
+  const file = step1File.value
+  if (!file) return
+  uploadError.value = ''
+  try {
+    const rotated = await rotateImageFile90(file)
+    if (step1Preview.value) URL.revokeObjectURL(step1Preview.value)
+    step1File.value = rotated
+    step1Preview.value = URL.createObjectURL(rotated)
+  } catch (e) {
+    uploadError.value = e instanceof Error ? e.message : 'Could not rotate image'
+  }
 }
 
 function onCameraVideoMetadata() {
@@ -668,6 +685,27 @@ function clearStep2() {
   step2CropWrapRefs.value = []
   extractError.value = ''
   step2FileRef.value?.form?.reset()
+}
+
+async function rotateStep2Image(idx: number) {
+  const file = step2Files.value[idx]
+  if (!file) return
+  extractError.value = ''
+  try {
+    const rotated = await rotateImageFile90(file)
+    const files = [...step2Files.value]
+    files[idx] = rotated
+    step2Files.value = files
+    const previews = [...step2Previews.value]
+    if (previews[idx]) URL.revokeObjectURL(previews[idx])
+    previews[idx] = URL.createObjectURL(rotated)
+    step2Previews.value = previews
+    const points = [...step2CropPoints.value]
+    points[idx] = []
+    step2CropPoints.value = points
+  } catch (e) {
+    extractError.value = e instanceof Error ? e.message : 'Could not rotate image'
+  }
 }
 
 /** Step 2 files (camera or picker) go only to extract-from-images: in-memory resize + AI, no pending/ folder. */

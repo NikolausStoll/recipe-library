@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="overlay" @click.self="emit('close')">
+    <div class="app-modal-overlay overlay" @click.self="emit('close')">
       <div class="overlay__panel">
         <div class="overlay__header">
           <h2 class="overlay__title">Import Recipe from URL</h2>
@@ -42,8 +42,11 @@
 import { ref } from 'vue'
 import { importRecipeFromUrl } from '../api/recipes'
 import type { Recipe } from '../api/recipes'
+import { useBodyModalLock } from '../composables/useBodyModalLock'
 
 const emit = defineEmits<{ done: [recipe: Recipe]; close: [] }>()
+
+useBodyModalLock()
 
 const url = ref('')
 const importing = ref(false)
@@ -70,14 +73,7 @@ async function runImport() {
 
 <style scoped>
 .overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
+  /* extends .app-modal-overlay */
 }
 .overlay__panel {
   background: var(--color-bg-elevated, #fff);

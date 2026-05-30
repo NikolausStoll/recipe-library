@@ -16,6 +16,7 @@ import {
 } from '../services/recipeHealthScoreService.js'
 import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistence.js'
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
+import { findOrCreateUrlSource } from '../services/sourceService.js'
 import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
 import {
   estimateRecipePrepCookTimes,
@@ -428,11 +429,13 @@ router.post('/import-from-url', async (req, res) => {
   let createdId = null
   try {
     const scraped = await extractRecipeFromUrl(url)
+    const fetchedUrl = scraped.fetched_url?.trim() || url
+    const urlSource = findOrCreateUrlSource(fetchedUrl)
     const draftTitle = scraped.recipe?.title?.trim() || 'Imported recipe'
     const draft = recipeService.createRecipe({
       title: draftTitle,
       import_method: 'url',
-      description: scraped.fetched_url ? `Imported from ${scraped.fetched_url}` : null,
+      source_id: urlSource?.id ?? null,
     })
     createdId = draft.id
 
@@ -578,7 +581,10 @@ router.post('/:id/crop-perspective', async (req, res) => {
   if (!recipe) return res.status(404).json({ error: 'Recipe not found' })
   if (!recipe.image_path) return res.status(400).json({ error: 'Recipe has no image to crop' })
   const points = req.body?.points
-  const pending = recipe.image_processing_pending === true
+  const pending =
+    recipe.image_processing_pending === true ||
+    recipe.image_processing_pending === 1 ||
+    recipe.image_processing_pending === '1'
 
   if (pending) {
     const filepath = resolveRecipeImagePath(recipe.image_path)
@@ -647,7 +653,10 @@ router.post('/:id/crop-perspective', async (req, res) => {
       console.error('Failed to refresh thumbnail after cropping:', thumbErr)
     }
     const url = `${recipe.image_path}?v=${Date.now()}`
-    const updated = recipeService.getRecipeById(id)
+    const updated = recipeService.setRecipeImagePathAndPending(id, {
+      image_path: recipe.image_path,
+      image_processing_pending: false,
+    })
     res.json({ recipe: updated, url })
   } catch (e) {
     console.error('Crop perspective failed:', e)

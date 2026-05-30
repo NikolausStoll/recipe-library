@@ -29,6 +29,40 @@ export function getSourceById(id) {
 }
 
 /**
+ * Find an existing URL source or create one. Uses the final fetched URL as canonical link text.
+ * @param {string} url
+ * @param {{ name?: string }} [options]
+ * @returns {ReturnType<typeof getSourceById> | null}
+ */
+export function findOrCreateUrlSource(url, options = {}) {
+  const normalized = url != null ? String(url).trim() : ''
+  if (!normalized) return null
+
+  const db = getDb()
+  const existing = db
+    .prepare(`SELECT id FROM recipe_sources WHERE type = 'url' AND url = ?`)
+    .get(normalized)
+  if (existing) return getSourceById(existing.id)
+
+  let name = options.name != null ? String(options.name).trim() : ''
+  if (!name) {
+    try {
+      name = new URL(normalized).hostname.replace(/^www\./i, '')
+    } catch {
+      name = normalized
+    }
+  }
+
+  db.prepare(`
+    INSERT INTO recipe_sources (type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending)
+    VALUES ('url', ?, NULL, ?, NULL, NULL, NULL, NULL, 0)
+  `).run(name, normalized)
+
+  const id = db.prepare('SELECT last_insert_rowid() as id').get().id
+  return getSourceById(id)
+}
+
+/**
  * Create a recipe source. Body: type, name (title), subtitle?, author?, year?, image_path?, url?, book_title? (alias for name when type=book).
  */
 export function createSource(body) {

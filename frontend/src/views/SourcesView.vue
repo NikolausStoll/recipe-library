@@ -1,140 +1,39 @@
 <template>
-  <div class="view view--sources">
-    <h1>Book Sources</h1>
-    <p class="view__intro">Manage sources like cookbooks. Recipes can be assigned to a source.</p>
-
-    <!-- Form: add or edit -->
-    <section v-if="formOpen" class="sources-form">
-      <h2 class="sources-form__title">{{ editingId ? 'Edit Book Source' : 'New Book Source' }}</h2>
-      <form class="form" @submit.prevent="saveSource">
-        <div class="form__row">
-          <label class="form__label" for="src-name">Title *</label>
-          <input id="src-name" v-model="form.name" type="text" class="form__input" required />
-        </div>
-        <div class="form__row">
-          <label class="form__label" for="src-subtitle">Subtitle</label>
-          <input id="src-subtitle" v-model="form.subtitle" type="text" class="form__input" />
-        </div>
-        <div class="form__row form__row--inline">
-          <div>
-            <label class="form__label" for="src-author">Author</label>
-            <input id="src-author" v-model="form.author" type="text" class="form__input" />
-          </div>
-          <div>
-            <label class="form__label" for="src-year">Year</label>
-            <input id="src-year" v-model.number="form.year" type="number" class="form__input" min="1" max="2100" placeholder="z. B. 2020" />
-          </div>
-        </div>
-        <div class="form__actions">
-          <button type="submit" class="btn btn--primary" :disabled="saving">
-            {{ saving ? 'Saving…' : 'Save' }}
-          </button>
-          <button type="button" class="btn btn--secondary" @click="closeForm">Cancel</button>
-        </div>
-        <p v-if="formError" class="form__error">{{ formError }}</p>
-      </form>
-
-      <!-- Cover / picture upload: always shown in form (for new: upload after first save) -->
-      <div v-if="formOpen" class="sources-form__cover">
-        <h3 class="sources-form__cover-title">Book Cover / Image</h3>
-        <div v-if="editingId && currentSource?.image_path" class="sources-form__cover-current">
-          <div v-if="currentSource.image_processing_pending" class="sources-form__cover-pending">
-            <p class="sources-form__cover-pending-text">Cover not processed yet — crop and optimize to create the WebP preview.</p>
-            <button type="button" class="btn btn--secondary" @click="openPendingCoverCrop">Crop and optimize</button>
-          </div>
-          <template v-else>
-            <img :src="coverDisplayUrl" alt="Cover" class="sources-form__cover-img" />
-            <span class="sources-form__cover-hint">Select new image to replace</span>
-          </template>
-        </div>
-        <div v-if="!coverFile && !coverFinalizeMode" class="sources-form__cover-upload">
-          <input
-            ref="coverInputRef"
-            type="file"
-            accept="image/*"
-            class="form__file"
-            @change="onCoverFileSelected"
-          />
-          <button type="button" class="btn btn--secondary" @click="coverInputRef?.click()">
-            {{ editingId ? 'Select Cover…' : 'Select Image (optional 4 points for crop, then Save)' }}
-          </button>
-        </div>
-        <label v-if="coverFile && !coverFinalizeMode" class="sources-form__defer">
-          <input v-model="coverDeferRaw" type="checkbox" />
-          <span>Upload original now; crop and optimize later</span>
-        </label>
-        <div v-if="coverPreview && (coverFile || coverFinalizeMode)" class="sources-form__cover-crop">
-          <div ref="coverCropWrapRef" class="crop-editor__wrap" @pointerdown="onCoverCropPointerDown">
-            <img
-              ref="coverCropImgRef"
-              :src="coverPreview"
-              alt="Preview"
-              class="crop-editor__img sources-form__crop-img"
-              @load="onCoverCropLoad"
-            />
-            <div class="crop-editor__overlay">
-              <svg
-                v-if="coverCropPoints.length === 4 && coverDisplaySize.w > 0"
-                class="crop-editor__lines"
-                :viewBox="`0 0 ${coverDisplaySize.w} ${coverDisplaySize.h}`"
-                preserveAspectRatio="none"
-              >
-                <polyline
-                  :points="coverPolylinePoints"
-                  fill="none"
-                  stroke="var(--color-primary, #2563eb)"
-                  stroke-width="2"
-                  stroke-dasharray="6 4"
-                />
-              </svg>
-              <span
-                v-for="(pt, i) in coverCropPoints"
-                :key="i"
-                class="crop-editor__point"
-                :style="{ left: (pt.x - 12) + 'px', top: (pt.y - 12) + 'px' }"
-                @pointerdown.stop="onCoverPointPointerDown($event, i)"
-              >
-                {{ i + 1 }}
-              </span>
-            </div>
-          </div>
-          <div class="crop-editor__actions">
-            <button
-              type="button"
-              class="btn btn--primary"
-              :disabled="coverUploading || !editingId || (coverFinalizeMode && !canApplyCoverCrop)"
-              @click="uploadCover"
-            >
-              {{
-                coverUploading
-                  ? 'Uploading…'
-                  : coverFinalizeMode
-                    ? (coverCropPoints.length === 4 ? 'Finalize (with perspective)' : 'Finalize (full image)')
-                    : editingId
-                      ? coverDeferRaw
-                        ? 'Save original (crop later)'
-                        : coverCropPoints.length === 4
-                          ? 'Save Cover (with crop)'
-                          : 'Save Cover (without crop)'
-                      : 'Click "Save" first'
-              }}
-            </button>
-            <button type="button" class="btn btn--secondary" @click="clearCoverFile">Cancel</button>
-          </div>
-          <p v-if="coverError" class="form__error">{{ coverError }}</p>
-        </div>
+  <div class="sources-view">
+    <div class="sources-header">
+      <div class="sources-header__main">
+        <h1 class="sources-title">Book Sources</h1>
+        <p class="sources-subtitle">
+          {{ sources.length }} source{{ sources.length !== 1 ? 's' : '' }}
+        </p>
       </div>
-    </section>
-
-    <!-- List -->
-    <div v-if="!formOpen" class="sources-toolbar">
-      <button type="button" class="btn btn--primary" @click="openNewForm">New Book Source</button>
+      <button
+        type="button"
+        class="sources-add-btn"
+        aria-label="Add book source"
+        @click="openNew"
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
+
+    <SourceBookOverlay
+      v-if="overlayOpen"
+      :source-id="overlaySourceId"
+      :initial="overlayInitial"
+      @saved="onSourceSaved"
+      @deleted="onSourceDeleted"
+      @close="closeOverlay"
+    />
+
     <p v-if="listError" class="form__error">{{ listError }}</p>
-    <p v-if="loading && !sources.length">Loading…</p>
+    <p v-if="loading && !sources.length" class="loading">Loading…</p>
+
     <ul v-else class="sources-list">
       <li v-for="s in sources" :key="s.id" class="sources-list__item">
-        <div class="sources-list__thumb" @click="startEdit(s.id)">
+        <div class="sources-list__thumb" @click="openEdit(s)">
           <img
             v-if="s.image_path && !s.image_processing_pending"
             :src="s.image_thumb_path ?? s.image_path"
@@ -144,91 +43,48 @@
           <span v-else-if="s.image_processing_pending" class="sources-list__pending">Pending</span>
           <span v-else class="sources-list__no-img">No Cover</span>
         </div>
-        <div class="sources-list__main" @click="startEdit(s.id)">
+        <div class="sources-list__main" @click="openEdit(s)">
           <strong class="sources-list__name">{{ s.name }}</strong>
-          <span v-if="s.subtitle" class="sources-list__subtitle">{{ s.subtitle }}</span>
-          <span v-if="s.author || s.year" class="sources-list__meta">
-            {{ [s.author, s.year].filter(Boolean).join(', ') }}
+          <span v-if="displayOptionalText(s.subtitle)" class="sources-list__subtitle">
+            {{ displayOptionalText(s.subtitle) }}
+          </span>
+          <span v-if="displayOptionalText(s.author) || s.year" class="sources-list__meta">
+            {{ [displayOptionalText(s.author), s.year].filter(Boolean).join(', ') }}
           </span>
         </div>
-        <button
-          type="button"
-          class="btn btn--secondary sources-list__delete"
-          title="Delete source"
-          @click="onDelete(s.id)"
-        >
-          Delete
-        </button>
       </li>
     </ul>
-    <p v-if="!loading && !sources.length" class="empty">No book sources yet. Click the button above to create one.</p>
+
+    <p v-if="!loading && !sources.length" class="empty">
+      No book sources yet. Use + to add one.
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import {
-  listSources,
-  createSource,
-  updateSource,
-  deleteSource,
-  uploadSourceCover,
-  finalizeSourceCoverCrop,
-} from '../api/sources'
-import type { RecipeSource, RecipeSourceInput } from '../api/sources'
-import { attachCropPointPointerDrag } from '../utils/cropPointerDrag'
+import { ref, onMounted } from 'vue'
+import SourceBookOverlay from '../components/SourceBookOverlay.vue'
+import { listSources } from '../api/sources'
+import type { RecipeSource } from '../api/sources'
 
 const sources = ref<RecipeSource[]>([])
 const loading = ref(true)
 const listError = ref('')
-const formOpen = ref(false)
-const editingId = ref<number | null>(null)
-const currentSource = ref<RecipeSource | null>(null)
-const saving = ref(false)
-const formError = ref('')
-const form = ref<RecipeSourceInput>({
-  name: '',
-  subtitle: null,
-  author: null,
-  year: null,
-})
+const overlayOpen = ref(false)
+const overlaySourceId = ref<number | null>(null)
+const overlayInitial = ref<RecipeSource | null>(null)
 
-const coverDisplayUrl = computed(() => {
-  const s = currentSource.value
-  if (!s?.image_path) return ''
-  return s.image_path.startsWith('/') ? s.image_path : s.image_path
-})
-
-const coverInputRef = ref<HTMLInputElement | null>(null)
-const coverFile = ref<File | null>(null)
-const coverPreview = ref<string | null>(null)
-const coverCropPoints = ref<Array<{ x: number; y: number }>>([])
-const coverDisplaySize = ref({ w: 0, h: 0 })
-const coverCropWrapRef = ref<HTMLDivElement | null>(null)
-const coverCropImgRef = ref<HTMLImageElement | null>(null)
-const coverUploading = ref(false)
-const coverError = ref('')
-/** True when cropping an already-uploaded raw pending file (finalize flow). */
-const coverFinalizeMode = ref(false)
-const coverDeferRaw = ref(false)
-let coverDragUnsub: (() => void) | null = null
-
-const canApplyCoverCrop = computed(() => {
-  const n = coverCropPoints.value.length
-  return n === 0 || n === 4
-})
-
-const coverPolylinePoints = computed(() => {
-  if (coverCropPoints.value.length !== 4) return ''
-  const p = coverCropPoints.value
-  return `${p[0].x},${p[0].y} ${p[1].x},${p[1].y} ${p[2].x},${p[2].y} ${p[3].x},${p[3].y} ${p[0].x},${p[0].y}`
-})
+function displayOptionalText(value: string | null | undefined): string {
+  if (value == null || value === 'null') return ''
+  const trimmed = String(value).trim()
+  return trimmed
+}
 
 async function loadList() {
   loading.value = true
   listError.value = ''
   try {
-    sources.value = await listSources()
+    sources.value = (await listSources()).filter((s) => s.type === 'book')
   } catch (e) {
     listError.value = e instanceof Error ? e.message : 'Failed to load sources'
   } finally {
@@ -236,344 +92,107 @@ async function loadList() {
   }
 }
 
-function openNewForm() {
-  editingId.value = null
-  currentSource.value = null
-  form.value = { name: '', subtitle: null, author: null, year: null }
-  formError.value = ''
-  coverFile.value = null
-  coverPreview.value = null
-  coverCropPoints.value = []
-  coverError.value = ''
-  coverFinalizeMode.value = false
-  coverDeferRaw.value = false
-  formOpen.value = true
+function openNew() {
+  overlaySourceId.value = null
+  overlayInitial.value = null
+  overlayOpen.value = true
 }
 
-function startEdit(id: number) {
-  const s = sources.value.find((x) => x.id === id)
-  if (!s) return
-  editingId.value = s.id
-  currentSource.value = s
-  form.value = {
-    name: s.name,
-    subtitle: s.subtitle ?? null,
-    author: s.author ?? null,
-    year: s.year ?? null,
-  }
-  formError.value = ''
-  coverFile.value = null
-  coverPreview.value = null
-  coverCropPoints.value = []
-  coverError.value = ''
-  coverFinalizeMode.value = false
-  coverDeferRaw.value = false
-  formOpen.value = true
+function openEdit(source: RecipeSource) {
+  overlaySourceId.value = source.id
+  overlayInitial.value = source
+  overlayOpen.value = true
 }
 
-function openPendingCoverCrop() {
-  const p = currentSource.value?.image_path
-  if (!p) return
-  coverFinalizeMode.value = true
-  coverPreview.value = p.startsWith('/') ? p : `/${p}`
-  coverCropPoints.value = []
-  coverFile.value = null
-  coverError.value = ''
+function closeOverlay() {
+  overlayOpen.value = false
+  overlaySourceId.value = null
+  overlayInitial.value = null
 }
 
-function closeForm() {
-  formOpen.value = false
-  editingId.value = null
-  currentSource.value = null
-  coverFile.value = null
-  if (coverPreview.value?.startsWith('blob:')) URL.revokeObjectURL(coverPreview.value)
-  coverPreview.value = null
-  coverFinalizeMode.value = false
-  coverDeferRaw.value = false
-  coverDragUnsub?.()
+function onSourceSaved(source: RecipeSource) {
+  const idx = sources.value.findIndex((s) => s.id === source.id)
+  if (idx >= 0) sources.value[idx] = source
+  else sources.value.unshift(source)
 }
 
-async function saveSource() {
-  if (!form.value.name?.trim()) return
-  saving.value = true
-  formError.value = ''
-  coverError.value = ''
-  try {
-    const payload: RecipeSourceInput = {
-      type: 'book',
-      name: form.value.name.trim(),
-      subtitle: form.value.subtitle?.trim() || null,
-      author: form.value.author?.trim() || null,
-      year: form.value.year ?? null,
-    }
-    if (editingId.value) {
-      const updated = await updateSource(editingId.value, payload)
-      const idx = sources.value.findIndex((x) => x.id === updated.id)
-      if (idx >= 0) sources.value[idx] = updated
-      currentSource.value = updated
-    } else {
-      const created = await createSource(payload)
-      sources.value.unshift(created)
-      editingId.value = created.id
-      currentSource.value = created
-      // If user already selected a cover, upload it now (with optional 4-point crop)
-      const file = coverFile.value
-      const points = coverCropPoints.value
-      const img = coverCropImgRef.value
-      if (file) {
-        let imagePoints: Array<{ x: number; y: number }> | undefined
-        if (points.length === 4 && img) {
-          const rect = img.getBoundingClientRect()
-          const nw = img.naturalWidth
-          const nh = img.naturalHeight
-          if (rect.width > 0 && rect.height > 0 && nw > 0 && nh > 0) {
-            imagePoints = points.map((p) => ({
-              x: Math.round((p.x / rect.width) * nw),
-              y: Math.round((p.y / rect.height) * nh),
-            }))
-          }
-        }
-        coverUploading.value = true
-        try {
-          const { source } = await uploadSourceCover(created.id, file, imagePoints, {
-            processImageLater: coverDeferRaw.value,
-          })
-          const idx = sources.value.findIndex((x) => x.id === source.id)
-          if (idx >= 0) sources.value[idx] = source
-          currentSource.value = source
-          clearCoverFile()
-        } catch (e) {
-          coverError.value = e instanceof Error ? e.message : 'Cover upload after save failed'
-        } finally {
-          coverUploading.value = false
-        }
-      }
-    }
-  } catch (e) {
-    formError.value = e instanceof Error ? e.message : 'Failed to save'
-  } finally {
-    saving.value = false
-  }
-}
-
-function onCoverFileSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file?.type.startsWith('image/')) return
-  coverFile.value = file
-  coverPreview.value = URL.createObjectURL(file)
-  coverCropPoints.value = []
-  coverError.value = ''
-  coverFinalizeMode.value = false
-  input.value = ''
-}
-
-function clearCoverFile() {
-  coverFile.value = null
-  if (coverPreview.value?.startsWith('blob:')) URL.revokeObjectURL(coverPreview.value)
-  coverPreview.value = null
-  coverCropPoints.value = []
-  coverError.value = ''
-  coverFinalizeMode.value = false
-}
-
-function onCoverCropLoad() {
-  coverCropPoints.value = []
-  if (coverCropWrapRef.value) {
-    const r = coverCropWrapRef.value.getBoundingClientRect()
-    coverDisplaySize.value = { w: r.width, h: r.height }
-  }
-}
-
-function onCoverCropPointerDown(e: PointerEvent) {
-  if (coverCropPoints.value.length >= 4 || !coverCropWrapRef.value) return
-  if ((e.target as HTMLElement).closest?.('.crop-editor__point')) return
-  if (e.pointerType === 'mouse' && e.button !== 0) return
-  const r = coverCropWrapRef.value.getBoundingClientRect()
-  const x = Math.max(0, Math.min(r.width, e.clientX - r.left))
-  const y = Math.max(0, Math.min(r.height, e.clientY - r.top))
-  coverCropPoints.value = [...coverCropPoints.value, { x, y }]
-  coverError.value = ''
-}
-
-function onCoverPointPointerDown(e: PointerEvent, index: number) {
-  const wrap = coverCropWrapRef.value
-  if (!wrap) return
-  attachCropPointPointerDrag(e, {
-    wrap,
-    onMove: (x, y) => {
-      const next = [...coverCropPoints.value]
-      next[index] = { x, y }
-      coverCropPoints.value = next
-    },
-    onActiveCleanup: (fn) => {
-      coverDragUnsub = fn
-    },
-  })
-}
-
-async function uploadCover() {
-  const id = editingId.value
-  const img = coverCropImgRef.value
-  if (!id) return
-
-  if (coverFinalizeMode.value && currentSource.value?.image_processing_pending) {
-    const n = coverCropPoints.value.length
-    if (n !== 0 && n !== 4) {
-      coverError.value = 'Use four corner points, or none to finalize the full image.'
-      return
-    }
-    let points: Array<{ x: number; y: number }> | undefined
-    if (n === 4 && img) {
-      const rect = img.getBoundingClientRect()
-      const nw = img.naturalWidth
-      const nh = img.naturalHeight
-      if (rect.width > 0 && rect.height > 0 && nw > 0 && nh > 0) {
-        points = coverCropPoints.value.map((p) => ({
-          x: Math.round((p.x / rect.width) * nw),
-          y: Math.round((p.y / rect.height) * nh),
-        }))
-      }
-    }
-    coverUploading.value = true
-    coverError.value = ''
-    try {
-      const { source } = await finalizeSourceCoverCrop(id, points)
-      const idx = sources.value.findIndex((x) => x.id === source.id)
-      if (idx >= 0) sources.value[idx] = source
-      currentSource.value = source
-      clearCoverFile()
-    } catch (e) {
-      coverError.value = e instanceof Error ? e.message : 'Finalize failed'
-    } finally {
-      coverUploading.value = false
-    }
-    return
-  }
-
-  const file = coverFile.value
-  if (!file) return
-  let points: Array<{ x: number; y: number }> | undefined
-  if (coverCropPoints.value.length === 4 && img) {
-    const rect = img.getBoundingClientRect()
-    const nw = img.naturalWidth
-    const nh = img.naturalHeight
-    if (rect.width > 0 && rect.height > 0 && nw > 0 && nh > 0) {
-      points = coverCropPoints.value.map((p) => ({
-        x: Math.round((p.x / rect.width) * nw),
-        y: Math.round((p.y / rect.height) * nh),
-      }))
-    }
-  }
-  coverUploading.value = true
-  coverError.value = ''
-  try {
-    const { source } = await uploadSourceCover(id, file, points, {
-      processImageLater: coverDeferRaw.value,
-    })
-    const idx = sources.value.findIndex((x) => x.id === source.id)
-    if (idx >= 0) sources.value[idx] = source
-    currentSource.value = source
-    clearCoverFile()
-    coverDeferRaw.value = false
-  } catch (e) {
-    coverError.value = e instanceof Error ? e.message : 'Cover upload failed'
-  } finally {
-    coverUploading.value = false
-  }
-}
-
-async function onDelete(id: number) {
-  if (!confirm('Really delete book source? Only works if no recipe uses it.')) return
-  try {
-    await deleteSource(id)
-    sources.value = sources.value.filter((s) => s.id !== id)
-    if (editingId.value === id) closeForm()
-  } catch (e) {
-    listError.value = e instanceof Error ? e.message : 'Delete failed (source may still be used by recipes).'
-  }
+function onSourceDeleted(id: number) {
+  sources.value = sources.value.filter((s) => s.id !== id)
 }
 
 onMounted(() => loadList())
-
-onBeforeUnmount(() => {
-  coverDragUnsub?.()
-})
 </script>
 
 <style scoped>
-.view { max-width: 56rem; }
-.view h1 { margin: 0 0 0.5rem 0; color: var(--color-text); }
-.view__intro { margin: 0 0 1.5rem 0; color: var(--color-text-muted); }
+.sources-view {
+  max-width: 56rem;
+  margin: 0 auto;
+}
 
-.sources-form {
-  margin-bottom: 2rem;
-  padding: 1.25rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-bg-elevated, var(--color-bg-muted));
-}
-.sources-form__title { margin: 0 0 1rem 0; font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
-.sources-form__cover { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border); }
-.sources-form__cover-title { margin: 0 0 0.5rem 0; font-size: 1rem; font-weight: 600; color: var(--color-text); }
-.sources-form__cover-current { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
-.sources-form__cover-img { max-width: 120px; max-height: 160px; object-fit: contain; border-radius: 4px; border: 1px solid var(--color-border); }
-.sources-form__cover-hint { font-size: 0.9rem; color: var(--color-text-muted); }
-.sources-form__cover-pending {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px dashed var(--color-border);
-  border-radius: 6px;
-  background: var(--color-bg-muted);
-}
-.sources-form__cover-pending-text { margin: 0; font-size: 0.9rem; color: var(--color-text-muted); max-width: 28rem; }
-.sources-form__defer {
+.sources-header {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  margin: 0.5rem 0;
-  font-size: 0.85rem;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-xl, 1.5rem);
+  gap: var(--spacing-lg, 1rem);
+}
+
+.sources-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 0 0 var(--spacing-xs, 0.25rem);
+  letter-spacing: -0.02em;
+}
+
+.sources-subtitle {
+  margin: 0;
+  font-size: 1rem;
   color: var(--color-text-muted);
+}
+
+.sources-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
   cursor: pointer;
+  box-shadow: var(--shadow-md);
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
 }
-.sources-form__defer input { margin-top: 0.15em; }
-.sources-form__cover-upload { margin-bottom: 0.5rem; }
-.sources-form__cover-crop { margin-top: 0.75rem; }
-.sources-form__crop-img { max-height: 280px; }
 
-.form__row { margin-bottom: 1rem; }
-.form__row--inline { display: flex; gap: 1rem; flex-wrap: wrap; }
-.form__row--inline > div { flex: 1; min-width: 140px; }
-.form__label { display: block; margin-bottom: 0.25rem; font-size: 0.9rem; font-weight: 500; color: var(--color-text); }
-.form__input { width: 100%; padding: 0.5rem; font: inherit; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg); color: var(--color-text); }
-.form__file { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
-.form__actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
-.form__error { margin: 0.5rem 0 0; color: var(--color-error); font-size: 0.9rem; }
-
-.crop-editor__wrap {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-  cursor: crosshair;
-  touch-action: none;
+.sources-add-btn:hover {
+  transform: scale(1.05);
 }
-.crop-editor__img { display: block; max-width: 100%; }
-.crop-editor__overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-.crop-editor__lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-.crop-editor__point {
-  position: absolute; width: 24px; height: 24px; margin-left: -12px; margin-top: -12px;
-  border-radius: 50%; background: var(--color-primary, #2563eb); color: #fff; font-size: 12px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: grab;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-.crop-editor__point:active { cursor: grabbing; }
-.crop-editor__actions { margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
-.sources-toolbar { margin-bottom: 1rem; }
-.sources-list { list-style: none; margin: 0; padding: 0; }
+.sources-add-btn svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.loading,
+.empty {
+  color: var(--color-text-muted);
+}
+
+.form__error {
+  color: var(--color-error);
+  font-size: 0.9rem;
+}
+
+.sources-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .sources-list__item {
   display: flex;
   align-items: center;
@@ -584,6 +203,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--color-bg-muted);
 }
+
 .sources-list__thumb {
   flex-shrink: 0;
   width: 56px;
@@ -597,8 +217,20 @@ onBeforeUnmount(() => {
   cursor: pointer;
   overflow: hidden;
 }
-.sources-list__img { width: 100%; height: 100%; object-fit: cover; }
-.sources-list__no-img { font-size: 0.7rem; color: var(--color-text-muted); text-align: center; padding: 0.25rem; }
+
+.sources-list__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sources-list__no-img {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 0.25rem;
+}
+
 .sources-list__pending {
   font-size: 0.65rem;
   font-weight: 700;
@@ -608,18 +240,34 @@ onBeforeUnmount(() => {
   text-align: center;
   padding: 0.25rem;
 }
-.sources-list__main { flex: 1; min-width: 0; cursor: pointer; }
-.sources-list__name { display: block; color: var(--color-text); }
-.sources-list__subtitle { display: block; font-size: 0.9rem; color: var(--color-text-muted); }
-.sources-list__meta { display: block; font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.2rem; }
-.sources-list__delete { flex-shrink: 0; }
 
-.btn { padding: 0.5rem 1rem; border-radius: 4px; font: inherit; cursor: pointer; border: 1px solid transparent; }
-.btn:disabled { opacity: 0.7; cursor: not-allowed; }
-.btn--primary { background: var(--color-btn-primary-bg); color: var(--color-header-fg); }
-.btn--primary:hover:not(:disabled) { opacity: 0.95; }
-.btn--secondary { background: var(--color-btn-secondary-bg); color: var(--color-btn-secondary-fg); border-color: var(--color-btn-secondary-border); }
-.btn--secondary:hover:not(:disabled) { background: var(--color-btn-secondary-hover); }
+.sources-list__main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
 
-.empty { color: var(--color-text-muted); margin-top: 1rem; }
+.sources-list__name {
+  display: block;
+  color: var(--color-text);
+}
+
+.sources-list__subtitle {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.sources-list__meta {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+}
+
+@media (max-width: 768px) {
+  .sources-title {
+    font-size: 1.75rem;
+  }
+}
 </style>

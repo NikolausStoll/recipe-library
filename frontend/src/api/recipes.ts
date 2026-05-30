@@ -12,6 +12,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export interface RecipeSourceInfo {
   source_type?: string
   source_name?: string | null
+  source_url?: string | null
   source_subtitle?: string | null
   source_book_title?: string | null
   source_author?: string | null
@@ -162,6 +163,8 @@ export interface RecipeFormPayload {
   book_title?: string | null
   author?: string | null
   source_page?: string | null
+  /** When recipe is linked to a URL source, updates recipe_sources.url on save. */
+  source_url?: string | null
   status?: 'draft' | 'confirmed'
   would_cook_again?: 'yes' | 'maybe' | 'no' | null
   prep_time_min?: number | null

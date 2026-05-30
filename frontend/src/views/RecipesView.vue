@@ -1,44 +1,49 @@
 <template>
   <div class="recipes-view">
+    <template v-if="!isDetailRoute">
     <div class="recipes-header">
       <div class="recipes-header__main">
         <h1 class="recipes-title">My Recipes</h1>
         <p class="recipes-subtitle">{{ recipes.length }} recipe{{ recipes.length !== 1 ? 's' : '' }} in your collection</p>
       </div>
-      <div class="recipes-header__actions">
-        <div class="recipes-header__import-group">
-          <button type="button" class="btn btn--primary btn--with-icon" @click="showImportOverlay = true">
-            <svg viewBox="0 0 24 24" fill="none">
+      <div ref="addMenuAnchorRef" class="recipes-header__add">
+        <button
+          type="button"
+          class="recipes-add-btn"
+          :aria-expanded="showAddMenu"
+          aria-haspopup="menu"
+          aria-label="Add recipe"
+          @click.stop="toggleAddMenu"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div v-if="showAddMenu" class="add-recipe-menu" role="menu" @click.stop>
+          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('image')">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>Import from Image</span>
+            Image
           </button>
-          <button type="button" class="btn btn--secondary btn--with-icon" @click="showUrlImportOverlay = true">
-            <svg viewBox="0 0 24 24" fill="none">
+          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('url')">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>Import from URL</span>
+            URL
+          </button>
+          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('manual')">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 20H21M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19L4 20L5 17L16.5 3.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Manually
           </button>
         </div>
-        <button type="button" class="btn btn--secondary" @click="openManualForm">
-          + Add Recipe Manually
-        </button>
       </div>
     </div>
-
-    <RecipeImportOverlay
-      v-if="showImportOverlay"
-      @done="onImportDone"
-      @close="showImportOverlay = false"
-    />
-    <RecipeUrlImportOverlay
-      v-if="showUrlImportOverlay"
-      @done="onImportDone"
-      @close="showUrlImportOverlay = false"
-    />
 
     <!-- Search and Filter Toolbar -->
     <div class="recipes-toolbar">
@@ -106,7 +111,7 @@
         v-for="recipe in filteredAndSortedRecipes"
         :key="recipe.id"
         class="recipe-card"
-        @click="viewRecipe(recipe.id)"
+        @click="openRecipeDetail(recipe.id)"
       >
         <div class="recipe-card__image">
           <img
@@ -138,15 +143,25 @@
           <p v-if="recipe.subtitle" class="recipe-card__subtitle">{{ recipe.subtitle }}</p>
           <div class="recipe-card__meta">
             <span
-              v-if="recipe.source_name"
+              v-if="recipe.source_name || recipe.source_url"
               class="recipe-card__meta-item recipe-card__source"
-              @click.stop="showCoverOverlay($event, recipe)"
+              @click.stop="!recipeSourceHref(recipe) && showCoverOverlay($event, recipe)"
             >
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M6.5 2H20V22H6.5C5.83696 22 5.20107 21.7366 4.73223 21.2678C4.26339 20.7989 4 20.163 4 19.5V4.5C4 3.83696 4.26339 3.20107 4.73223 2.73223C5.20107 2.26339 5.83696 2 6.5 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <span class="recipe-card__source-label">
+              <a
+                v-if="recipeSourceHref(recipe)"
+                :href="recipeSourceHref(recipe)!"
+                class="recipe-card__source-label recipe-card__source-link"
+                target="_blank"
+                rel="noopener noreferrer"
+                @click.stop
+              >
+                {{ recipe.source_name || recipe.source_url }}
+              </a>
+              <span v-else class="recipe-card__source-label">
                 {{ recipe.source_name }}<span v-if="recipe.source_page"> · Page {{ recipe.source_page }}</span>
               </span>
             </span>
@@ -201,28 +216,28 @@
         <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <h3>No recipes yet</h3>
-      <p>Start by importing from an image, a URL, or create a recipe manually</p>
-      <div class="empty-state__actions">
-        <button type="button" class="btn btn--primary" @click="showImportOverlay = true">
-          Import from Image
-        </button>
-        <button type="button" class="btn btn--secondary" @click="showUrlImportOverlay = true">
-          Import from URL
-        </button>
-        <button type="button" class="btn btn--secondary" @click="openManualForm">
-          Create Manually
-        </button>
-      </div>
+      <p>Use the + button above to add a recipe from an image, a URL, or manually.</p>
     </div>
+    </template>
 
-    <!-- Recipe Detail View -->
-    <div v-if="viewingRecipe" class="recipe-detail-overlay" @click.self="closeDetailView">
-      <div class="recipe-detail-panel">
-        <button type="button" class="recipe-detail-close" @click="closeDetailView">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Recipe detail (full page) -->
+    <p v-else-if="!viewingRecipe" class="loading-message">Loading recipe…</p>
+    <article v-else class="recipe-detail-page">
+      <header class="recipe-detail-topbar">
+        <button type="button" class="recipe-detail-back" @click="closeDetailView">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
+          Back to {{ favoritesOnly ? 'favorites' : 'recipes' }}
         </button>
+        <button type="button" class="btn btn--primary recipe-detail-edit" @click="editFromDetail">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Edit Recipe
+        </button>
+      </header>
 
         <div class="recipe-detail-content">
           <!-- Hero Image (upload, or best URL from URL import) -->
@@ -284,23 +299,49 @@
                   <span aria-hidden="true">↻</span>
                 </button>
               </div>
-              <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
-                <span class="servings-value">{{ displayServings }}</span>
-                <button type="button" class="servings-btn" @click="adjustServings(1)">+</button>
-                <span class="servings-label">servings</span>
+            </div>
+
+            <div v-if="hasRecipeBookSource(viewingRecipe)" class="recipe-detail-source-block">
+              <h3 class="recipe-detail-source-block__title">Source</h3>
+              <div class="recipe-detail-book-source">
+                <img
+                  v-if="viewingRecipe.source_image_path && !viewingRecipe.source_image_processing_pending"
+                  :src="viewingRecipe.source_image_path"
+                  :alt="viewingRecipe.source_name ?? 'Book cover'"
+                  class="recipe-detail-book-source__cover"
+                />
+                <div class="recipe-detail-book-source__text">
+                  <p v-if="viewingRecipe.source_name" class="recipe-detail-book-source__name">
+                    {{ viewingRecipe.source_name }}
+                  </p>
+                  <p v-if="viewingRecipe.source_subtitle" class="recipe-detail-book-source__meta">
+                    {{ viewingRecipe.source_subtitle }}
+                  </p>
+                  <p
+                    v-if="viewingRecipe.source_author || viewingRecipe.source_year"
+                    class="recipe-detail-book-source__meta"
+                  >
+                    <span v-if="viewingRecipe.source_author">{{ viewingRecipe.source_author }}</span
+                    ><span v-if="viewingRecipe.source_author && viewingRecipe.source_year"> · </span
+                    ><span v-if="viewingRecipe.source_year">{{ viewingRecipe.source_year }}</span>
+                  </p>
+                  <p v-if="viewingRecipe.source_page" class="recipe-detail-book-source__meta">
+                    Page {{ viewingRecipe.source_page }}
+                  </p>
+                </div>
               </div>
-              <button type="button" class="btn btn--primary" @click="editFromDetail">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Edit Recipe
-              </button>
+            </div>
+
+            <div v-else-if="hasRecipeUrlSource(viewingRecipe)" class="recipe-detail-source-block">
+              <h3 class="recipe-detail-source-block__title">Source</h3>
+              <a
+                :href="viewingRecipe.source_url!"
+                class="btn btn--secondary recipe-detail-source-link-btn"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Jump to original recipe
+              </a>
             </div>
           </div>
 
@@ -318,30 +359,22 @@
             <p class="note-block__content">{{ viewingRecipe.description }}</p>
           </div>
 
-          <!-- Steps -->
-          <div class="note-block note-block--steps">
-            <h2 class="recipe-detail-section-title">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Instructions
-            </h2>
-            <ol class="recipe-steps-list">
-              <li v-for="(step, idx) in viewingRecipe.recipe_steps" :key="idx" class="recipe-step">
-                <span class="recipe-step-number">{{ idx + 1 }}</span>
-                <p class="recipe-step-text">{{ step.instruction }}</p>
-              </li>
-            </ol>
-          </div>
-
           <!-- Ingredients -->
           <div class="note-block note-block--ingredients">
-            <h2 class="recipe-detail-section-title">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Ingredients
-            </h2>
+            <div class="recipe-ingredients-head">
+              <h2 class="recipe-detail-section-title recipe-ingredients-head__title">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Ingredients
+              </h2>
+              <div v-if="viewingRecipe.servings" class="recipe-detail-servings recipe-detail-servings--inline">
+                <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
+                <span class="servings-value">{{ displayServings }}</span>
+                <button type="button" class="servings-btn" @click="adjustServings(1)">+</button>
+                <span class="servings-label">servings</span>
+              </div>
+            </div>
             <div
               v-for="(section, sidx) in ingredientSections"
               :key="sidx"
@@ -357,6 +390,22 @@
                 </li>
               </ul>
             </div>
+          </div>
+
+          <!-- Instructions -->
+          <div class="note-block note-block--steps">
+            <h2 class="recipe-detail-section-title">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Instructions
+            </h2>
+            <ol class="recipe-steps-list">
+              <li v-for="(step, idx) in viewingRecipe.recipe_steps" :key="idx" class="recipe-step">
+                <span class="recipe-step-number">{{ idx + 1 }}</span>
+                <p class="recipe-step-text">{{ step.instruction }}</p>
+              </li>
+            </ol>
           </div>
 
           <!-- Tips -->
@@ -514,8 +563,7 @@
             </ul>
           </div>
         </div>
-      </div>
-    </div>
+    </article>
 
     <!-- Would cook again prompt (shown once after first "Mark cooked today") -->
     <div
@@ -540,7 +588,8 @@
     </div>
 
     <!-- Edit Overlay -->
-    <div v-if="showRecipeForm" class="recipe-edit-overlay" @click.self="closeEdit">
+    <Teleport to="body">
+      <div v-if="showRecipeForm" class="app-modal-overlay recipe-edit-overlay" @click.self="closeEdit">
       <div class="recipe-edit-panel">
         <div class="recipe-edit-header">
           <h2>{{ editingId ? 'Edit Recipe' : 'New Recipe' }}</h2>
@@ -579,7 +628,8 @@
           />
         </div>
       </div>
-    </div>
+      </div>
+    </Teleport>
   </div>
 
   <div
@@ -595,14 +645,26 @@
       </div>
     </div>
   </div>
+
+  <RecipeImportOverlay
+    v-if="showImportOverlay"
+    @done="onImportDone"
+    @close="showImportOverlay = false"
+  />
+  <RecipeUrlImportOverlay
+    v-if="showUrlImportOverlay"
+    @done="onImportDone"
+    @close="showUrlImportOverlay = false"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
 import type { FuseOptions } from 'fuse.js'
 import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
-import RecipeImportOverlay from '../components/RecipeImportOverlay.vue'
+import RecipeImportOverlay from '../components/RecipeImportOverlayUnified.vue'
 import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
 import {
   listRecipesWithIngredients,
@@ -634,6 +696,17 @@ import { getRecipeCardImageUrl, getRecipeHeroImageUrl } from '../utils/recipeDis
 
 const props = defineProps<{ favoritesOnly?: boolean }>()
 
+const route = useRoute()
+const router = useRouter()
+const listPath = computed(() => (props.favoritesOnly ? '/favorites' : '/recipes'))
+
+const isDetailRoute = computed(() => {
+  const raw = route.params.id
+  if (raw == null || raw === '') return false
+  const id = Number(raw)
+  return Number.isFinite(id) && id > 0
+})
+
 const recipes = ref<RecipeListItemWithIngredients[]>([])
 const loading = ref(true)
 const error = ref('')
@@ -660,6 +733,8 @@ const ingredientSearchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
 const showImportOverlay = ref(false)
 const showUrlImportOverlay = ref(false)
+const showAddMenu = ref(false)
+const addMenuAnchorRef = ref<HTMLElement | null>(null)
 const showRecipeForm = ref(false)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
@@ -834,6 +909,8 @@ function buildFormInitialFromImportedRecipe(recipe: Recipe): Partial<RecipeFormP
     description: pr?.introText ?? recipe.description ?? '',
     servings: pr?.servings?.value ?? recipe.servings ?? null,
     source_id: recipe.source_id ?? null,
+    source_type: recipe.source_type ?? null,
+    source_url: recipe.source_url ?? null,
     source_page: recipe.source_page ?? '',
     ingredients,
     recipe_steps,
@@ -1091,15 +1168,21 @@ async function toggleFavorite(recipeId: number) {
   }
 }
 
-async function viewRecipe(id: number) {
+async function loadRecipeDetail(id: number) {
   try {
     viewingRecipe.value = await getRecipe(id)
     displayServings.value = viewingRecipe.value.servings || 1
     healthScoreResult.value = viewingRecipe.value.health_score ?? null
     healthScoreError.value = ''
+    document.title = `${viewingRecipe.value.title} – Recipe Library`
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load recipe'
+    router.replace(listPath.value)
   }
+}
+
+function openRecipeDetail(id: number) {
+  router.push(`${listPath.value}/${id}`)
 }
 
 async function runNutritionEstimate(recipeId: number, options?: { refreshList?: boolean }) {
@@ -1112,7 +1195,7 @@ async function runNutritionEstimate(recipeId: number, options?: { refreshList?: 
       await loadList()
     }
     if (viewingRecipe.value?.id === recipeId) {
-      await viewRecipe(recipeId)
+      await loadRecipeDetail(recipeId)
     }
   } catch (e) {
     console.error('Nutrition estimate failed:', e)
@@ -1181,6 +1264,21 @@ function formatRecipeMinutes(
 
 function formatTagChip(t: string) {
   return t.replace(/_/g, ' ')
+}
+
+function recipeSourceHref(recipe: { source_type?: string; source_url?: string | null }): string | null {
+  if (recipe.source_type === 'url' && recipe.source_url) return recipe.source_url
+  return null
+}
+
+function hasRecipeBookSource(recipe: Recipe | RecipeListItemWithIngredients | null | undefined): boolean {
+  if (!recipe) return false
+  return recipe.source_type === 'book' && !!(recipe.source_name || recipe.source_id)
+}
+
+function hasRecipeUrlSource(recipe: Recipe | RecipeListItemWithIngredients | null | undefined): boolean {
+  if (!recipe) return false
+  return recipe.source_type === 'url' && !!recipe.source_url
 }
 
 function mergeTimesIntoFormInitial(recipe: Recipe) {
@@ -1282,12 +1380,19 @@ async function onFormGenerateTags() {
   }
 }
 
-function closeDetailView() {
+function clearDetailState() {
   viewingRecipe.value = null
   displayServings.value = 1
   healthScoreResult.value = null
   healthScoreError.value = ''
   timeEstimateError.value = ''
+  const pageTitle = props.favoritesOnly ? 'Favorites' : 'Recipes'
+  document.title = `${pageTitle} – Recipe Library`
+}
+
+function closeDetailView() {
+  clearDetailState()
+  if (route.params.id) router.push(listPath.value)
 }
 
 function adjustServings(delta: number) {
@@ -1297,7 +1402,7 @@ function adjustServings(delta: number) {
 function editFromDetail() {
   if (viewingRecipe.value) {
     const id = viewingRecipe.value.id
-    viewingRecipe.value = null
+    closeDetailView()
     startEdit(id)
   }
 }
@@ -1313,6 +1418,8 @@ function startEdit(id: number) {
       description: recipe.description ?? '',
       servings: recipe.servings ?? null,
       source_id: recipe.source_id ?? null,
+      source_type: recipe.source_type ?? null,
+      source_url: recipe.source_url ?? null,
       source_page: recipe.source_page ?? '',
       image_path: recipe.image_path ?? null,
       image_processing_pending: recipe.image_processing_pending ?? false,
@@ -1366,6 +1473,29 @@ function openManualForm() {
   showRecipeForm.value = true
 }
 
+function toggleAddMenu() {
+  showAddMenu.value = !showAddMenu.value
+}
+
+function closeAddMenu() {
+  showAddMenu.value = false
+}
+
+function onAddMenuChoice(kind: 'image' | 'url' | 'manual') {
+  closeAddMenu()
+  if (kind === 'image') showImportOverlay.value = true
+  else if (kind === 'url') showUrlImportOverlay.value = true
+  else openManualForm()
+}
+
+function onDocumentClickForAddMenu(event: MouseEvent) {
+  if (!showAddMenu.value) return
+  const anchor = addMenuAnchorRef.value
+  if (anchor && !anchor.contains(event.target as Node)) {
+    closeAddMenu()
+  }
+}
+
 async function onFormSubmit(
   payload: RecipeFormPayload,
   imageFile: File | string | null,
@@ -1410,6 +1540,13 @@ async function onFormSubmit(
     if (recipeId) {
       // Refresh form data without closing overlay
       startEdit(recipeId)
+      if (viewingRecipe.value?.id === recipeId) {
+        try {
+          viewingRecipe.value = await getRecipe(recipeId)
+        } catch {
+          /* list refresh below still runs */
+        }
+      }
     }
 
     if (options?.estimateNutrition && recipeId) {
@@ -1447,9 +1584,28 @@ async function onDeleteFromEdit() {
   }
 }
 
+watch(
+  () => route.params.id,
+  async (raw) => {
+    if (!raw) {
+      if (viewingRecipe.value) clearDetailState()
+      return
+    }
+    const id = Number(raw)
+    if (!Number.isFinite(id) || id <= 0) {
+      router.replace(listPath.value)
+      return
+    }
+    if (viewingRecipe.value?.id === id) return
+    await loadRecipeDetail(id)
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   loadList()
   document.addEventListener('click', hideCoverOverlay)
+  document.addEventListener('click', onDocumentClickForAddMenu)
 })
 
 watch(
@@ -1457,7 +1613,7 @@ watch(
   async () => {
     await loadList()
     // Avoid showing stale detail/edit state from the previous listing filter.
-    viewingRecipe.value = null
+    clearDetailState()
     editingId.value = null
     formInitial.value = null
     editingStatus.value = null
@@ -1466,8 +1622,14 @@ watch(
   }
 )
 
+watch(showRecipeForm, (open) => {
+  document.body.classList.toggle('app-modal-open', open)
+})
+
 onBeforeUnmount(() => {
   document.removeEventListener('click', hideCoverOverlay)
+  document.removeEventListener('click', onDocumentClickForAddMenu)
+  document.body.classList.remove('app-modal-open')
 })
 </script>
 
@@ -1505,18 +1667,80 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-.recipes-header__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-  align-items: center;
+.recipes-header__add {
+  position: relative;
+  flex-shrink: 0;
 }
 
-.recipes-header__import-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
+.recipes-add-btn {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.recipes-add-btn:hover {
+  transform: scale(1.05);
+  background: var(--color-primary-hover, var(--color-primary));
+}
+
+.recipes-add-btn svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.add-recipe-menu {
+  position: absolute;
+  top: calc(100% + var(--spacing-sm));
+  right: 0;
+  z-index: 50;
+  min-width: 11rem;
+  padding: var(--spacing-xs);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.add-recipe-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.add-recipe-menu__item:hover {
+  background: var(--color-bg-muted, rgba(0, 0, 0, 0.05));
+}
+
+.add-recipe-menu__item svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
 }
 
 .btn {
@@ -1781,6 +2005,62 @@ onBeforeUnmount(() => {
   padding-left: 5px;
 }
 
+.recipe-card__source-link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.recipe-card__source-link:hover {
+  text-decoration: underline;
+}
+
+.recipe-detail-source-block {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.recipe-detail-source-block__title {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.recipe-detail-book-source {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-start;
+}
+
+.recipe-detail-book-source__cover {
+  width: 56px;
+  height: 76px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.recipe-detail-book-source__name {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.recipe-detail-book-source__meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.recipe-detail-source-link-btn {
+  display: inline-flex;
+  text-decoration: none;
+}
+
 .recipe-card__meta-item {
   display: flex;
   align-items: center;
@@ -1931,62 +2211,72 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-/* Recipe Detail View */
-.recipe-detail-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: var(--color-bg-overlay);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  overflow-y: auto;
-  backdrop-filter: blur(4px);
-}
-
-.recipe-detail-panel {
-  background: var(--color-bg);
+/* Recipe detail (full page) */
+.recipe-detail-page {
   width: 100%;
-  max-width: 1200px;
-  min-height: 100vh;
-  position: relative;
-  padding: 1rem;
 }
 
-.recipe-detail-close {
-  position: fixed;
-  top: var(--spacing-lg);
-  right: var(--spacing-lg);
-  width: 48px;
-  height: 48px;
+.recipe-detail-topbar {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.recipe-detail-edit {
+  flex-shrink: 0;
+}
+
+.recipe-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin: calc(-1 * var(--spacing-xs)) calc(-1 * var(--spacing-sm));
   border: none;
-  border-radius: var(--radius-full);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  z-index: 10;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
-.recipe-detail-close:hover {
-  background: var(--color-error);
-  transform: scale(1.1);
+.recipe-detail-back:hover {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
 }
 
-.recipe-detail-close svg {
-  width: 24px;
-  height: 24px;
-  stroke-width: 2;
+.recipe-detail-back svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
 }
 
 .recipe-detail-content {
   display: grid;
-  flex-direction: column;
-  gap: var(--spacing-2xl);
-  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-xl);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 769px) {
+  .recipe-detail-content {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .note-block--image,
+  .note-block--header,
+  .note-block--description,
+  .note-block--tips,
+  .note-block--nutrition,
+  .note-block--history {
+    grid-column: 1 / -1;
+  }
 }
 
 .recipe-detail-hero {
@@ -2031,18 +2321,18 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-title {
-  font-size: 3rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: var(--color-text);
-  margin: 0 0 var(--spacing-md) 0;
-  line-height: 1.2;
+  margin: 0 0 var(--spacing-sm) 0;
+  line-height: 1.25;
   letter-spacing: -0.02em;
 }
 
 .recipe-detail-subtitle {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   color: var(--color-text-muted);
-  margin: 0 0 var(--spacing-lg) 0;
+  margin: 0 0 var(--spacing-md) 0;
   line-height: 1.4;
 }
 
@@ -2171,6 +2461,25 @@ onBeforeUnmount(() => {
   background: var(--color-bg-elevated);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
+}
+
+.recipe-detail-servings--inline {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.recipe-ingredients-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-md);
+}
+
+.recipe-ingredients-head__title {
+  margin: 0;
 }
 
 .recipe-detail-servings svg {
@@ -2604,13 +2913,6 @@ onBeforeUnmount(() => {
 
 /* Edit Overlay */
 .recipe-edit-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: var(--color-bg-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: var(--spacing-lg);
   backdrop-filter: blur(4px);
 }
@@ -2779,38 +3081,12 @@ onBeforeUnmount(() => {
 
 .note-block--image {
   padding: 0;
-  transform: rotate(-0.6deg);
 }
 
 .note-block--header {
-  transform: rotate(0.35deg);
   padding: 0 var(--spacing-xl);
   max-width: 900px;
   margin: 0 auto;
-}
-
-.note-block--description {
-  transform: rotate(-0.2deg);
-}
-
-.note-block--steps {
-  transform: rotate(0.2deg);
-}
-
-.note-block--ingredients {
-  transform: rotate(-0.15deg);
-}
-
-.note-block--tips {
-  transform: rotate(0.1deg);
-}
-
-.note-block--nutrition {
-  transform: rotate(-0.1deg);
-}
-
-.note-block--history {
-  transform: rotate(0.2deg);
 }
 
 .note-block__title,
@@ -2837,12 +3113,8 @@ onBeforeUnmount(() => {
     flex-direction: column;
   }
 
-  .recipes-header__actions {
-    width: 100%;
-  }
-
-  .btn {
-    flex: 1;
+  .recipes-header__add {
+    align-self: flex-end;
   }
 
   .recipes-grid {
@@ -2873,11 +3145,20 @@ onBeforeUnmount(() => {
   }
 
   .recipe-detail-title {
-    font-size: 2rem;
+    font-size: 1.5rem;
   }
 
   .recipe-detail-subtitle {
-    font-size: 1.25rem;
+    font-size: 1rem;
+  }
+
+  .recipe-detail-edit {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.875rem;
+  }
+
+  .recipe-detail-edit svg {
+    display: none;
   }
 
   .recipe-detail-body {
@@ -2919,13 +3200,6 @@ onBeforeUnmount(() => {
 
   .filter-select {
     flex: 1;
-  }
-
-  .recipe-detail-close {
-    top: var(--spacing-sm);
-    right: var(--spacing-sm);
-    width: 40px;
-    height: 40px;
   }
 
   .recipe-nutrition {

@@ -11,9 +11,9 @@ A full-stack recipe management application with AI-powered recipe extraction fro
   1. Optional: Upload recipe photo
   2. Upload recipe text image(s) → OpenAI vision extraction with structured JSON schema
 - **Recipe URL scrape**: `POST /api/recipes/extract-from-url` fetches HTML and extracts raw fields (JSON-LD + HTML heuristics). Optional `normalize: true` chains OpenAI (`gpt-4o-mini` by default) to structured JSON matching the vision-extract schema (German, metric-friendly units)
-- **Recipe URL import (full flow)**: `POST /api/recipes/import-from-url` creates a draft recipe, scrapes + normalizes with OpenAI, writes each LLM call to `ai_token_usage` (with `model` and `usage_kind`), then returns the recipe for editing in the UI
+- **Recipe URL import (full flow)**: `POST /api/recipes/import-from-url` creates a draft recipe linked to a `recipe_sources` row (`type: url`, clickable `source_url` in the UI), scrapes + normalizes with OpenAI, writes each LLM call to `ai_token_usage` (with `model` and `usage_kind`), then returns the recipe for editing
 - **Book Source Management**: Track recipes from cookbooks with metadata and cover images
-- **4-Point Perspective Crop**: Optional Python-based image perspective correction
+- **4-Point Perspective Crop**: Optional Python-based image perspective correction; UI uses a shared **Crop** button (next to rotate) that opens a full-screen crop dialog—corner points are kept in memory until you save, import, or upload
 - **Admin · Extract usage**: Table of OpenAI token usage with per-request cost estimate (¢) for supported models
 - **Light/Dark Mode**: CSS custom properties for full theme support
 - **Token Usage Tracking**: Monitor OpenAI API costs via `ai_token_usage` table
@@ -232,9 +232,9 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Image URLs from JSON-LD / HTML are **deduplicated** when they look like the same asset at different resolutions (WordPress-style `-WxH`, query `w`/`h`, etc.); the **largest** resolution is kept per group and listed first in `image_urls_json` for the UI
   - Response: `{ recipe, scrape: { source, warnings, fetched_url } }` with HTTP 201
 
-### AI Import (Two-Step Process)
+### AI Import (Unified Image Flow)
 
-#### Step 1: Upload Recipe Photo (Optional)
+#### Create Draft With Optional Cover Image
 - **`POST /api/upload`** – Upload recipe image
   - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point perspective crop), optional **`processImageLater`** (`true` / `1`) to **defer** resize/WebP
   - **Immediate processing** (default): optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/recipe/`
@@ -242,10 +242,10 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Creates draft recipe with `image_path` (and `image_processing_pending` when deferring)
   - Response: `{ url: string, recipe: { id, image_path, image_processing_pending, ... }, thumbUrl? }` (`thumbUrl` is null when deferred)
 
-#### Step 2: Extract Recipe from Text Images
+#### Extract Recipe from Selected Images
 - **`POST /api/recipes/:id/extract-from-images`** – AI extraction via OpenAI
   - Body: `multipart/form-data` with `images` field (one or more text images)
-  - **Not** the same as Step 1 / `processImageLater`: uploads are read into **memory** only (`multer.memoryStorage()`), then **`prepareTextImage`** downscales (longest side ≤ `TEXT_IMAGE_MAX_DIMENSION`, default 1400) and optional perspective crop runs **before** the vision call. Nothing is stored under `pending/` and **`image_processing_pending` is not used** for these text images—they are discarded after extraction (only structured recipe data is saved).
+  - OCR/extract uploads are read into **memory** only (`multer.memoryStorage()`), then **`prepareTextImage`** downscales (longest side ≤ `TEXT_IMAGE_MAX_DIMENSION`, default 1400) and optional perspective crop runs **before** the vision call. Nothing is stored under `pending/` and **`image_processing_pending` is not used** for these extract images—they are discarded after extraction (only structured recipe data is saved).
   - Response: `{ recipe: { status, confidence, warnings, missingFields, recipe: {...} }, usage?: { prompt_tokens, completion_tokens, total_tokens } }`
   - Token usage logged to `ai_token_usage` table
 
