@@ -1,14 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import AppLayout from '../layouts/AppLayout.vue'
+import AppShell from '../layouts/AppShell.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
       path: '/',
-      component: AppLayout,
+      component: AppShell,
       children: [
-        { path: '', name: 'dashboard', component: () => import('../views/DashboardView.vue'), meta: { title: 'Dashboard' } },
+        { path: '', redirect: '/recipes' },
+        { path: 'dashboard', redirect: '/recipes' },
         {
           path: 'recipes/:id?',
           name: 'recipes',
@@ -22,8 +23,36 @@ const router = createRouter({
           props: { favoritesOnly: true },
           meta: { title: 'Favorites' },
         },
-        { path: 'sources', name: 'sources', component: () => import('../views/SourcesView.vue'), meta: { title: 'Buchquellen' } },
-        { path: 'shopping', name: 'shopping', component: () => import('../views/ShoppingView.vue'), meta: { title: 'Shopping' } },
+        {
+          path: 'plan',
+          name: 'plan',
+          component: () => import('../views/PlanView.vue'),
+          meta: { title: 'Plan' },
+        },
+        {
+          path: 'add',
+          name: 'add',
+          component: () => import('../views/AddRecipeView.vue'),
+          meta: { title: 'Add recipe' },
+        },
+        {
+          path: 'shopping',
+          name: 'shopping',
+          component: () => import('../views/ShoppingView.vue'),
+          meta: { title: 'Shopping' },
+        },
+        {
+          path: 'sources/:id?',
+          name: 'sources',
+          component: () => import('../views/SourcesView.vue'),
+          meta: { title: 'Sources' },
+        },
+        {
+          path: 'more',
+          name: 'more',
+          component: () => import('../views/MoreView.vue'),
+          meta: { title: 'More' },
+        },
         {
           path: 'admin/extract-usage',
           name: 'admin-extract-usage',

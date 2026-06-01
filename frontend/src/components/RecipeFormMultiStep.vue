@@ -1,26 +1,24 @@
 <template>
   <div class="recipe-form-multi">
-    <!-- Progress Steps -->
-    <div class="form-progress">
-      <div
+    <div v-if="editingStatus === 'draft'" class="editor-review-banner">
+      <span class="status-chip-review">Needs review</span>
+      <p>Review AI-extracted ingredients and instructions before cooking.</p>
+      <button type="button" class="btn btn--secondary btn--small" @click="emit('confirm')">Mark as reviewed</button>
+    </div>
+
+    <nav class="editor-sections" aria-label="Recipe sections">
+      <button
         v-for="(step, idx) in steps"
-        :key="idx"
-        class="form-progress__step"
-        :class="{
-          'form-progress__step--active': idx === currentStep,
-          'form-progress__step--completed': idx < currentStep
-        }"
+        :key="step.id"
+        type="button"
+        class="editor-sections__item"
+        :class="{ 'editor-sections__item--active': idx === currentStep }"
         @click="goToStep(idx)"
       >
-        <div class="form-progress__number">
-          <svg v-if="idx < currentStep" viewBox="0 0 24 24" fill="none">
-            <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span v-else>{{ idx + 1 }}</span>
-        </div>
-        <div class="form-progress__label">{{ step.label }}</div>
-      </div>
-    </div>
+        <span class="editor-sections__label">{{ step.label }}</span>
+        <span class="editor-sections__status meta-text">{{ sectionStatus(idx) }}</span>
+      </button>
+    </nav>
 
     <!-- Form Content -->
     <form class="form-content" @submit.prevent="onSubmitForm">
@@ -224,24 +222,7 @@
 
         <div class="form-section">
           <h4 class="form-section__title">Tags</h4>
-          <p class="form-hint form-hint--tags">
-            Recipe tags for future filtering (controlled list). Hold Ctrl/Cmd to pick multiple.
-          </p>
-          <div v-if="form.tags.length" class="tag-chip-row">
-            <span v-for="t in form.tags" :key="t" class="recipe-tag-chip">{{ formatTagLabel(t) }}</span>
-          </div>
-          <div class="form-field">
-            <label for="recipe-tags-multiselect">Select tags</label>
-            <select
-              id="recipe-tags-multiselect"
-              v-model="form.tags"
-              multiple
-              class="form-input tag-multiselect"
-              :size="tagSelectSize"
-            >
-              <option v-for="t in allAllowedTags" :key="t" :value="t">{{ formatTagLabel(t) }}</option>
-            </select>
-          </div>
+          <TagInput v-model="form.tags" :options="allAllowedTags" :format-label="formatTagLabel" />
           <div v-if="editingId != null" class="form-field">
             <button
               type="button"
@@ -676,15 +657,7 @@
           class="btn btn--secondary"
           @click="nextStep"
         >
-          Next Step
-        </button>
-        <button
-          v-if="editingId && editingStatus === 'draft'"
-          type="button"
-          class="btn btn--success"
-          @click="emit('confirm')"
-        >
-          Confirm Recipe
+          Next section
         </button>
       </div>
     </form>
@@ -705,6 +678,7 @@ import type { RecipeSource } from '../api/sources'
 import { INGREDIENT_CATEGORY_OPTIONS, getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 import { getRecipeFormPreviewUrl } from '../utils/recipeDisplayImage'
 import CropPerspectiveModal from './CropPerspectiveModal.vue'
+import TagInput from './ui/TagInput.vue'
 import type { CropNaturalPoint } from './CropPerspectiveModal.vue'
 import { rotateImageFile90 } from '../utils/imageRotate'
 
@@ -881,10 +855,17 @@ function getNewImageCropPoints(): CropPoint[] | undefined {
 }
 
 const steps = [
-  { label: 'Basics', icon: 'info' },
-  { label: 'Ingredients', icon: 'list' },
-  { label: 'Instructions', icon: 'steps' },
+  { id: 'basics', label: 'Basics' },
+  { id: 'ingredients', label: 'Ingredients' },
+  { id: 'instructions', label: 'Instructions' },
 ]
+
+function sectionStatus(idx: number): string {
+  if (idx === 0) return form.title.trim() ? 'Complete' : 'Missing'
+  if (idx === 1) return form.ingredients.some((i) => (i.name || '').trim()) ? 'Complete' : 'Needs review'
+  if (idx === 2) return form.recipe_steps.some((s) => s.instruction.trim()) ? 'Complete' : 'Needs review'
+  return ''
+}
 
 const form = reactive({
   title: '',
@@ -902,8 +883,6 @@ const form = reactive({
 })
 
 const allAllowedTags = ref<string[]>([])
-const tagSelectSize = computed(() => Math.min(12, Math.max(6, allAllowedTags.value.length || 8)))
-
 function formatTagLabel(t: string) {
   return t.replace(/_/g, ' ')
 }
@@ -1347,7 +1326,69 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
   gap: var(--spacing-xl);
 }
 
-/* Progress Steps */
+.editor-review-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  background: var(--color-warning-soft);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 22%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.editor-review-banner p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.editor-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-sm);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.editor-sections__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--color-text);
+}
+
+.editor-sections__item:hover {
+  background: var(--color-surface);
+}
+
+.editor-sections__item--active {
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.editor-sections__label {
+  font-weight: 560;
+}
+
+.editor-sections__status {
+  font-size: 0.8rem;
+}
+
+/* Progress Steps (legacy) */
 .form-progress {
   display: flex;
   justify-content: space-between;

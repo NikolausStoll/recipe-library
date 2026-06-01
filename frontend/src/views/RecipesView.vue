@@ -1,104 +1,49 @@
 <template>
   <div class="recipes-view">
     <template v-if="!isDetailRoute">
-    <div class="recipes-header">
-      <div class="recipes-header__main">
-        <h1 class="recipes-title">My Recipes</h1>
-        <p class="recipes-subtitle">{{ recipes.length }} recipe{{ recipes.length !== 1 ? 's' : '' }} in your collection</p>
-      </div>
-      <div ref="addMenuAnchorRef" class="recipes-header__add">
-        <button
-          type="button"
-          class="recipes-add-btn"
-          :aria-expanded="showAddMenu"
-          aria-haspopup="menu"
-          aria-label="Add recipe"
-          @click.stop="toggleAddMenu"
-        >
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div v-if="showAddMenu" class="add-recipe-menu" role="menu" @click.stop>
-          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('image')">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Image
-          </button>
-          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('url')">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            URL
-          </button>
-          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('manual')">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 20H21M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19L4 20L5 17L16.5 3.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Manually
-          </button>
-        </div>
-      </div>
-    </div>
+    <header class="recipes-header page-header">
+      <h1 class="recipes-title h2">{{ favoritesOnly ? 'Favorites' : 'Recipes' }}</h1>
+      <router-link v-if="showDesktopAdd" to="/add" class="btn btn--primary recipes-header__add-desktop">Add recipe</router-link>
+    </header>
 
-    <!-- Search and Filter Toolbar -->
     <div class="recipes-toolbar">
-      <div class="recipes-toolbar__searches">
-        <div class="search-box search-box--title">
-          <svg class="search-box__icon" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <input
-            v-model="searchQuery"
-            type="search"
-            class="search-box__input"
-            placeholder="Search recipes by title..."
-            aria-label="Search recipes by title"
-          />
-        </div>
-        <div class="search-box search-box--ingredients">
-          <svg class="search-box__icon" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M7 3H17C17.5523 3 18 3.44772 18 4V20C18 20.5523 17.5523 21 17 21H7C6.44772 21 6 20.5523 6 20V4C6 3.44772 6.44772 3 7 3Z"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M9 8H15"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <input
-            v-model="ingredientSearchQuery"
-            type="search"
-            class="search-box__input"
-            placeholder="Search ingredients (comma-separated)"
-            aria-label="Search recipes by ingredients"
-          />
-        </div>
+      <div class="search-field">
+        <svg class="search-field__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
+          <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="search"
+          class="search-field__input"
+          placeholder="Search recipes, ingredients, tags…"
+          aria-label="Search recipes"
+        />
       </div>
-      <div class="recipes-toolbar__meta">
-        <div class="filter-group">
+      <div class="recipes-toolbar__filters">
+        <div class="chip-row recipes-filter-chips" role="group" aria-label="Filter recipes">
+          <button
+            v-for="chip in filterChips"
+            :key="chip.id"
+            type="button"
+            class="chip"
+            :class="{ 'chip--selected': activeFilter === chip.id }"
+            @click="activeFilter = chip.id"
+          >
+            {{ chip.label }}
+          </button>
+        </div>
+        <div class="recipes-toolbar__meta">
+          <span class="meta-text recipes-toolbar__count" aria-live="polite">
+            {{ filteredAndSortedRecipes.length }} recipe{{ filteredAndSortedRecipes.length !== 1 ? 's' : '' }}
+          </span>
           <select v-model="sortBy" class="filter-select" aria-label="Sort by">
-            <option value="updated-desc">Latest Updated</option>
-            <option value="updated-asc">Oldest Updated</option>
+            <option value="updated-desc">Recently updated</option>
+            <option value="updated-asc">Oldest updated</option>
             <option value="title-asc">Name (A–Z)</option>
             <option value="title-desc">Name (Z–A)</option>
           </select>
         </div>
-        <p class="recipes-toolbar__count" aria-live="polite">
-          {{ filteredAndSortedRecipes.length }} recipe{{ filteredAndSortedRecipes.length !== 1 ? 's' : '' }} shown
-        </p>
       </div>
     </div>
 
@@ -106,7 +51,7 @@
     <p v-if="loading && !recipes.length" class="loading-message">Loading recipes...</p>
 
     <!-- Recipe Grid -->
-    <div v-if="!loading || recipes.length" class="recipes-grid">
+    <div v-if="!loading || recipes.length" class="recipes-grid recipe-grid">
       <div
         v-for="recipe in filteredAndSortedRecipes"
         :key="recipe.id"
@@ -134,13 +79,14 @@
               <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <span v-if="recipe.status === 'draft'" class="recipe-card__badge recipe-card__badge--draft">
-            Draft
+          <span v-if="recipeNeedsReview(recipe.status)" class="recipe-card__badge status-chip-review">
+            Needs review
           </span>
         </div>
         <div class="recipe-card__content">
           <h3 class="recipe-card__title">{{ recipe.title }}</h3>
           <p v-if="recipe.subtitle" class="recipe-card__subtitle">{{ recipe.subtitle }}</p>
+          <p v-if="formatRecipeCardMeta(recipe)" class="recipe-card__meta-line meta-text">{{ formatRecipeCardMeta(recipe) }}</p>
           <div class="recipe-card__meta">
             <span
               v-if="recipe.source_name || recipe.source_url"
@@ -216,9 +162,38 @@
         <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <h3>No recipes yet</h3>
-      <p>Use the + button above to add a recipe from an image, a URL, or manually.</p>
+      <p>Use Add to capture a recipe from a photo, URL, or manual entry.</p>
     </div>
     </template>
+
+    <!-- Cooking mode -->
+    <article v-else-if="isCookingMode && viewingRecipe" class="cooking-mode">
+      <header class="cooking-mode__top">
+        <button type="button" class="btn btn--ghost" @click="exitCookingMode">Exit</button>
+        <span class="meta-text">Cooking</span>
+      </header>
+      <p class="cooking-mode__progress meta-text">
+        Step {{ cookingStepIndex + 1 }} of {{ cookingSteps.length }}
+      </p>
+      <p class="cooking-mode__text">{{ cookingSteps[cookingStepIndex]?.instruction }}</p>
+      <div class="cooking-mode__nav">
+        <button type="button" class="btn btn--secondary" :disabled="cookingStepIndex <= 0" @click="cookingStepIndex--">Previous</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          :disabled="cookingStepIndex >= cookingSteps.length - 1"
+          @click="cookingStepIndex++"
+        >
+          Next
+        </button>
+      </div>
+      <details class="cooking-mode__ingredients">
+        <summary>All ingredients</summary>
+        <ul>
+          <li v-for="(line, idx) in cookingIngredientLines" :key="idx">{{ line }}</li>
+        </ul>
+      </details>
+    </article>
 
     <!-- Recipe detail (full page) -->
     <p v-else-if="!viewingRecipe" class="loading-message">Loading recipe…</p>
@@ -230,14 +205,33 @@
           </svg>
           Back to {{ favoritesOnly ? 'favorites' : 'recipes' }}
         </button>
-        <button type="button" class="btn btn--primary recipe-detail-edit" @click="editFromDetail">
+      </header>
+
+      <div v-if="recipeNeedsReview(viewingRecipe.status)" class="recipe-detail-review-banner">
+        <span class="status-chip-review">Needs review</span>
+        <p>AI extracted this recipe. Review it before cooking.</p>
+        <button type="button" class="btn btn--secondary btn--small" @click="editFromDetail">Review recipe</button>
+      </div>
+
+      <div class="recipe-detail-actions">
+        <button type="button" class="btn btn--primary recipe-detail-cook" @click="startCookingMode">Cook</button>
+        <button
+          type="button"
+          class="icon-btn"
+          :class="{ 'recipe-detail-fav--on': viewingRecipe.favorite }"
+          :title="viewingRecipe.favorite ? 'Unfavorite' : 'Favorite'"
+          @click="toggleFavorite(viewingRecipe.id)"
+        >
+          ★
+        </button>
+        <button type="button" class="btn btn--ghost recipe-detail-edit" @click="editFromDetail">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          Edit Recipe
+          Edit
         </button>
-      </header>
+      </div>
 
         <div class="recipe-detail-content">
           <!-- Hero Image (upload, or best URL from URL import) -->
@@ -693,6 +687,8 @@ import type {
 } from '../api/recipes'
 import { getPerServingValue } from '../utils/nutrition'
 import { getRecipeCardImageUrl, getRecipeHeroImageUrl } from '../utils/recipeDisplayImage'
+import { recipeNeedsReview } from '../utils/recipeStatusLabel'
+import { formatRecipeCardMeta } from '../utils/recipeCardMeta'
 
 const props = defineProps<{ favoritesOnly?: boolean }>()
 
@@ -729,8 +725,35 @@ type RecipeFormInitial = Partial<RecipeFormPayload> & {
 const formInitial = ref<RecipeFormInitial | null>(null)
 const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
-const ingredientSearchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
+const activeFilter = ref(
+  props.favoritesOnly ? 'favorites' : (typeof route.query.filter === 'string' ? route.query.filter : 'all')
+)
+const showDesktopAdd = ref(typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches)
+const cookingStepIndex = ref(0)
+
+const filterChips = [
+  { id: 'all', label: 'All' },
+  { id: 'favorites', label: 'Favorites' },
+  { id: 'quick', label: 'Quick' },
+  { id: 'healthy', label: 'Healthy' },
+  { id: 'dinner', label: 'Dinner' },
+  { id: 'books', label: 'From books' },
+  { id: 'review', label: 'Needs review' },
+] as const
+
+const isCookingMode = computed(() => route.query.cook === '1' && viewingRecipe.value != null)
+
+const cookingSteps = computed(() => viewingRecipe.value?.recipe_steps ?? [])
+
+const cookingIngredientLines = computed(() => {
+  const recipe = viewingRecipe.value
+  if (!recipe?.ingredients?.length) return [] as string[]
+  return recipe.ingredients.map((ing) => {
+    const parts = [ing.amount, ing.unit, ing.ingredient || ing.name].filter(Boolean)
+    return parts.join(' ').trim() || ing.original_text || ''
+  })
+})
 const showImportOverlay = ref(false)
 const showUrlImportOverlay = ref(false)
 const showAddMenu = ref(false)
@@ -833,6 +856,7 @@ const fuseOptions: IFuseOptions<RecipeListItemWithIngredients> = {
   keys: [
     { name: 'title', weight: 2 },
     { name: 'ingredients.ingredient', weight: 1 },
+    { name: 'tags', weight: 1 },
   ],
 }
 let fuseInstance: Fuse<RecipeListItemWithIngredients> | null = null
@@ -1052,61 +1076,40 @@ const ingredientSections = computed(() => {
   return sections
 })
 
-const ingredientTokens = computed(() =>
-  ingredientSearchQuery.value
-    .split(',')
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0)
-)
+function recipeMatchesFilter(recipe: RecipeListItemWithIngredients): boolean {
+  switch (activeFilter.value) {
+    case 'favorites':
+      return recipe.favorite
+    case 'quick': {
+      const tags = recipe.tags ?? []
+      const mins = (recipe.prep_time_min ?? 0) + (recipe.cook_time_min ?? 0)
+      return tags.includes('quick') || tags.includes('easy') || (mins > 0 && mins <= 35)
+    }
+    case 'healthy': {
+      const tags = recipe.tags ?? []
+      return tags.some((t) => /vegetarian|vegan|healthy|salad/i.test(t))
+    }
+    case 'dinner':
+      return (recipe.tags ?? []).includes('dinner')
+    case 'books':
+      return recipe.source_type === 'book' || Boolean(recipe.source_name)
+    case 'review':
+      return recipe.status === 'draft'
+    default:
+      return true
+  }
+}
 
 const filteredAndSortedRecipes = computed(() => {
   let list: RecipeListItemWithIngredients[] = recipes.value
-  const titleTerm = searchQuery.value.trim()
-  const ingredientTerms = ingredientTokens.value
+  const term = searchQuery.value.trim()
 
-  if (titleTerm) {
+  if (term) {
     if (!fuseInstance) return []
-    const titleResults = fuseInstance.search(titleTerm)
-    list = titleResults.map((res) => res.item)
+    list = fuseInstance.search(term).map((res) => res.item)
   }
 
-  if (ingredientTerms.length) {
-    if (!fuseInstance) {
-      list = []
-    } else {
-      let ingredientMatchIds: Set<number> | null = null
-      for (const token of ingredientTerms) {
-        const ids = new Set<number>()
-        const matches = fuseInstance.search(token)
-        for (const match of matches) {
-          if (
-            match.matches?.some((m) => (m.key ?? '').startsWith('ingredients'))
-          ) {
-            ids.add(match.item.id)
-          }
-        }
-        if (ids.size === 0) {
-          ingredientMatchIds = new Set<number>()
-          break
-        }
-        if (ingredientMatchIds === null) {
-          ingredientMatchIds = ids
-        } else {
-          const intersection = new Set<number>()
-          for (const id of ingredientMatchIds) {
-            if (ids.has(id)) intersection.add(id)
-          }
-          ingredientMatchIds = intersection
-        }
-        if (ingredientMatchIds.size === 0) break
-      }
-      if (ingredientMatchIds && ingredientMatchIds.size > 0) {
-        list = list.filter((recipe) => ingredientMatchIds.has(recipe.id))
-      } else if (ingredientMatchIds && ingredientMatchIds.size === 0) {
-        list = []
-      }
-    }
-  }
+  list = list.filter(recipeMatchesFilter)
 
   const sorted = [...list]
   switch (sortBy.value) {
@@ -1386,7 +1389,18 @@ function clearDetailState() {
 
 function closeDetailView() {
   clearDetailState()
-  if (route.params.id) router.push(listPath.value)
+  if (route.params.id) router.push({ path: listPath.value, query: {} })
+}
+
+function startCookingMode() {
+  cookingStepIndex.value = 0
+  router.push({ path: route.path, query: { ...route.query, cook: '1' } })
+}
+
+function exitCookingMode() {
+  const q = { ...route.query } as Record<string, string>
+  delete q.cook
+  router.push({ path: route.path, query: q })
 }
 
 function adjustServings(delta: number) {
@@ -1585,6 +1599,10 @@ watch(
       if (viewingRecipe.value) clearDetailState()
       return
     }
+    if (raw === 'new') {
+      openManualForm()
+      return
+    }
     const id = Number(raw)
     if (!Number.isFinite(id) || id <= 0) {
       router.replace(listPath.value)
@@ -1592,6 +1610,17 @@ watch(
     }
     if (viewingRecipe.value?.id === id) return
     await loadRecipeDetail(id)
+    if (route.query.review === '1') {
+      startEdit(id)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.favoritesOnly,
+  (fav) => {
+    if (fav) activeFilter.value = 'favorites'
   },
   { immediate: true },
 )
@@ -1943,9 +1972,122 @@ onBeforeUnmount(() => {
   letter-spacing: 0.05em;
 }
 
-.recipe-card__badge--draft {
-  background: var(--color-draft-bg);
-  color: var(--color-draft-fg);
+.recipe-card__meta-line {
+  margin: 0 0 var(--spacing-sm);
+}
+
+.recipes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.recipes-header__add-desktop {
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.recipes-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.recipes-toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.recipes-filter-chips {
+  flex: 1;
+  min-width: 0;
+}
+
+.recipes-toolbar__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.recipe-detail-review-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  background: var(--color-warning-soft);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 22%, transparent);
+}
+
+.recipe-detail-review-banner p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.recipe-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xl);
+}
+
+.recipe-detail-cook {
+  min-width: 120px;
+}
+
+.recipe-detail-fav--on {
+  color: var(--color-warning);
+}
+
+.cooking-mode {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.cooking-mode__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+}
+
+.cooking-mode__progress {
+  margin-bottom: var(--spacing-sm);
+}
+
+.cooking-mode__text {
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  line-height: 1.45;
+  margin-bottom: var(--spacing-xl);
+}
+
+.cooking-mode__nav {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.cooking-mode__ingredients {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.cooking-mode__ingredients ul {
+  margin: var(--spacing-sm) 0 0;
+  padding-left: var(--spacing-lg);
 }
 
 .recipe-card__content {
