@@ -639,7 +639,7 @@
     @click.stop
   >
     <div class="recipe-cover-overlay__frame">
-      <img :src="coverOverlay.src" :alt="coverOverlay.title ?? 'Book cover'" />
+      <img :src="coverOverlay.src ?? undefined" :alt="coverOverlay.title ?? 'Book cover'" />
       <div v-if="coverOverlay.title" class="recipe-cover-overlay__title">
         {{ coverOverlay.title }}
       </div>
@@ -662,7 +662,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
-import type { FuseOptions } from 'fuse.js'
+import type { IFuseOptions } from 'fuse.js'
 import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
 import RecipeImportOverlay from '../components/RecipeImportOverlayUnified.vue'
 import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
@@ -711,22 +711,22 @@ const recipes = ref<RecipeListItemWithIngredients[]>([])
 const loading = ref(true)
 const error = ref('')
 const editingId = ref<number | null>(null)
-const formInitial = ref<
-  | (Partial<RecipeFormPayload> & {
-      parsed_recipe?: ParsedRecipeFromOcr | null
-      import_method?: string | null
-      extract_confidence?: number | null
-      extract_missing_fields?: string[] | null
-      nutrition_kcal?: number | null
-      nutrition_protein?: number | null
-      nutrition_carbs?: number | null
-      nutrition_fat?: number | null
-      image_path?: string | null
-      image_urls_json?: string | null
-      image_processing_pending?: boolean
-    })
-  | null
->(null)
+type RecipeFormInitial = Partial<RecipeFormPayload> & {
+  source_type?: string | null
+  parsed_recipe?: ParsedRecipeFromOcr | null
+  import_method?: string | null
+  extract_confidence?: number | null
+  extract_missing_fields?: string[] | null
+  nutrition_kcal?: number | null
+  nutrition_protein?: number | null
+  nutrition_carbs?: number | null
+  nutrition_fat?: number | null
+  image_path?: string | null
+  image_urls_json?: string | null
+  image_processing_pending?: boolean
+}
+
+const formInitial = ref<RecipeFormInitial | null>(null)
 const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
 const ingredientSearchQuery = ref('')
@@ -798,7 +798,7 @@ async function setWouldCookAgain(value: 'yes' | 'maybe' | 'no') {
   if (!recipeId) return
 
   try {
-    const updated = await updateRecipe(recipeId, { would_cook_again: value } as any)
+    const updated = await updateRecipe(recipeId, { would_cook_again: value })
     showWouldCookAgainPrompt.value = false
     wouldCookAgainRecipeId.value = null
     wouldCookAgainValue.value = value
@@ -826,7 +826,7 @@ function historySummary(recipeId: number) {
   return `Cooked: ${history.slice(0, 2).join(', ')}${history.length > 2 ? ' …' : ''}`
 }
 
-const fuseOptions: FuseOptions<RecipeListItemWithIngredients> = {
+const fuseOptions: IFuseOptions<RecipeListItemWithIngredients> = {
   includeMatches: true,
   threshold: 0.3,
   ignoreLocation: true,
@@ -845,19 +845,7 @@ function rebuildFuse() {
   fuseInstance = new Fuse(recipes.value, fuseOptions)
 }
 
-function buildFormInitialFromImportedRecipe(recipe: Recipe): Partial<RecipeFormPayload> & {
-  parsed_recipe?: ParsedRecipeFromOcr | null
-  extract_confidence?: number | null
-  extract_missing_fields?: string[] | null
-  nutrition_kcal?: number | null
-  nutrition_protein?: number | null
-  nutrition_carbs?: number | null
-  nutrition_fat?: number | null
-  import_method?: string | null
-  image_path?: string | null
-  image_urls_json?: string | null
-  image_processing_pending?: boolean
-} {
+function buildFormInitialFromImportedRecipe(recipe: Recipe): RecipeFormInitial {
   const pr = recipe.parsed_recipe
   type Ing = {
     amount: string
@@ -1098,12 +1086,18 @@ const filteredAndSortedRecipes = computed(() => {
           }
         }
         if (ids.size === 0) {
-          ingredientMatchIds = new Set()
+          ingredientMatchIds = new Set<number>()
           break
         }
-        ingredientMatchIds = ingredientMatchIds
-          ? new Set([...ingredientMatchIds].filter((id) => ids.has(id)))
-          : ids
+        if (ingredientMatchIds === null) {
+          ingredientMatchIds = ids
+        } else {
+          const intersection = new Set<number>()
+          for (const id of ingredientMatchIds) {
+            if (ids.has(id)) intersection.add(id)
+          }
+          ingredientMatchIds = intersection
+        }
         if (ingredientMatchIds.size === 0) break
       }
       if (ingredientMatchIds && ingredientMatchIds.size > 0) {
@@ -1516,7 +1510,7 @@ async function onFormSubmit(
     // Handle image upload or deletion
     if (imageFile && recipeId) {
       if (imageFile === 'DELETE') {
-        await updateRecipe(recipeId, { image_path: null } as any)
+        await updateRecipe(recipeId, { image_path: null })
       } else if (imageFile instanceof File) {
         const formData = new FormData()
         formData.append('image', imageFile)

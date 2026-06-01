@@ -180,6 +180,11 @@ export interface RecipeFormPayload {
   tags?: string[]
 }
 
+/** Partial body for PUT /api/recipes/:id (backend merges with existing row). */
+export type RecipeUpdatePayload = Partial<RecipeFormPayload> & {
+  image_path?: string | null
+}
+
 export function listRecipes(): Promise<RecipeListItem[]> {
   return fetch(`${API_BASE}/recipes`).then((res) => handleResponse<RecipeListItem[]>(res))
 }
@@ -284,7 +289,7 @@ export function createRecipe(payload: RecipeFormPayload): Promise<Recipe> {
   }).then((res) => handleResponse<Recipe>(res))
 }
 
-export function updateRecipe(id: number, payload: RecipeFormPayload): Promise<Recipe> {
+export function updateRecipe(id: number, payload: RecipeUpdatePayload): Promise<Recipe> {
   return fetch(`${API_BASE}/recipes/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
