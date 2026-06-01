@@ -1,23 +1,18 @@
 <template>
-  <div class="view view--shopping">
-    <h1>Shopping</h1>
-    <p>Shopping list from recipes. (Placeholder)</p>
+  <div class="page shopping-view">
+    <header class="page-header">
+      <h1 class="page-header__title h2">Shopping</h1>
+      <p class="page-header__subtitle">Build a list from planned meals or selected recipes — coming soon.</p>
+    </header>
+    <div class="surface-card shopping-view__card">
+      <p class="body-text">Shopping list generation is not implemented yet. Use recipes and favorites for now.</p>
+    </div>
   </div>
 </template>
 
-<script setup lang="ts">
-</script>
-
 <style scoped>
-.view {
-  max-width: 56rem;
-}
-.view h1 {
-  margin: 0 0 0.5rem 0;
-  color: var(--color-text);
-}
-.view p {
-  margin: 0;
-  color: var(--color-text-muted);
+.shopping-view__card {
+  padding: var(--spacing-xl);
+  max-width: 36rem;
 }
 </style>

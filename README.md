@@ -15,7 +15,8 @@ A full-stack recipe management application with AI-powered recipe extraction fro
 - **Book Source Management**: Track recipes from cookbooks with metadata and cover images
 - **4-Point Perspective Crop**: Optional Python-based image perspective correction; UI uses a shared **Crop** button (next to rotate) that opens a full-screen crop dialog—corner points are kept in memory until you save, import, or upload
 - **Admin · Extract usage**: Table of OpenAI token usage with per-request cost estimate (¢) for supported models
-- **Light/Dark Mode**: CSS custom properties for full theme support
+- **Personal cookbook UI**: Image-led redesign with violet accent, desktop top nav, mobile bottom nav (Recipes · Plan · Add · Shopping · More), unified recipe search, filter chips, and **Needs review** (UI label for `draft` status)
+- **Light/Dark Mode**: Semantic design tokens (`data-theme` on `<html>`), Work Sans typography
 - **Token Usage Tracking**: Monitor OpenAI API costs via `ai_token_usage` table
 
 ## Project Structure
@@ -24,9 +25,9 @@ A full-stack recipe management application with AI-powered recipe extraction fro
 recipe-library/
 ├── frontend/          # Vue 3 + Vite + TypeScript
 │   ├── src/
-│   │   ├── views/           # Dashboard, Recipes, Sources, Shopping
-│   │   ├── components/      # RecipeForm, RecipeImportOverlay
-│   │   ├── layouts/         # AppLayout (header + nav)
+│   │   ├── views/           # Recipes, Plan, Add, Shopping, Sources, More, Admin
+│   │   ├── components/      # RecipeFormMultiStep, import overlays, ui (TagInput, nav)
+│   │   ├── layouts/         # AppShell (top + bottom nav)
 │   │   ├── router/          # Vue Router configuration
 │   │   └── api/             # API client functions
 │   └── package.json

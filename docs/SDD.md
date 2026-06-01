@@ -91,17 +91,19 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 ### Frontend (Vue 3)
 - **Framework**: Vue 3 with Composition API and `<script setup>` syntax
 - **Build Tool**: Vite for fast development and optimized production builds
-- **Routing**: Vue Router with AppLayout wrapper for consistent navigation
+- **Routing**: Vue Router with `AppShell` wrapper; home route `/recipes` (see `sdd/redesign-spec.md`)
 - **Views**:
-  - `DashboardView.vue` - Statistics and quick actions
-  - `RecipesView.vue` - Recipe list, detail view, and edit overlay
-  - `SourcesView.vue` - Book source management
-  - `ShoppingView.vue` - Placeholder for future features
+  - `RecipesView.vue` - Image-led list, filter chips, detail, cooking mode (`?cook=1`), edit overlay
+  - `AddRecipeView.vue` - Photo / upload / URL / manual entry (mobile-first option order)
+  - `PlanView.vue`, `ShoppingView.vue` - Styled placeholders
+  - `SourcesView.vue` - Bookshelf card grid
+  - `MoreView.vue` - Theme, favorites link, admin link
+  - `AdminExtractUsageView.vue` - Token usage table
 - **Key Components**:
-  - `RecipeFormMultiStep.vue` - 4-step recipe form (Basics, Ingredients, Instructions, Review)
-  - `RecipeImportOverlay.vue` - AI import workflow with camera/file upload and crop
-  - `AppLayout.vue` - Header with navigation and branding
-- **Styling**: CSS custom properties for light/dark theme support, modern card-based layouts
+  - `RecipeFormMultiStep.vue` - Section-based editor (Basics / Ingredients / Instructions) + `TagInput`
+  - `RecipeImportOverlayUnified.vue` - AI image import
+  - `TopNavigation.vue` / `BottomNavigation.vue` - Responsive shell
+- **Styling**: Semantic tokens (`styles.css`), shared UI primitives (`styles/components.css`), Work Sans, violet accent; UI label **Needs review** maps to DB `draft`
 
 ### Backend (Express + Node.js)
 - **Server**: Express.js web framework on port 8097

@@ -14,17 +14,20 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 
 ### Frontend (`frontend/`)
 - **Framework**: Vue 3 with Composition API, TypeScript
-- **Routing**: Vue Router with AppLayout wrapper (`createWebHistory`)
+- **Routing**: Vue Router with `AppShell` wrapper (`createWebHistory`); `/` redirects to `/recipes` (recipes are home; dashboard removed from primary nav)
 - **Vite `base`**: Use `base: '/'` (root-relative built assets). A relative base (`./`) breaks reloads on nested routes (e.g. `/admin/extract-usage`): the browser requests `/admin/assets/…` and gets a non-JS response (Firefox: `NS_ERROR_CORRUPTED_CONTENT`).
-- **Views**: Dashboard, Recipes, Sources (Buchquellen), Shopping
-- **Styling**: CSS custom properties for light/dark mode theming
+- **Views**: Recipes (list + detail + cooking mode), Plan/Shopping placeholders, Add recipe, Sources, More (theme, favorites link, admin), Admin extract usage
+- **Navigation**: Desktop top nav (Recipes, Plan, Shopping, Sources, More + Add); mobile bottom nav (Recipes, Plan, **Add**, Shopping, More). Sources on mobile under More.
+- **Styling**: Semantic tokens in `styles.css` + shared primitives in `styles/components.css`; violet accent (not orange); `useTheme` + `data-theme` on `<html>`
+- **Copy**: UI shows **Needs review** for `status === 'draft'` (backend unchanged)
 - **Key Components**:
   - `RecipeForm.vue` - Main recipe entry/edit form
   - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (ingredients & steps: **plain-text summary** by default; click to expand editors; **+ Add** opens new rows in edit mode; ingredient OCR original line hidden for `import_method === 'url'`; categories from `constants/ingredientCategories.ts`)
  - `RecipeImportOverlayUnified.vue` - Unified AI import overlay: add all photos in one flow, mark optional cover image, then run OCR extraction on selected pages
   - `CropPerspectiveModal.vue` - Shared full-screen 4-point perspective crop dialog (`CropPerspectiveEditor` inside); crop points kept in memory until import/save/upload
   - `SourceCoverPicker.vue` - Book cover pick/preview with rotate/crop/remove icon row (opens crop modal)
-  - `AppLayout.vue` - Main layout with header and navigation
+  - `AppShell.vue` - Sticky top nav (desktop) + fixed bottom nav (mobile)
+  - `TagInput.vue` - Chip-based tag picker (replaces native multi-select)
 
 ### Backend (`backend/src/`)
 - **Constants**: `constants/ingredientCategories.js` – canonical ingredient category keys + `sanitizeIngredientCategory()` (must match frontend `constants/ingredientCategories.ts`)

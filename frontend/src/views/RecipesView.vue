@@ -1,104 +1,52 @@
 <template>
   <div class="recipes-view">
     <template v-if="!isDetailRoute">
-    <div class="recipes-header">
-      <div class="recipes-header__main">
-        <h1 class="recipes-title">My Recipes</h1>
-        <p class="recipes-subtitle">{{ recipes.length }} recipe{{ recipes.length !== 1 ? 's' : '' }} in your collection</p>
-      </div>
-      <div ref="addMenuAnchorRef" class="recipes-header__add">
-        <button
-          type="button"
-          class="recipes-add-btn"
-          :aria-expanded="showAddMenu"
-          aria-haspopup="menu"
-          aria-label="Add recipe"
-          @click.stop="toggleAddMenu"
-        >
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div v-if="showAddMenu" class="add-recipe-menu" role="menu" @click.stop>
-          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('image')">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Image
-          </button>
-          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('url')">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            URL
-          </button>
-          <button type="button" class="add-recipe-menu__item" role="menuitem" @click="onAddMenuChoice('manual')">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 20H21M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19L4 20L5 17L16.5 3.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Manually
-          </button>
-        </div>
-      </div>
-    </div>
+    <header class="recipes-header page-header">
+      <h1 class="recipes-title h2">{{ favoritesOnly ? 'Favorites' : 'Recipes' }}</h1>
+      <router-link to="/add" class="btn btn--primary recipes-header__add-desktop">Add recipe</router-link>
+    </header>
 
-    <!-- Search and Filter Toolbar -->
     <div class="recipes-toolbar">
-      <div class="recipes-toolbar__searches">
-        <div class="search-box search-box--title">
-          <svg class="search-box__icon" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <input
-            v-model="searchQuery"
-            type="search"
-            class="search-box__input"
-            placeholder="Search recipes by title..."
-            aria-label="Search recipes by title"
-          />
-        </div>
-        <div class="search-box search-box--ingredients">
-          <svg class="search-box__icon" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M7 3H17C17.5523 3 18 3.44772 18 4V20C18 20.5523 17.5523 21 17 21H7C6.44772 21 6 20.5523 6 20V4C6 3.44772 6.44772 3 7 3Z"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M9 8H15"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <input
-            v-model="ingredientSearchQuery"
-            type="search"
-            class="search-box__input"
-            placeholder="Search ingredients (comma-separated)"
-            aria-label="Search recipes by ingredients"
-          />
-        </div>
+      <div class="search-field">
+        <svg class="search-field__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
+          <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="search"
+          class="search-field__input"
+          placeholder="Search recipes, ingredients, tags…"
+          aria-label="Search recipes"
+        />
       </div>
-      <div class="recipes-toolbar__meta">
-        <div class="filter-group">
-          <select v-model="sortBy" class="filter-select" aria-label="Sort by">
-            <option value="updated-desc">Latest Updated</option>
-            <option value="updated-asc">Oldest Updated</option>
-            <option value="title-asc">Name (A–Z)</option>
-            <option value="title-desc">Name (Z–A)</option>
-          </select>
+      <div class="recipes-toolbar__filters">
+        <div class="chip-row recipes-filter-chips" role="group" aria-label="Filter recipes">
+          <button
+            v-for="chip in filterChips"
+            :key="chip.id"
+            type="button"
+            class="chip"
+            :class="{ 'chip--selected': activeFilter === chip.id }"
+            @click="activeFilter = chip.id"
+          >
+            {{ chip.label }}
+          </button>
         </div>
-        <p class="recipes-toolbar__count" aria-live="polite">
-          {{ filteredAndSortedRecipes.length }} recipe{{ filteredAndSortedRecipes.length !== 1 ? 's' : '' }} shown
-        </p>
+        <div class="recipes-toolbar__meta">
+          <span class="meta-text recipes-toolbar__count" aria-live="polite">
+            {{ filteredAndSortedRecipes.length }} recipe{{ filteredAndSortedRecipes.length !== 1 ? 's' : '' }}
+          </span>
+          <label class="recipes-sort">
+            <span class="recipes-sort__visible meta-text">{{ sortByLabel }}</span>
+            <select v-model="sortBy" class="recipes-sort__select" aria-label="Sort by">
+              <option value="updated-desc">Recently updated</option>
+              <option value="updated-asc">Oldest updated</option>
+              <option value="title-asc">Name (A–Z)</option>
+              <option value="title-desc">Name (Z–A)</option>
+            </select>
+          </label>
+        </div>
       </div>
     </div>
 
@@ -106,14 +54,14 @@
     <p v-if="loading && !recipes.length" class="loading-message">Loading recipes...</p>
 
     <!-- Recipe Grid -->
-    <div v-if="!loading || recipes.length" class="recipes-grid">
-      <div
+    <div v-if="!loading || recipes.length" class="recipe-grid recipe-list">
+      <article
         v-for="recipe in filteredAndSortedRecipes"
         :key="recipe.id"
         class="recipe-card"
         @click="openRecipeDetail(recipe.id)"
       >
-        <div class="recipe-card__image">
+        <div class="recipe-card__thumb">
           <img
             v-if="getRecipeCardImageUrl(recipe)"
             :src="getRecipeCardImageUrl(recipe)!"
@@ -125,47 +73,21 @@
             class="recipe-card__placeholder recipe-card__placeholder--pending"
             title="Image not processed yet"
           >
-            <span class="recipe-card__pending-label">Pending crop</span>
+            <span class="recipe-card__pending-label">Pending</span>
           </div>
-          <div v-else class="recipe-card__placeholder">
+          <div v-else class="recipe-card__placeholder" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <span v-if="recipe.status === 'draft'" class="recipe-card__badge recipe-card__badge--draft">
-            Draft
-          </span>
         </div>
-        <div class="recipe-card__content">
+        <div class="recipe-card__body">
           <h3 class="recipe-card__title">{{ recipe.title }}</h3>
-          <p v-if="recipe.subtitle" class="recipe-card__subtitle">{{ recipe.subtitle }}</p>
-          <div class="recipe-card__meta">
-            <span
-              v-if="recipe.source_name || recipe.source_url"
-              class="recipe-card__meta-item recipe-card__source"
-              @click.stop="!recipeSourceHref(recipe) && showCoverOverlay($event, recipe)"
-            >
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M6.5 2H20V22H6.5C5.83696 22 5.20107 21.7366 4.73223 21.2678C4.26339 20.7989 4 20.163 4 19.5V4.5C4 3.83696 4.26339 3.20107 4.73223 2.73223C5.20107 2.26339 5.83696 2 6.5 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <a
-                v-if="recipeSourceHref(recipe)"
-                :href="recipeSourceHref(recipe)!"
-                class="recipe-card__source-label recipe-card__source-link"
-                target="_blank"
-                rel="noopener noreferrer"
-                @click.stop
-              >
-                {{ recipe.source_name || recipe.source_url }}
-              </a>
-              <span v-else class="recipe-card__source-label">
-                {{ recipe.source_name }}<span v-if="recipe.source_page"> · Page {{ recipe.source_page }}</span>
-              </span>
-            </span>
-          </div>
+          <p v-if="formatRecipeCardMeta(recipe)" class="recipe-card__meta-line meta-text">{{ formatRecipeCardMeta(recipe) }}</p>
+          <p v-if="recipeCardDescription(recipe)" class="recipe-card__desc meta-text">{{ recipeCardDescription(recipe) }}</p>
+          <span v-if="recipeNeedsReview(recipe.status)" class="recipe-card__review status-chip-review">Needs review</span>
         </div>
         <div class="recipe-card__actions">
           <button
@@ -197,7 +119,7 @@
             </svg>
           </button>
         </div>
-      </div>
+      </article>
     </div>
 
     <div v-if="!loading && recipes.length && !filteredAndSortedRecipes.length" class="empty-state">
@@ -216,223 +138,290 @@
         <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <h3>No recipes yet</h3>
-      <p>Use the + button above to add a recipe from an image, a URL, or manually.</p>
+      <p>Use Add to capture a recipe from a photo, URL, or manual entry.</p>
     </div>
     </template>
+
+    <!-- Cooking mode -->
+    <article v-else-if="isCookingMode && viewingRecipe" class="cooking-mode">
+      <header class="cooking-mode__top">
+        <button type="button" class="cooking-mode__exit" @click="exitCookingMode">Exit</button>
+        <span class="cooking-mode__label meta-text">Cooking</span>
+      </header>
+      <div class="cooking-mode__layout">
+        <div class="cooking-mode__main">
+          <p class="cooking-mode__progress meta-text">
+            Step {{ cookingStepIndex + 1 }} of {{ cookingSteps.length }}
+          </p>
+          <p class="cooking-mode__text">{{ cookingSteps[cookingStepIndex]?.instruction }}</p>
+          <div class="cooking-mode__nav">
+            <button type="button" class="btn btn--secondary" :disabled="cookingStepIndex <= 0" @click="cookingStepIndex--">
+              Previous
+            </button>
+            <button
+              type="button"
+              class="btn btn--primary"
+              :disabled="cookingStepIndex >= cookingSteps.length - 1"
+              @click="cookingStepIndex++"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        <aside class="cooking-mode__aside" aria-label="Ingredients">
+          <h2 class="cooking-mode__aside-title">Ingredients</h2>
+          <ul class="cooking-mode__ingredient-list">
+            <li v-for="(line, idx) in cookingIngredientLines" :key="idx">{{ line }}</li>
+          </ul>
+        </aside>
+      </div>
+      <details class="cooking-mode__ingredients-mobile">
+        <summary>All ingredients</summary>
+        <ul>
+          <li v-for="(line, idx) in cookingIngredientLines" :key="`m-${idx}`">{{ line }}</li>
+        </ul>
+      </details>
+    </article>
 
     <!-- Recipe detail (full page) -->
     <p v-else-if="!viewingRecipe" class="loading-message">Loading recipe…</p>
     <article v-else class="recipe-detail-page">
-      <header class="recipe-detail-topbar">
-        <button type="button" class="recipe-detail-back" @click="closeDetailView">
+      <header class="recipe-detail-nav">
+        <button
+          type="button"
+          class="recipe-detail-nav__btn recipe-detail-nav__btn--back"
+          :aria-label="`Back to ${favoritesOnly ? 'favorites' : 'recipes'}`"
+          @click="closeDetailView"
+        >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          Back to {{ favoritesOnly ? 'favorites' : 'recipes' }}
+          <span class="recipe-detail-nav__back-label">Back to {{ favoritesOnly ? 'favorites' : 'recipes' }}</span>
         </button>
-        <button type="button" class="btn btn--primary recipe-detail-edit" @click="editFromDetail">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          Edit Recipe
-        </button>
+        <div class="recipe-detail-nav__menu-wrap">
+          <button
+            type="button"
+            class="recipe-detail-nav__btn"
+            aria-label="More actions"
+            aria-haspopup="true"
+            :aria-expanded="detailMenuOpen"
+            @click.stop="detailMenuOpen = !detailMenuOpen"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="6" r="1.5" fill="currentColor"/>
+              <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+              <circle cx="12" cy="18" r="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+          <div v-if="detailMenuOpen" class="recipe-detail-nav__menu" @click.stop>
+            <button
+              type="button"
+              :disabled="hasCookedToday(viewingRecipe.id)"
+              @click="markCookedFromMenu"
+            >
+              {{ hasCookedToday(viewingRecipe.id) ? 'Cooked today' : 'Mark cooked today' }}
+            </button>
+            <button
+              v-if="hasRecipeUrlSource(viewingRecipe)"
+              type="button"
+              @click="openOriginalFromMenu"
+            >
+              Open original recipe
+            </button>
+            <button type="button" class="recipe-detail-nav__menu-edit-mobile" @click="detailMenuOpen = false; editFromDetail()">
+              Edit recipe
+            </button>
+            <button
+              v-if="recipeNeedsReview(viewingRecipe.status)"
+              type="button"
+              @click="detailMenuOpen = false; editFromDetail()"
+            >
+              Review recipe
+            </button>
+            <button type="button" class="recipe-detail-nav__menu-danger" @click="deleteFromDetail">
+              Delete recipe
+            </button>
+          </div>
+        </div>
       </header>
 
-        <div class="recipe-detail-content">
-          <!-- Hero Image (upload, or best URL from URL import) -->
-          <div
-            v-if="
-              (viewingRecipe.image_path && viewingRecipe.image_processing_pending) ||
-              getRecipeHeroImageUrl(viewingRecipe)
-            "
-            class="recipe-detail-hero note-block note-block--image"
+      <div class="recipe-detail-layout">
+        <div
+          v-if="
+            (viewingRecipe.image_path && viewingRecipe.image_processing_pending) ||
+            getRecipeHeroImageUrl(viewingRecipe)
+          "
+          class="recipe-detail-hero recipe-detail-hero--mobile"
+        >
+          <button
+            v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
+            type="button"
+            class="recipe-detail-pending-hero"
+            @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
           >
-            <button
-              v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
-              type="button"
-              class="recipe-detail-pending-hero"
-              @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
-            >
-              <span class="recipe-detail-pending-hero__text">Image not processed yet — open editor to crop and optimize</span>
-            </button>
-            <img
-              v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
-              :src="getRecipeHeroImageUrl(viewingRecipe)!"
-              :alt="viewingRecipe.title"
-            />
+            <span class="recipe-detail-pending-hero__text">Image not processed yet — open editor to crop and optimize</span>
+          </button>
+          <img
+            v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
+            :src="getRecipeHeroImageUrl(viewingRecipe)!"
+            :alt="viewingRecipe.title"
+          />
+        </div>
+
+        <div class="recipe-detail-main-col">
+        <div class="recipe-detail-identity">
+        <div v-if="recipeNeedsReview(viewingRecipe.status)" class="recipe-detail-review-inline">
+          <span class="status-chip-review">Needs review</span>
+          <button type="button" class="recipe-detail-review-inline__link" @click="editFromDetail">Review</button>
+        </div>
+
+        <h1 class="recipe-detail-title">{{ viewingRecipe.title }}</h1>
+        <p v-if="viewingRecipe.subtitle" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
+        <p v-else-if="viewingRecipe.description && !viewingRecipe.subtitle" class="recipe-detail-subtitle">
+          {{ viewingRecipe.description }}
+        </p>
+
+        <div
+          v-if="detailMetaSource || detailMetaServings || detailMetaPrep || detailMetaCook"
+          class="recipe-detail-meta"
+        >
+          <div class="recipe-detail-meta__item recipe-detail-meta__item--source">
+            <svg v-if="detailMetaSourceKind === 'book'" class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6.5 2H20V22H6.5C5.83696 22 5.20107 21.7366 4.73223 21.2678C4.26339 20.7989 4 20.163 4 19.5V4.5C4 3.83696 4.26339 3.20107 4.73223 2.73223C5.20107 2.26339 5.83696 2 6.5 2Z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <svg v-else-if="detailMetaSourceKind === 'website'" class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.75"/>
+              <path d="M3 12H21M12 3C14.5 6.5 15.5 9 15.5 12C15.5 15 14.5 17.5 12 21C9.5 17.5 8.5 15 8.5 12C8.5 9 9.5 6.5 12 3Z" stroke="currentColor" stroke-width="1.75"/>
+            </svg>
+            <svg v-else class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.75"/>
+            </svg>
+            <span class="recipe-detail-meta__source">{{ detailMetaSource }}</span>
           </div>
-
-          <!-- Header -->
-          <div class="recipe-detail-header note-block note-block--header">
-            <h1 class="recipe-detail-title">{{ viewingRecipe.title }}</h1>
-            <p v-if="viewingRecipe.subtitle" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
-            <div v-if="viewingRecipe.tags?.length" class="recipe-detail-tags">
-              <span v-for="t in viewingRecipe.tags" :key="t" class="recipe-detail-tag-chip">{{ formatTagChip(t) }}</span>
-            </div>
-
-            <div class="recipe-detail-meta">
-              <div class="recipe-detail-times recipe-detail-times--rows">
-                <div class="recipe-detail-times__block">
-                  <div class="recipe-detail-time-row">
-                    <span class="recipe-detail-time-label">Prep</span>
-                    <span class="recipe-detail-time-value">{{
-                      formatRecipeMinutes(viewingRecipe.prep_time_min, viewingRecipe.prep_time_source)
-                    }}</span>
-                  </div>
-                  <div class="recipe-detail-time-row">
-                    <span class="recipe-detail-time-label">Cook</span>
-                    <span class="recipe-detail-time-value">{{
-                      formatRecipeMinutes(viewingRecipe.cook_time_min, viewingRecipe.cook_time_source)
-                    }}</span>
-                  </div>
-                  <p v-if="timeEstimateError" class="recipe-detail-time-inline-error">{{ timeEstimateError }}</p>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn--icon recipe-detail-time-refresh-combined"
-                  :disabled="timeEstimateLoading"
-                  title="Re-estimate prep and cook times with AI"
-                  aria-label="Re-estimate prep and cook times with AI"
-                  @click="runEstimateTimesForDetail"
-                >
-                  <span aria-hidden="true">↻</span>
-                </button>
-              </div>
-            </div>
-
-            <div v-if="hasRecipeBookSource(viewingRecipe)" class="recipe-detail-source-block">
-              <h3 class="recipe-detail-source-block__title">Source</h3>
-              <div class="recipe-detail-book-source">
-                <img
-                  v-if="viewingRecipe.source_image_path && !viewingRecipe.source_image_processing_pending"
-                  :src="viewingRecipe.source_image_path"
-                  :alt="viewingRecipe.source_name ?? 'Book cover'"
-                  class="recipe-detail-book-source__cover"
-                />
-                <div class="recipe-detail-book-source__text">
-                  <p v-if="viewingRecipe.source_name" class="recipe-detail-book-source__name">
-                    {{ viewingRecipe.source_name }}
-                  </p>
-                  <p v-if="viewingRecipe.source_subtitle" class="recipe-detail-book-source__meta">
-                    {{ viewingRecipe.source_subtitle }}
-                  </p>
-                  <p
-                    v-if="viewingRecipe.source_author || viewingRecipe.source_year"
-                    class="recipe-detail-book-source__meta"
-                  >
-                    <span v-if="viewingRecipe.source_author">{{ viewingRecipe.source_author }}</span
-                    ><span v-if="viewingRecipe.source_author && viewingRecipe.source_year"> · </span
-                    ><span v-if="viewingRecipe.source_year">{{ viewingRecipe.source_year }}</span>
-                  </p>
-                  <p v-if="viewingRecipe.source_page" class="recipe-detail-book-source__meta">
-                    Page {{ viewingRecipe.source_page }}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div v-else-if="hasRecipeUrlSource(viewingRecipe)" class="recipe-detail-source-block">
-              <h3 class="recipe-detail-source-block__title">Source</h3>
-              <a
-                :href="viewingRecipe.source_url!"
-                class="btn btn--secondary recipe-detail-source-link-btn"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Jump to original recipe
-              </a>
-            </div>
-          </div>
-
-          <!-- Description -->
-          <div v-if="viewingRecipe.description" class="note-block note-block--description">
-            <h2 class="note-block__title">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M4 4H20V20H4V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M8 8H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M8 12H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M8 16H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <template v-if="detailMetaServings">
+            <span class="recipe-detail-meta__sep" aria-hidden="true" />
+            <div class="recipe-detail-meta__item recipe-detail-meta__item--servings">
+              <svg class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.75"/>
+                <circle cx="16" cy="10" r="2.5" stroke="currentColor" stroke-width="1.75"/>
+                <path d="M4 20C4 16.5 6.5 14 9 14C11 14 12.2 14.8 13 16M13 16C13.8 14.8 15 14 16.5 14C19 14 21 16 21 19" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
               </svg>
-              Description
-            </h2>
-            <p class="note-block__content">{{ viewingRecipe.description }}</p>
-          </div>
-
-          <!-- Ingredients -->
-          <div class="note-block note-block--ingredients">
-            <div class="recipe-ingredients-head">
-              <h2 class="recipe-detail-section-title recipe-ingredients-head__title">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Ingredients
-              </h2>
-              <div v-if="viewingRecipe.servings" class="recipe-detail-servings recipe-detail-servings--inline">
-                <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
-                <span class="servings-value">{{ displayServings }}</span>
-                <button type="button" class="servings-btn" @click="adjustServings(1)">+</button>
-                <span class="servings-label">servings</span>
-              </div>
+              <span class="recipe-detail-meta__servings">{{ detailMetaServings }}</span>
             </div>
-            <div
-              v-for="(section, sidx) in ingredientSections"
-              :key="sidx"
-              class="recipe-ingredient-section"
-              :class="{ 'recipe-ingredient-section--with-heading': section.heading }"
-            >
-              <div v-if="section.heading" class="recipe-ingredient-section__heading">
-                {{ section.heading }}
-              </div>
-              <ul class="recipe-ingredients-list">
-                <li v-for="(line, idx) in section.items" :key="`${sidx}-${idx}`" class="recipe-ingredient">
-                  <span class="recipe-ingredient-text">{{ line.text }}</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Instructions -->
-          <div class="note-block note-block--steps">
-            <h2 class="recipe-detail-section-title">
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </template>
+          <template v-if="detailMetaPrep">
+            <span class="recipe-detail-meta__sep" aria-hidden="true" />
+            <div class="recipe-detail-meta__item recipe-detail-meta__item--time">
+              <svg class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.75"/>
+                <path d="M12 9V13L14.5 14.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+                <path d="M10 3H14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
               </svg>
-              Instructions
-            </h2>
+              <div class="recipe-detail-meta__time-stack">
+                <span class="recipe-detail-meta__time-value">{{ detailMetaPrep.value }}</span>
+                <span class="recipe-detail-meta__time-label">{{ detailMetaPrep.label }}</span>
+              </div>
+            </div>
+          </template>
+          <template v-if="detailMetaCook">
+            <span class="recipe-detail-meta__sep" aria-hidden="true" />
+            <div class="recipe-detail-meta__item recipe-detail-meta__item--time">
+              <div class="recipe-detail-meta__time-stack">
+                <span class="recipe-detail-meta__time-value">{{ detailMetaCook.value }}</span>
+                <span class="recipe-detail-meta__time-label">{{ detailMetaCook.label }}</span>
+              </div>
+            </div>
+          </template>
+          <button
+            type="button"
+            class="recipe-detail-meta__refresh"
+            :disabled="timeEstimateLoading"
+            title="Re-estimate prep and cook times"
+            aria-label="Re-estimate prep and cook times"
+            @click="runEstimateTimesForDetail"
+          >
+            ↻
+          </button>
+        </div>
+        <p v-if="timeEstimateError" class="recipe-detail-time-inline-error">{{ timeEstimateError }}</p>
+
+        <div class="recipe-detail-actions">
+          <button type="button" class="btn btn--primary recipe-detail-action recipe-detail-action--primary" @click="startCookingMode">
+            Cook
+          </button>
+          <button
+            type="button"
+            class="recipe-detail-action recipe-detail-action--secondary"
+            :class="{ 'recipe-detail-action--active': viewingRecipe.favorite }"
+            @click="toggleFavorite(viewingRecipe.id)"
+          >
+            <span aria-hidden="true">★</span>
+            Favorite
+          </button>
+          <button
+            type="button"
+            class="recipe-detail-action recipe-detail-action--secondary recipe-detail-action--edit-desktop"
+            @click="editFromDetail"
+          >
+            Edit
+          </button>
+        </div>
+
+        <nav class="recipe-detail-tabs recipe-detail-tabs--mobile" aria-label="Jump to section">
+          <button
+            v-for="tab in detailTabsMobile"
+            :key="tab.id"
+            type="button"
+            class="recipe-detail-tabs__item"
+            :class="{ 'recipe-detail-tabs__item--active': activeDetailTab === tab.id }"
+            @click="jumpDetailSection(tab.id, tab.target)"
+          >
+            {{ tab.label }}
+          </button>
+        </nav>
+
+        </div>
+
+        <div class="recipe-detail-main">
+          <section v-if="viewingRecipe.description && viewingRecipe.subtitle" class="recipe-doc-section">
+            <p class="recipe-doc-section__text">{{ viewingRecipe.description }}</p>
+          </section>
+
+          <section id="recipe-section-steps" class="recipe-doc-section">
+            <h2 class="recipe-doc-section__title">Steps</h2>
             <ol class="recipe-steps-list">
               <li v-for="(step, idx) in viewingRecipe.recipe_steps" :key="idx" class="recipe-step">
-                <span class="recipe-step-number">{{ idx + 1 }}</span>
+                <span class="recipe-step-number">{{ idx + 1 }}.</span>
                 <p class="recipe-step-text">{{ step.instruction }}</p>
               </li>
             </ol>
-          </div>
+          </section>
 
-          <!-- Tips -->
-          <div v-if="viewingRecipe.tips?.length" class="note-block note-block--tips">
-            <h2 class="recipe-detail-section-title">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Tips & Notes
-            </h2>
+          <section v-if="viewingRecipe.tips?.length" class="recipe-doc-section">
+            <h2 class="recipe-doc-section__title">Tips</h2>
             <ul class="recipe-tips-list">
               <li v-for="(tip, idx) in viewingRecipe.tips" :key="idx">{{ tip }}</li>
             </ul>
-          </div>
+          </section>
 
-          <!-- Health + Nutrition -->
-          <div v-if="viewingRecipe" class="note-block note-block--nutrition">
+          <section id="recipe-section-health" class="recipe-doc-section">
             <div class="recipe-health-section">
-              <h2 class="recipe-detail-section-title">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M12 21C12 21 4 13.5 4 8.5C4 5.42 6.42 3 9.5 3C11.24 3 12.91 3.81 14 5.08C15.09 3.81 16.76 3 18.5 3C21.58 3 24 5.42 24 8.5C24 13.5 16 21 16 21H12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Health estimate
-              </h2>
-              <p class="recipe-health-disclaimer">
-                Practical everyday estimate for cooking — not medical advice.
-              </p>
+              <div class="recipe-doc-section__head">
+                <h2 class="recipe-doc-section__title">Health</h2>
+                <button
+                  v-if="healthScoreResult && healthScoreResult.estimate.healthScore != null"
+                  type="button"
+                  class="recipe-detail-section-refresh"
+                  :disabled="healthScoreLoading"
+                  title="Recalculate health score"
+                  aria-label="Recalculate health score"
+                  @click="requestDetailHealthScore"
+                >
+                  ↻
+                </button>
+              </div>
 
               <div v-if="healthScoreError" class="recipe-health-error">{{ healthScoreError }}</div>
 
@@ -475,33 +464,34 @@
                 </div>
               </div>
 
-              <div class="recipe-detail-health-cta">
+              <div v-if="!(healthScoreResult && healthScoreResult.estimate.healthScore != null)" class="recipe-detail-estimate-cta">
                 <button
                   type="button"
-                  class="btn btn--secondary"
+                  class="btn btn--secondary btn--small"
                   :disabled="healthScoreLoading"
                   @click="requestDetailHealthScore"
                 >
-                  {{
-                    healthScoreLoading
-                      ? 'Estimating…'
-                      : healthScoreResult && healthScoreResult.estimate.healthScore != null
-                        ? 'New health estimate'
-                        : 'Get health score'
-                  }}
+                  {{ healthScoreLoading ? 'Estimating…' : 'Get health score' }}
                 </button>
-                <span v-if="healthScoreLoading" class="recipe-detail-health-cta__status">Working…</span>
               </div>
             </div>
+          </section>
 
-            <div class="recipe-health-nutrition-divider" role="presentation" />
-
-            <h2 class="recipe-detail-section-title">
-              <svg viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Nutrition Information
-            </h2>
+          <section id="recipe-section-nutrition" class="recipe-doc-section">
+            <div class="recipe-doc-section__head">
+              <h2 class="recipe-doc-section__title">Nutrition</h2>
+              <button
+                v-if="hasNutrition"
+                type="button"
+                class="recipe-detail-section-refresh"
+                :disabled="nutritionLoading"
+                title="Re-estimate nutrition"
+                aria-label="Re-estimate nutrition"
+                @click="requestDetailNutritionEstimate"
+              >
+                ↻
+              </button>
+            </div>
             <div v-if="hasNutrition" class="recipe-nutrition">
               <div v-if="nutritionPerServing.kcal != null" class="recipe-nutrition-item">
                 <span class="recipe-nutrition-label">Calories per serving</span>
@@ -521,39 +511,62 @@
               </div>
             </div>
 
-            <div class="recipe-detail-nutrition-cta">
+            <div v-if="!hasNutrition" class="recipe-detail-estimate-cta">
               <button
                 type="button"
-                class="btn btn--secondary"
+                class="btn btn--secondary btn--small"
                 @click="requestDetailNutritionEstimate"
                 :disabled="nutritionLoading"
               >
-                {{ nutritionLoading ? 'Estimating nutrition…' : hasNutrition ? 'Recalculate nutrition' : 'Estimate nutrition' }}
+                {{ nutritionLoading ? 'Estimating nutrition…' : 'Estimate nutrition' }}
               </button>
-              <span v-if="nutritionLoading" class="recipe-detail-nutrition-cta__status">Updating nutrition…</span>
             </div>
-          </div>
+          </section>
 
-          <!-- Cooking history -->
-          <div class="note-block note-block--history" v-if="viewingRecipe">
-            <div class="recipe-detail-history__header">
-              <h2 class="recipe-detail-section-title" style="margin: 0;">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M12 8V12L14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Cook History
-              </h2>
-              <button
-                type="button"
-                class="btn btn--secondary"
-                :disabled="hasCookedToday(viewingRecipe.id)"
-                @click="markCookedToday(viewingRecipe.id)"
-              >
-                {{ hasCookedToday(viewingRecipe.id) ? 'Cooked today' : 'Mark cooked today' }}
-              </button>
+          <section id="recipe-section-source" class="recipe-doc-section">
+            <h2 class="recipe-doc-section__title">Source</h2>
+            <p class="recipe-detail-source-type meta-text">{{ formatRecipeSourceMeta(viewingRecipe) }}</p>
+            <div v-if="hasRecipeBookSource(viewingRecipe)" class="recipe-detail-book-source">
+              <img
+                v-if="viewingRecipe.source_image_path && !viewingRecipe.source_image_processing_pending"
+                :src="viewingRecipe.source_image_path"
+                :alt="viewingRecipe.source_name ?? 'Book cover'"
+                class="recipe-detail-book-source__cover"
+              />
+              <div class="recipe-detail-book-source__text">
+                <p v-if="viewingRecipe.source_name" class="recipe-detail-book-source__name">
+                  {{ viewingRecipe.source_name }}
+                </p>
+                <p v-if="viewingRecipe.source_subtitle" class="recipe-detail-book-source__meta">
+                  {{ viewingRecipe.source_subtitle }}
+                </p>
+                <p
+                  v-if="viewingRecipe.source_author || viewingRecipe.source_year"
+                  class="recipe-detail-book-source__meta"
+                >
+                  <span v-if="viewingRecipe.source_author">{{ viewingRecipe.source_author }}</span
+                  ><span v-if="viewingRecipe.source_author && viewingRecipe.source_year"> · </span
+                  ><span v-if="viewingRecipe.source_year">{{ viewingRecipe.source_year }}</span>
+                </p>
+                <p v-if="viewingRecipe.source_page" class="recipe-detail-book-source__meta">
+                  Page {{ viewingRecipe.source_page }}
+                </p>
+              </div>
             </div>
-            <p v-if="historySummary(viewingRecipe.id)" class="recipe-detail-history__summary">
+            <a
+              v-else-if="hasRecipeUrlSource(viewingRecipe)"
+              :href="viewingRecipe.source_url!"
+              class="recipe-detail-source-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open original recipe
+            </a>
+          </section>
+
+          <section id="recipe-section-history" class="recipe-doc-section recipe-doc-section--history">
+            <h2 class="recipe-doc-section__title">Cook history</h2>
+            <p v-if="historySummary(viewingRecipe.id)" class="recipe-detail-history__summary meta-text">
               {{ historySummary(viewingRecipe.id) }}
             </p>
             <ul class="recipe-detail-history__list">
@@ -561,8 +574,60 @@
                 {{ date }}
               </li>
             </ul>
-          </div>
+          </section>
         </div>
+        </div>
+
+        <aside class="recipe-detail-side-panel" aria-label="Recipe image and ingredients">
+          <div
+            v-if="
+              (viewingRecipe.image_path && viewingRecipe.image_processing_pending) ||
+              getRecipeHeroImageUrl(viewingRecipe)
+            "
+            class="recipe-detail-hero recipe-detail-hero--desktop"
+          >
+            <button
+              v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
+              type="button"
+              class="recipe-detail-pending-hero"
+              @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
+            >
+              <span class="recipe-detail-pending-hero__text">Image not processed yet — open editor to crop and optimize</span>
+            </button>
+            <img
+              v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
+              :src="getRecipeHeroImageUrl(viewingRecipe)!"
+              :alt="viewingRecipe.title"
+            />
+          </div>
+
+          <div id="recipe-section-ingredients" class="recipe-detail-ingredients-panel">
+            <div class="recipe-detail-ingredients-panel__head">
+              <h2 class="recipe-detail-ingredients-panel__title">Ingredients</h2>
+              <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
+                <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
+                <span class="servings-value">{{ displayServings }}</span>
+                <button type="button" class="servings-btn" @click="adjustServings(1)">+</button>
+                <span class="servings-label">servings</span>
+              </div>
+            </div>
+            <div class="recipe-detail-ingredients-scroll">
+              <div
+                v-for="(section, sidx) in ingredientSections"
+                :key="sidx"
+                class="recipe-ingredient-group"
+              >
+                <h3 v-if="section.heading" class="recipe-ingredient-group__heading">{{ section.heading }}</h3>
+                <ul class="recipe-ingredients-list recipe-ingredients-list--panel">
+                  <li v-for="(line, idx) in section.items" :key="`${sidx}-${idx}`" class="recipe-ingredient">
+                    <span class="recipe-ingredient-text">{{ line.text }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
     </article>
 
     <!-- Would cook again prompt (shown once after first "Mark cooked today") -->
@@ -693,6 +758,16 @@ import type {
 } from '../api/recipes'
 import { getPerServingValue } from '../utils/nutrition'
 import { getRecipeCardImageUrl, getRecipeHeroImageUrl } from '../utils/recipeDisplayImage'
+import { recipeNeedsReview } from '../utils/recipeStatusLabel'
+import { formatRecipeCardMeta } from '../utils/recipeCardMeta'
+import { formatRecipeSourceMeta, isManagedBookSource, isRecipeWebsiteSource } from '../utils/recipeSourceLabel'
+import {
+  formatRecipeDetailSourceMeta,
+  formatDetailServingsCount,
+  formatDetailPrepMeta,
+  formatDetailCookMeta,
+  getRecipeDetailSourceKind,
+} from '../utils/recipeDetailMeta'
 
 const props = defineProps<{ favoritesOnly?: boolean }>()
 
@@ -729,8 +804,43 @@ type RecipeFormInitial = Partial<RecipeFormPayload> & {
 const formInitial = ref<RecipeFormInitial | null>(null)
 const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
-const ingredientSearchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
+const activeFilter = ref(
+  props.favoritesOnly ? 'favorites' : (typeof route.query.filter === 'string' ? route.query.filter : 'all')
+)
+const cookingStepIndex = ref(0)
+
+const sortByLabels: Record<typeof sortBy.value, string> = {
+  'updated-desc': 'Recently updated',
+  'updated-asc': 'Oldest updated',
+  'title-asc': 'Name (A–Z)',
+  'title-desc': 'Name (Z–A)',
+}
+
+const sortByLabel = computed(() => sortByLabels[sortBy.value])
+
+const filterChips = [
+  { id: 'all', label: 'All' },
+  { id: 'favorites', label: 'Favorites' },
+  { id: 'quick', label: 'Quick' },
+  { id: 'healthy', label: 'Healthy' },
+  { id: 'dinner', label: 'Dinner' },
+  { id: 'books', label: 'From books' },
+  { id: 'review', label: 'Needs review' },
+] as const
+
+const isCookingMode = computed(() => route.query.cook === '1' && viewingRecipe.value != null)
+
+const cookingSteps = computed(() => viewingRecipe.value?.recipe_steps ?? [])
+
+const cookingIngredientLines = computed(() => {
+  const recipe = viewingRecipe.value
+  if (!recipe?.ingredients?.length) return [] as string[]
+  return recipe.ingredients.map((ing) => {
+    const parts = [ing.amount, ing.unit, ing.ingredient || ing.name].filter(Boolean)
+    return parts.join(' ').trim() || ing.original_text || ''
+  })
+})
 const showImportOverlay = ref(false)
 const showUrlImportOverlay = ref(false)
 const showAddMenu = ref(false)
@@ -754,6 +864,18 @@ const healthScoreError = ref('')
 const timeEstimateLoading = ref(false)
 const tagGenerateLoading = ref(false)
 const timeEstimateError = ref('')
+
+const detailMenuOpen = ref(false)
+type DetailTabId = 'ingredients' | 'steps' | 'health' | 'nutrition' | 'source' | 'history'
+const activeDetailTab = ref<DetailTabId>('steps')
+
+const detailTabsMobile: { id: DetailTabId; label: string; target: string }[] = [
+  { id: 'steps', label: 'Steps', target: 'recipe-section-steps' },
+  { id: 'health', label: 'Health', target: 'recipe-section-health' },
+  { id: 'nutrition', label: 'Nutrition', target: 'recipe-section-nutrition' },
+  { id: 'source', label: 'Source', target: 'recipe-section-source' },
+  { id: 'history', label: 'History', target: 'recipe-section-history' },
+]
 
 const showWouldCookAgainPrompt = ref(false)
 const wouldCookAgainRecipeId = ref<number | null>(null)
@@ -833,6 +955,7 @@ const fuseOptions: IFuseOptions<RecipeListItemWithIngredients> = {
   keys: [
     { name: 'title', weight: 2 },
     { name: 'ingredients.ingredient', weight: 1 },
+    { name: 'tags', weight: 1 },
   ],
 }
 let fuseInstance: Fuse<RecipeListItemWithIngredients> | null = null
@@ -972,6 +1095,24 @@ const hasNutrition = computed(() => {
   return kcal != null || protein != null || carbs != null || fat != null
 })
 
+const detailMetaSource = computed(() => {
+  const recipe = viewingRecipe.value
+  if (!recipe) return null
+  return formatRecipeDetailSourceMeta(recipe)
+})
+
+const detailMetaServings = computed(() => formatDetailServingsCount(viewingRecipe.value?.servings))
+
+const detailMetaSourceKind = computed(() => {
+  const recipe = viewingRecipe.value
+  if (!recipe) return 'unknown' as const
+  return getRecipeDetailSourceKind(recipe)
+})
+
+const detailMetaPrep = computed(() => formatDetailPrepMeta(viewingRecipe.value))
+
+const detailMetaCook = computed(() => formatDetailCookMeta(viewingRecipe.value))
+
 const ingredientSections = computed(() => {
   const recipe = viewingRecipe.value
   if (!recipe) return []
@@ -1052,61 +1193,40 @@ const ingredientSections = computed(() => {
   return sections
 })
 
-const ingredientTokens = computed(() =>
-  ingredientSearchQuery.value
-    .split(',')
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0)
-)
+function recipeMatchesFilter(recipe: RecipeListItemWithIngredients): boolean {
+  switch (activeFilter.value) {
+    case 'favorites':
+      return recipe.favorite
+    case 'quick': {
+      const tags = recipe.tags ?? []
+      const mins = (recipe.prep_time_min ?? 0) + (recipe.cook_time_min ?? 0)
+      return tags.includes('quick') || tags.includes('easy') || (mins > 0 && mins <= 35)
+    }
+    case 'healthy': {
+      const tags = recipe.tags ?? []
+      return tags.some((t) => /vegetarian|vegan|healthy|salad/i.test(t))
+    }
+    case 'dinner':
+      return (recipe.tags ?? []).includes('dinner')
+    case 'books':
+      return isManagedBookSource(recipe)
+    case 'review':
+      return recipe.status === 'draft'
+    default:
+      return true
+  }
+}
 
 const filteredAndSortedRecipes = computed(() => {
   let list: RecipeListItemWithIngredients[] = recipes.value
-  const titleTerm = searchQuery.value.trim()
-  const ingredientTerms = ingredientTokens.value
+  const term = searchQuery.value.trim()
 
-  if (titleTerm) {
+  if (term) {
     if (!fuseInstance) return []
-    const titleResults = fuseInstance.search(titleTerm)
-    list = titleResults.map((res) => res.item)
+    list = fuseInstance.search(term).map((res) => res.item)
   }
 
-  if (ingredientTerms.length) {
-    if (!fuseInstance) {
-      list = []
-    } else {
-      let ingredientMatchIds: Set<number> | null = null
-      for (const token of ingredientTerms) {
-        const ids = new Set<number>()
-        const matches = fuseInstance.search(token)
-        for (const match of matches) {
-          if (
-            match.matches?.some((m) => (m.key ?? '').startsWith('ingredients'))
-          ) {
-            ids.add(match.item.id)
-          }
-        }
-        if (ids.size === 0) {
-          ingredientMatchIds = new Set<number>()
-          break
-        }
-        if (ingredientMatchIds === null) {
-          ingredientMatchIds = ids
-        } else {
-          const intersection = new Set<number>()
-          for (const id of ingredientMatchIds) {
-            if (ids.has(id)) intersection.add(id)
-          }
-          ingredientMatchIds = intersection
-        }
-        if (ingredientMatchIds.size === 0) break
-      }
-      if (ingredientMatchIds && ingredientMatchIds.size > 0) {
-        list = list.filter((recipe) => ingredientMatchIds.has(recipe.id))
-      } else if (ingredientMatchIds && ingredientMatchIds.size === 0) {
-        list = []
-      }
-    }
-  }
+  list = list.filter(recipeMatchesFilter)
 
   const sorted = [...list]
   switch (sortBy.value) {
@@ -1256,23 +1376,58 @@ function formatRecipeMinutes(
   return `${tilde}${n} min`
 }
 
-function formatTagChip(t: string) {
-  return t.replace(/_/g, ' ')
+function recipeCardDescription(recipe: RecipeListItemWithIngredients): string | null {
+  const text = (recipe.subtitle || recipe.description || '').trim()
+  return text || null
 }
 
-function recipeSourceHref(recipe: { source_type?: string; source_url?: string | null }): string | null {
-  if (recipe.source_type === 'url' && recipe.source_url) return recipe.source_url
-  return null
+function jumpDetailSection(tab: DetailTabId, elementId: string) {
+  activeDetailTab.value = tab
+  document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function markCookedFromMenu() {
+  detailMenuOpen.value = false
+  const id = viewingRecipe.value?.id
+  if (id) void markCookedToday(id)
+}
+
+function openOriginalFromMenu() {
+  detailMenuOpen.value = false
+  const url = viewingRecipe.value?.source_url
+  if (url) window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+async function deleteFromDetail() {
+  const id = viewingRecipe.value?.id
+  if (!id) return
+  if (!confirm('Delete this recipe? This cannot be undone.')) return
+  detailMenuOpen.value = false
+  error.value = ''
+  try {
+    await deleteRecipe(id)
+    closeDetailView()
+    await loadList()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to delete recipe'
+  }
+}
+
+function onDocumentClickForDetailMenu(event: MouseEvent) {
+  if (!detailMenuOpen.value) return
+  const target = event.target as HTMLElement
+  if (target.closest('.recipe-detail-nav__menu-wrap')) return
+  detailMenuOpen.value = false
 }
 
 function hasRecipeBookSource(recipe: Recipe | RecipeListItemWithIngredients | null | undefined): boolean {
   if (!recipe) return false
-  return recipe.source_type === 'book' && !!(recipe.source_name || recipe.source_id)
+  return isManagedBookSource(recipe) && !!(recipe.source_name || recipe.source_id)
 }
 
 function hasRecipeUrlSource(recipe: Recipe | RecipeListItemWithIngredients | null | undefined): boolean {
   if (!recipe) return false
-  return recipe.source_type === 'url' && !!recipe.source_url
+  return isRecipeWebsiteSource(recipe) && !!recipe.source_url
 }
 
 function mergeTimesIntoFormInitial(recipe: Recipe) {
@@ -1380,13 +1535,26 @@ function clearDetailState() {
   healthScoreResult.value = null
   healthScoreError.value = ''
   timeEstimateError.value = ''
+  detailMenuOpen.value = false
+  activeDetailTab.value = 'steps'
   const pageTitle = props.favoritesOnly ? 'Favorites' : 'Recipes'
   document.title = `${pageTitle} – Recipe Library`
 }
 
 function closeDetailView() {
   clearDetailState()
-  if (route.params.id) router.push(listPath.value)
+  if (route.params.id) router.push({ path: listPath.value, query: {} })
+}
+
+function startCookingMode() {
+  cookingStepIndex.value = 0
+  router.push({ path: route.path, query: { ...route.query, cook: '1' } })
+}
+
+function exitCookingMode() {
+  const q = { ...route.query } as Record<string, string>
+  delete q.cook
+  router.push({ path: route.path, query: q })
 }
 
 function adjustServings(delta: number) {
@@ -1585,6 +1753,10 @@ watch(
       if (viewingRecipe.value) clearDetailState()
       return
     }
+    if (raw === 'new') {
+      openManualForm()
+      return
+    }
     const id = Number(raw)
     if (!Number.isFinite(id) || id <= 0) {
       router.replace(listPath.value)
@@ -1592,6 +1764,17 @@ watch(
     }
     if (viewingRecipe.value?.id === id) return
     await loadRecipeDetail(id)
+    if (route.query.review === '1') {
+      startEdit(id)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.favoritesOnly,
+  (fav) => {
+    if (fav) activeFilter.value = 'favorites'
   },
   { immediate: true },
 )
@@ -1600,6 +1783,7 @@ onMounted(() => {
   loadList()
   document.addEventListener('click', hideCoverOverlay)
   document.addEventListener('click', onDocumentClickForAddMenu)
+  document.addEventListener('click', onDocumentClickForDetailMenu)
 })
 
 watch(
@@ -1623,6 +1807,7 @@ watch(showRecipeForm, (open) => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', hideCoverOverlay)
   document.removeEventListener('click', onDocumentClickForAddMenu)
+  document.removeEventListener('click', onDocumentClickForDetailMenu)
   document.body.classList.remove('app-modal-open')
 })
 </script>
@@ -1631,15 +1816,20 @@ onBeforeUnmount(() => {
 .recipes-view {
   max-width: 1400px;
   margin: 0 auto;
+  min-width: 0;
+}
+
+.recipes-view:has(.recipe-detail-page),
+.recipes-view:has(.cooking-mode) {
+  overflow-x: clip;
 }
 
 .recipes-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-xl);
-  gap: var(--spacing-lg);
-  flex-wrap: wrap;
+  margin-bottom: var(--spacing-md);
+  gap: var(--spacing-md);
 }
 
 .recipes-header__main {
@@ -1648,10 +1838,9 @@ onBeforeUnmount(() => {
 }
 
 .recipes-title {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--color-text);
-  margin: 0 0 var(--spacing-xs) 0;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
@@ -1771,13 +1960,11 @@ onBeforeUnmount(() => {
   stroke-width: 2;
 }
 
-/* Toolbar */
 .recipes-toolbar {
   display: flex;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-xl);
-  flex-wrap: wrap;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
 }
 
 .recipes-toolbar__searches {
@@ -1833,8 +2020,8 @@ onBeforeUnmount(() => {
 
 .search-box__input:focus {
   outline: none;
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .filter-group {
@@ -1854,174 +2041,879 @@ onBeforeUnmount(() => {
   transition: all var(--transition-fast);
 }
 
-.filter-select:focus {
-  outline: none;
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
-}
-
-/* Recipe Grid */
-.recipes-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--spacing-lg);
-}
-
-.recipe-card {
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-lg);
-  overflow: visible;
-  box-shadow: var(--shadow-card);
-  transition: all var(--transition-base);
-  cursor: pointer;
-  position: relative;
-}
-
-.recipe-card:hover {
-  box-shadow: var(--shadow-hover);
-  transform: translateY(-2px);
-}
-
-.recipe-card__image {
-  position: relative;
-  width: 100%;
-  height: 300px;
-  overflow: hidden;
-  background: var(--color-bg-muted);
-}
-
-.recipe-card__image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform var(--transition-slow);
-}
-
-.recipe-card:hover .recipe-card__image img {
-  transform: scale(1.05);
-}
-
-.recipe-card__placeholder {
-  width: 100%;
-  height: 100%;
+.recipes-toolbar__filters {
   display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.recipes-filter-chips {
+  min-width: 0;
+}
+
+/* Recipe detail — image-first, document layout */
+.recipe-detail-page {
+  --recipe-detail-radius: 10px;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding-bottom: var(--spacing-2xl);
+  overflow-x: clip;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-page {
+    max-width: 1280px;
+  }
+}
+
+@media (max-width: 767px) {
+  .recipe-detail-page {
+    margin-left: calc(-1 * var(--content-padding-mobile));
+    margin-right: calc(-1 * var(--content-padding-mobile));
+    max-width: none;
+    width: calc(100% + 2 * var(--content-padding-mobile));
+  }
+}
+
+.recipe-detail-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  min-height: 44px;
+  margin-bottom: var(--spacing-sm);
+  padding: 0 var(--content-padding-mobile);
+  overflow: visible;
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-nav {
+    padding: 0;
+  }
+}
+
+.recipe-detail-nav__btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-light);
-}
-
-.recipe-card__placeholder svg {
-  width: 64px;
-  height: 64px;
-  opacity: 0.3;
-}
-
-.recipe-card__placeholder--pending {
-  background: var(--color-bg-elevated);
-  border: 1px dashed var(--color-border);
-  padding: var(--spacing-sm);
-}
-
-.recipe-card__pending-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
   color: var(--color-text-muted);
-  max-width: 100%;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
-.recipe-card__badge {
-  position: absolute;
-  top: var(--spacing-sm);
-  left: var(--spacing-sm);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.recipe-card__badge--draft {
-  background: var(--color-draft-bg);
-  color: var(--color-draft-fg);
-}
-
-.recipe-card__content {
-  padding: var(--spacing-lg);
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-}
-
-.recipe-card__title {
-  font-size: 1.125rem;
-  font-weight: 700;
+.recipe-detail-nav__btn:hover,
+.recipe-detail-nav__btn:focus-visible {
   color: var(--color-text);
-  margin: 0 0 var(--spacing-xs) 0;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  background: var(--color-surface-subtle);
+  outline: none;
 }
 
-.recipe-card__subtitle {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin: 0 0 var(--spacing-md) 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.recipe-detail-nav__btn svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
 }
 
-.recipe-card__meta {
-  display: flex;
-  gap: var(--spacing-md);
-  flex-wrap: wrap;
+.recipe-detail-nav__btn--back {
+  justify-content: flex-start;
+  width: auto;
+  max-width: min(100%, 14rem);
+  margin-right: auto;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
 }
 
-.recipe-card__source {
+.recipe-detail-nav__back-label {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-nav__btn--back {
+    max-width: none;
+    padding: 0 16px 0 12px;
+  }
+
+  .recipe-detail-nav__back-label {
+    display: inline;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+}
+
+.recipe-detail-nav__menu-wrap {
   position: relative;
+}
+
+.recipe-detail-nav__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  width: min(280px, calc(100vw - 24px));
+  min-width: 240px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.recipe-detail-nav__menu button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.recipe-detail-nav__menu button:hover {
+  background: var(--color-surface-subtle);
+}
+
+.recipe-detail-nav__menu button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.recipe-detail-nav__menu-danger {
+  color: var(--color-danger);
+}
+
+.recipe-detail-nav__menu-edit-mobile {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-nav__menu-edit-mobile {
+    display: none;
+  }
+}
+
+.recipe-detail-layout {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.recipe-detail-main-col {
+  display: contents;
+}
+
+.recipe-detail-hero--desktop {
+  display: none;
+}
+
+.recipe-detail-hero {
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-surface-subtle);
+}
+
+.recipe-detail-hero--mobile {
+  order: 1;
+  margin-bottom: var(--spacing-md);
+  border-radius: 0;
+}
+
+.recipe-detail-hero--mobile img {
+  display: block;
+  width: 100%;
+  max-height: min(52vh, 420px);
+  object-fit: cover;
+  object-position: center;
+}
+
+.recipe-detail-identity {
+  order: 2;
+  padding: 0 var(--content-padding-mobile) var(--spacing-md);
+  min-width: 0;
+}
+
+.recipe-detail-side-panel {
+  order: 3;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .recipe-detail-side-panel {
+    padding-left: 0;
+  }
+
+  .recipe-detail-side-panel::before {
+    display: none;
+  }
+}
+
+.recipe-detail-ingredients-panel {
+  padding: 0 var(--content-padding-mobile) var(--spacing-lg);
+  min-width: 0;
+}
+
+.recipe-detail-ingredients-scroll {
+  min-width: 0;
+}
+
+.recipe-detail-main {
+  order: 4;
+  min-width: 0;
+  padding: 0 var(--content-padding-mobile);
+}
+
+.recipe-detail-main::before,
+.recipe-doc-section + .recipe-doc-section::before {
+  content: '';
+  display: block;
+  width: min(68%, 720px);
+  height: 1px;
+  border: 0;
+  margin: 40px auto 28px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--color-border) 55%, transparent),
+    var(--color-border),
+    color-mix(in srgb, var(--color-border) 55%, transparent),
+    transparent
+  );
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: clamp(32px, 4vw, 64px);
+    align-items: start;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .recipe-detail-main-col {
+    display: flex;
+    flex-direction: column;
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .recipe-detail-side-panel {
+    grid-column: 2;
+    grid-row: 1;
+    order: unset;
+    align-self: start;
+    position: relative;
+    border-left: none;
+    padding-left: clamp(24px, 3vw, 40px);
+  }
+
+  .recipe-detail-side-panel::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: min(100%, 720px);
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--color-border) 55%, transparent),
+      var(--color-border),
+      color-mix(in srgb, var(--color-border) 55%, transparent),
+      transparent
+    );
+  }
+
+  .recipe-detail-hero--mobile {
+    display: none;
+  }
+
+  .recipe-detail-hero--desktop {
+    display: block;
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--recipe-detail-radius);
+  }
+
+  .recipe-detail-hero--desktop img {
+    display: block;
+    width: 100%;
+    height: clamp(220px, 24vw, 280px);
+    max-height: 300px;
+    object-fit: cover;
+    object-position: center;
+    border-radius: var(--recipe-detail-radius);
+  }
+
+  .recipe-detail-hero--desktop .recipe-detail-pending-hero {
+    min-height: 220px;
+    border-radius: var(--recipe-detail-radius);
+  }
+
+  .recipe-detail-identity {
+    order: unset;
+    padding: 0;
+  }
+
+  .recipe-detail-main {
+    order: unset;
+    padding: 0;
+    margin-top: var(--spacing-md);
+  }
+
+  .recipe-detail-ingredients-panel {
+    padding: 0;
+  }
+
+  .recipe-detail-tabs--mobile {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .recipe-detail-side-panel {
+    position: sticky;
+    top: calc(var(--top-nav-height) + var(--spacing-md));
+    max-height: calc(100vh - var(--top-nav-height) - var(--spacing-xl));
+    display: flex;
+    flex-direction: column;
+  }
+
+  .recipe-detail-ingredients-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    max-height: calc(100vh - 420px);
+    padding-right: 2px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .recipe-detail-ingredients-scroll {
+    overflow: visible;
+    max-height: none;
+  }
+}
+
+.recipe-detail-ingredients-panel__head {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 
-.recipe-card__source-label {
-  display: inline-flex;
+.recipe-detail-ingredients-panel__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--color-text);
 }
 
-.recipe-card__source-label>span {
-  font-size: 0.65rem;
-  line-height: 1.1rem;
-  padding-left: 5px;
+.recipe-ingredients-list--panel .recipe-ingredient {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.recipe-card__source-link {
-  color: var(--color-primary);
-  text-decoration: none;
+.recipe-ingredients-list--panel .recipe-ingredient:last-child {
+  border-bottom: none;
 }
 
-.recipe-card__source-link:hover {
+@media (min-width: 768px) {
+  .recipe-ingredients-list--panel .recipe-ingredient {
+    padding: 0.45rem 0;
+    border-bottom: none;
+  }
+}
+
+.recipe-ingredients-list--panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.recipe-ingredients-list--panel .recipe-ingredient-text {
+  font-size: inherit;
+  color: inherit;
+}
+
+.recipe-detail-section-refresh,
+.recipe-detail-meta__refresh {
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-soft);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recipe-detail-section-refresh:hover:not(:disabled),
+.recipe-detail-meta__refresh:hover:not(:disabled) {
+  color: var(--color-accent);
+  background: var(--color-surface-subtle);
+}
+
+.recipe-detail-section-refresh:disabled,
+.recipe-detail-meta__refresh:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.recipe-detail-estimate-cta {
+  margin-top: var(--spacing-sm);
+}
+
+.recipe-detail-action--edit-desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-action--edit-desktop {
+    display: inline-flex;
+  }
+}
+
+.recipe-detail-review-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  font-size: 0.8125rem;
+}
+
+.recipe-detail-review-inline__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
   text-decoration: underline;
 }
 
-.recipe-detail-source-block {
+.recipe-detail-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.recipe-detail-subtitle {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.recipe-detail-meta {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+  max-width: 100%;
+  margin-bottom: var(--spacing-sm);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.recipe-detail-meta::-webkit-scrollbar {
+  display: none;
+}
+
+.recipe-detail-meta__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 14px;
+  min-height: 40px;
+}
+
+.recipe-detail-meta__item:first-child {
+  padding-left: 0;
+}
+
+.recipe-detail-meta__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.recipe-detail-meta__source,
+.recipe-detail-meta__servings {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.recipe-detail-meta__sep {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 1px;
+  min-height: 28px;
+  margin: 6px 0;
+  background: var(--color-border);
+}
+
+.recipe-detail-meta__item--time {
+  gap: 8px;
+}
+
+.recipe-detail-meta__time-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.recipe-detail-meta__time-value {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.recipe-detail-meta__time-label {
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  color: var(--color-text-soft);
+  white-space: nowrap;
+}
+
+.recipe-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.recipe-detail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.recipe-detail-action.btn--primary {
+  min-height: 40px;
+  padding: 8px 16px;
+}
+
+.recipe-detail-action--primary {
+  border-color: transparent;
+}
+
+.recipe-detail-action--secondary:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-subtle);
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-action {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 0.8125rem;
+  }
+
+  .recipe-detail-action.btn--primary,
+  .recipe-detail-action--primary {
+    min-height: 42px;
+    padding: 9px 18px;
+  }
+}
+
+@media (max-width: 767px) {
+  .recipe-detail-action {
+    min-height: 40px;
+    padding: 9px 14px;
+    font-size: 0.875rem;
+  }
+
+  .recipe-detail-action.btn--primary {
+    min-height: 42px;
+    padding: 10px 16px;
+  }
+}
+
+.recipe-detail-action--active {
+  color: var(--color-accent);
+  border-color: var(--color-accent-soft);
+}
+
+.recipe-detail-tabs {
+  display: flex;
+  gap: var(--spacing-md);
+  max-width: 100%;
+  margin-top: var(--spacing-xs);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+}
+
+.recipe-detail-tabs--mobile {
+  display: flex;
+}
+
+@media (min-width: 768px) {
+  .recipe-detail-tabs--mobile {
+    display: none;
+  }
+}
+
+.recipe-detail-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.recipe-detail-tabs__item {
+  flex-shrink: 0;
+  padding: 0 0 10px;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.recipe-detail-tabs__item:hover {
+  color: var(--color-text);
+}
+
+.recipe-detail-tabs__item--active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.recipe-doc-section {
+  padding: 0 0 var(--spacing-lg);
+}
+
+.recipe-detail-main > .recipe-doc-section:last-child {
+  padding-bottom: 0;
+}
+
+.recipe-doc-section__title {
+  margin: 0 0 var(--spacing-md);
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.recipe-doc-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.recipe-doc-section__head .recipe-doc-section__title {
+  margin-bottom: 0;
+}
+
+.recipe-doc-section__text {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+}
+
+.recipe-detail-source-type {
+  margin: 0 0 var(--spacing-md);
+}
+
+.recipe-detail-source-link {
+  color: var(--color-accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.recipe-detail-source-link:hover {
+  text-decoration: underline;
+}
+
+.cooking-mode {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding-bottom: var(--spacing-2xl);
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.cooking-mode__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.cooking-mode__exit {
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cooking-mode__exit:hover {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+
+.cooking-mode__label {
+  font-size: 0.8125rem;
+}
+
+.cooking-mode__layout {
+  display: block;
+  min-width: 0;
+}
+
+.cooking-mode__main {
+  min-width: 0;
+}
+
+.cooking-mode__progress {
+  margin: 0 0 var(--spacing-sm);
+}
+
+.cooking-mode__text {
+  font-size: clamp(1.35rem, 3.5vw, 2rem);
+  line-height: 1.45;
+  margin: 0 0 var(--spacing-xl);
+  font-weight: 500;
+}
+
+.cooking-mode__nav {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: 0;
+}
+
+.cooking-mode__nav .btn {
+  min-height: 44px;
+  flex: 1;
+  max-width: 12rem;
+}
+
+.cooking-mode__aside {
+  display: none;
+}
+
+.cooking-mode__ingredients-mobile {
   margin-top: var(--spacing-lg);
-  padding-top: var(--spacing-lg);
+  padding: var(--spacing-md) 0;
   border-top: 1px solid var(--color-border);
 }
 
-.recipe-detail-source-block__title {
-  margin: 0 0 var(--spacing-sm);
-  font-size: 0.95rem;
-  font-weight: 600;
+.cooking-mode__ingredients-mobile summary {
+  cursor: pointer;
+  font-weight: 500;
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
+
+.cooking-mode__ingredients-mobile ul {
+  margin: var(--spacing-sm) 0 0;
+  padding-left: var(--spacing-lg);
+}
+
+@media (min-width: 768px) {
+  .cooking-mode__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+    gap: var(--spacing-2xl);
+    align-items: start;
+  }
+
+  .cooking-mode__nav .btn {
+    flex: 0 1 auto;
+    min-width: 7rem;
+  }
+
+  .cooking-mode__aside {
+    display: block;
+    padding: var(--spacing-md);
+    border-left: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+  }
+
+  .cooking-mode__aside-title {
+    margin: 0 0 var(--spacing-md);
+    font-size: 0.95rem;
+    font-weight: 650;
+    color: var(--color-text);
+  }
+
+  .cooking-mode__ingredient-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+  }
+
+  .cooking-mode__ingredients-mobile {
+    display: none;
+  }
+}
+
 
 .recipe-detail-book-source {
   display: flex;
@@ -2050,102 +2942,15 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
 }
 
-.recipe-detail-source-link-btn {
-  display: inline-flex;
-  text-decoration: none;
-}
-
-.recipe-card__meta-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-}
-
-.recipe-card__meta-item svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 2;
-}
-
-.recipe-ingredient-section {
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  padding: var(--spacing-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  background: var(--color-bg-elevated);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+.recipe-ingredient-group {
   margin-bottom: var(--spacing-md);
 }
 
-.recipe-ingredient-section--with-heading {
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-subtle);
-}
-
-.recipe-ingredient-section__heading {
-  font-size: 0.95rem;
+.recipe-ingredient-group__heading {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 0.9rem;
   font-weight: 600;
-  color: var(--color-text);
-  padding-bottom: var(--spacing-xs);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.recipe-card__actions {
-  position: absolute;
-  top: var(--spacing-sm);
-  right: var(--spacing-sm);
-  display: flex;
-  gap: var(--spacing-xs);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.recipe-card:hover .recipe-card__actions {
-  opacity: 1;
-}
-
-.recipe-card__action-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.95);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.recipe-card__action-btn svg {
-  width: 18px;
-  height: 18px;
-  stroke-width: 2;
-}
-
-.recipe-card__action-btn--edit {
-  color: var(--color-primary);
-}
-
-.recipe-card__action-btn--edit:hover {
-  background: var(--color-primary);
-  color: white;
-}
-
-.recipe-card__action-btn--favorite {
   color: var(--color-text-muted);
-}
-
-.recipe-card__action-btn--favorite:hover {
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.recipe-card__action-btn--favorite-active {
-  color: var(--color-primary);
 }
 
 /* Messages */
@@ -2205,86 +3010,6 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-/* Recipe detail (full page) */
-.recipe-detail-page {
-  width: 100%;
-}
-
-.recipe-detail-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.recipe-detail-edit {
-  flex-shrink: 0;
-}
-
-.recipe-detail-back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  margin: calc(-1 * var(--spacing-xs)) calc(-1 * var(--spacing-sm));
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-
-.recipe-detail-back:hover {
-  color: var(--color-text);
-  background: var(--color-bg-muted);
-}
-
-.recipe-detail-back svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  flex-shrink: 0;
-}
-
-.recipe-detail-content {
-  display: grid;
-  gap: var(--spacing-xl);
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 769px) {
-  .recipe-detail-content {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .note-block--image,
-  .note-block--header,
-  .note-block--description,
-  .note-block--tips,
-  .note-block--nutrition,
-  .note-block--history {
-    grid-column: 1 / -1;
-  }
-}
-
-.recipe-detail-hero {
-  width: 100%;
-  max-height: 500px;
-  overflow: hidden;
-}
-
-.recipe-detail-hero img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .recipe-detail-pending-hero {
   display: flex;
   align-items: center;
@@ -2308,112 +3033,6 @@ onBeforeUnmount(() => {
   color: var(--color-text);
 }
 
-.recipe-detail-header {
-  padding: 0 var(--spacing-xl);
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.recipe-detail-title {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--color-text);
-  margin: 0 0 var(--spacing-sm) 0;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-}
-
-.recipe-detail-subtitle {
-  font-size: 1.1rem;
-  color: var(--color-text-muted);
-  margin: 0 0 var(--spacing-md) 0;
-  line-height: 1.4;
-}
-
-.recipe-detail-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-xs);
-  margin: calc(var(--spacing-md) * -1) 0 var(--spacing-lg) 0;
-}
-
-.recipe-detail-tag-chip {
-  display: inline-block;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  background: var(--color-bg-muted, rgba(0, 0, 0, 0.06));
-  border: 1px solid var(--color-border);
-}
-
-.recipe-detail-description {
-  font-size: 1.125rem;
-  color: var(--color-text);
-  margin: 0 0 var(--spacing-xl) 0;
-  line-height: 1.6;
-}
-
-.recipe-detail-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-lg);
-  flex-wrap: wrap;
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
-}
-
-.recipe-detail-times {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-  align-items: center;
-}
-
-.recipe-detail-times--rows {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-  min-width: min(100%, 360px);
-}
-
-.recipe-detail-times__block {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.recipe-detail-time-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-size: 0.95rem;
-}
-
-.recipe-detail-time-label {
-  font-weight: 600;
-  color: var(--color-text-muted);
-  min-width: 3.25rem;
-}
-
-.recipe-detail-time-value {
-  font-weight: 700;
-  color: var(--color-text);
-  min-width: 4rem;
-}
-
-.recipe-detail-time-refresh-combined.btn--icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-  padding: var(--spacing-sm) var(--spacing-md);
-  min-width: 2.5rem;
-  line-height: 1;
-  font-size: 1.25rem;
-  align-self: center;
-}
-
 .recipe-detail-time-inline-error {
   margin: var(--spacing-xs) 0 0;
   font-size: 0.875rem;
@@ -2421,66 +3040,13 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.recipe-detail-time-chip {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-text);
-  padding: var(--spacing-xs) var(--spacing-md);
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-}
-
-.recipe-detail-meta-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.recipe-detail-meta-item svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 2;
-  color: var(--color-primary);
-}
-
 .recipe-detail-servings {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-}
-
-.recipe-detail-servings--inline {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: 0.9rem;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
   flex-shrink: 0;
-}
-
-.recipe-ingredients-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  flex-wrap: wrap;
-  margin-bottom: var(--spacing-md);
-}
-
-.recipe-ingredients-head__title {
-  margin: 0;
-}
-
-.recipe-detail-servings svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 2;
-  color: var(--color-primary);
 }
 
 .servings-btn {
@@ -2500,9 +3066,8 @@ onBeforeUnmount(() => {
 }
 
 .servings-btn:hover:not(:disabled) {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border-strong);
 }
 
 .servings-btn:disabled {
@@ -2523,106 +3088,46 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
 }
 
-.recipe-detail-body {
-  display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: var(--spacing-2xl);
-  padding: 0 var(--spacing-xl);
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.recipe-detail-section {
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
-  box-shadow: var(--shadow-card);
-}
-
-.recipe-detail-section--sticky {
-  align-self: start;
-  position: sticky;
-  top: var(--spacing-lg);
-}
-
-.recipe-detail-section--full {
-  grid-column: 1 / -1;
-  padding: 0 var(--spacing-xl);
-  max-width: 1400px;
-  margin: 0 auto;
-  background: transparent;
-  box-shadow: none;
-}
-
-.recipe-detail-section-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-text);
-  margin: 0 0 var(--spacing-lg) 0;
-}
-
-.recipe-detail-section-title svg {
-  width: 24px;
-  height: 24px;
-  stroke-width: 2;
-  color: var(--color-primary);
-}
-
 .recipe-steps-list {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-lg);
 }
 
 .recipe-step {
-  display: grid;
-  grid-template-columns: 40px 1fr;
-  gap: var(--spacing-md);
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
 }
 
 .recipe-step-number {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  background: var(--color-primary);
-  color: white;
-  font-weight: 700;
-  font-size: 1.125rem;
   flex-shrink: 0;
+  min-width: 1.5rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--color-text-muted);
 }
 
 .recipe-step-text {
   margin: 0;
+  flex: 1;
   font-size: 1rem;
-  line-height: 1.6;
+  line-height: 1.65;
   color: var(--color-text);
-  padding-top: 8px;
 }
 
 .recipe-ingredients-list {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
 }
 
 .recipe-ingredient {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  padding: var(--spacing-sm) 0;
+  padding: 0.65rem 0;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -2691,14 +3196,7 @@ onBeforeUnmount(() => {
 }
 
 .recipe-health-section {
-  margin-bottom: var(--spacing-md);
-}
-
-.recipe-health-disclaimer {
-  margin: 0 0 var(--spacing-md);
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  line-height: 1.5;
+  margin-bottom: 0;
 }
 
 .recipe-health-error {
@@ -2724,9 +3222,9 @@ onBeforeUnmount(() => {
 }
 
 .recipe-health-score-value {
-  font-size: 2.25rem;
-  font-weight: 800;
-  color: var(--color-primary);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
   line-height: 1;
 }
 
@@ -2751,8 +3249,14 @@ onBeforeUnmount(() => {
 
 .recipe-health-columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--spacing-lg);
+}
+
+@media (min-width: 520px) {
+  .recipe-health-columns {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
 }
 
 .recipe-health-column-title {
@@ -2792,16 +3296,10 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
 }
 
-.recipe-health-nutrition-divider {
-  height: 1px;
-  margin: var(--spacing-xl) 0;
-  background: var(--color-border);
-}
-
 .recipe-nutrition {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .recipe-detail-nutrition-cta {
@@ -2814,26 +3312,6 @@ onBeforeUnmount(() => {
 .recipe-detail-nutrition-cta__status {
   font-size: 0.9rem;
   color: var(--color-text-muted);
-}
-
-.recipe-detail-history {
-  margin-top: var(--spacing-md);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-}
-
-.recipe-detail-history__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-}
-
-.recipe-detail-history__header h2 {
-  margin: 0;
-  font-size: 1.25rem;
 }
 
 .recipe-detail-history__summary {
@@ -2883,12 +3361,10 @@ onBeforeUnmount(() => {
 
 .recipe-nutrition-item {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-md);
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .recipe-nutrition-label {
@@ -2900,9 +3376,9 @@ onBeforeUnmount(() => {
 }
 
 .recipe-nutrition-value {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 /* Edit Overlay */
@@ -3041,137 +3517,18 @@ onBeforeUnmount(() => {
   margin-top: var(--spacing-lg);
 }
 
-/* Note/Paper blocks (recipe detail) */
-.note-block {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
-  padding: var(--spacing-xl);
-  position: relative;
-  overflow: hidden;
-  transform-origin: center;
-}
-
-.note-block::before {
-  content: '';
-  position: absolute;
-  inset: -20px;
-  background:
-    radial-gradient(circle at 10% 20%, rgba(0, 0, 0, 0.06), transparent 35%),
-    radial-gradient(circle at 80% 10%, rgba(0, 0, 0, 0.05), transparent 40%),
-    radial-gradient(circle at 30% 90%, rgba(0, 0, 0, 0.04), transparent 45%),
-    repeating-linear-gradient(
-      25deg,
-      rgba(0, 0, 0, 0.03),
-      rgba(0, 0, 0, 0.03) 2px,
-      transparent 2px,
-      transparent 7px
-    );
-  opacity: 0.35;
-  pointer-events: none;
-  mix-blend-mode: multiply;
-}
-
-.note-block--image {
-  padding: 0;
-}
-
-.note-block--header {
-  padding: 0 var(--spacing-xl);
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.note-block__title,
-.recipe-detail-section-title {
-  position: relative;
-  z-index: 1;
-}
-
-.note-block__content {
-  position: relative;
-  z-index: 1;
-  margin: 0;
-  color: var(--color-text-muted);
-  white-space: pre-wrap;
-  line-height: 1.6;
-}
-
 @media (max-width: 768px) {
   .recipes-title {
-    font-size: 1.75rem;
-  }
-
-  .recipes-header {
-    flex-direction: column;
-  }
-
-  .recipes-header__add {
-    align-self: flex-end;
-  }
-
-  .recipes-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: var(--spacing-md);
-  }
-
-  .recipes-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .recipes-toolbar__searches {
-    flex-direction: column;
-  }
-
-  .recipes-toolbar__meta {
-    align-items: flex-start;
-    width: 100%;
-  }
-
-  .recipes-toolbar__count {
-    align-self: flex-start;
-  }
-
-  .search-box {
-    max-width: none;
+    font-size: 1.375rem;
   }
 
   .recipe-detail-title {
-    font-size: 1.5rem;
+    font-size: 1.375rem;
   }
 
-  .recipe-detail-subtitle {
-    font-size: 1rem;
-  }
-
-  .recipe-detail-edit {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.875rem;
-  }
-
-  .recipe-detail-edit svg {
-    display: none;
-  }
-
-  .recipe-detail-body {
-    grid-template-columns: 1fr;
-  }
-
-  .recipe-detail-section--sticky {
-    position: static;
-  }
-
-  .recipe-detail-header,
-  .recipe-detail-body,
-  .recipe-detail-section--full {
-    padding-left: var(--spacing-md);
-    padding-right: var(--spacing-md);
-  }
-
-  .recipe-detail-section {
-    padding: var(--spacing-md);
+  .recipe-ingredient-text,
+  .recipe-step-text {
+    font-size: 1.0625rem;
   }
 
   .recipe-edit-panel {
@@ -3184,18 +3541,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 480px) {
-  .recipes-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .filter-group {
-    width: 100%;
-  }
-
-  .filter-select {
-    flex: 1;
-  }
-
   .recipe-nutrition {
     grid-template-columns: 1fr;
   }
