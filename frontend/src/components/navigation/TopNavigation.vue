@@ -16,7 +16,6 @@
       </router-link>
     </div>
     <div class="top-nav__actions">
-      <router-link to="/add" class="btn btn--primary btn--small top-nav__add">Add recipe</router-link>
       <button type="button" class="icon-btn" :title="themeLabel" aria-label="Toggle theme" @click="toggle">
         <span aria-hidden="true">{{ resolved === 'dark' ? '☀' : '☾' }}</span>
       </button>
@@ -107,10 +106,6 @@ function isActive(item: (typeof items)[0]) {
   align-items: center;
   gap: var(--spacing-sm);
   flex-shrink: 0;
-}
-
-.top-nav__add {
-  white-space: nowrap;
 }
 
 @media (max-width: 1023px) {

@@ -2,10 +2,10 @@
 :root {
   color-scheme: light;
 
-  --color-bg: #f6f5f2;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
-  --color-surface-subtle: #f0efec;
+  --color-surface-subtle: #f7f6f4;
 
   --color-text: #1d1f25;
   --color-text-muted: #6f7583;
