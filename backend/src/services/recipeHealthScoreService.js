@@ -46,6 +46,10 @@ Rules:
 - Prefer 2 to 4 improvement tips
 - confidence must be between 0 and 1
 
+Language:
+- Write summary, positives, concerns, and improvementTips in German (Deutsch), even if the recipe title or ingredients are in another language
+- Use clear, everyday German suitable for a home cook
+
 Output must match the JSON schema exactly.`
 
 const HEALTH_SCORE_JSON_SCHEMA = {
@@ -183,7 +187,7 @@ export async function estimateRecipeHealthScore(recipe) {
         { role: 'system', content: HEALTH_SCORE_PROMPT },
         {
           role: 'user',
-          content: `Structured recipe JSON:\n${JSON.stringify(payload)}`,
+          content: `Structured recipe JSON:\n${JSON.stringify(payload)}\n\nWrite summary, positives, concerns, and improvementTips in German.`,
         },
       ],
       response_format: {

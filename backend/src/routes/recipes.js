@@ -436,6 +436,7 @@ router.post('/import-from-url', async (req, res) => {
       title: draftTitle,
       import_method: 'url',
       source_id: urlSource?.id ?? null,
+      original_url: fetchedUrl,
     })
     createdId = draft.id
 

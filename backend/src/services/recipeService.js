@@ -5,9 +5,10 @@ import { getRecipeHealthScoreByRecipeId } from './recipeHealthScorePersistence.j
 import { getTagsForRecipe, getTagsForRecipeIds, replaceRecipeTags } from './recipeTagPersistence.js'
 import { sanitizeRecipeTags } from './recipeTagValidation.js'
 import { findOrCreateUrlSource } from './sourceService.js'
+import { urlLooksLikeRecipePage } from '../utils/normalizeDomain.js'
 
 const RECIPE_COLUMNS = [
-  'id', 'source_id', 'source_page', 'import_method', 'extract_status', 'extract_confidence', 'extract_warnings', 'extract_missing_fields',
+  'id', 'source_id', 'source_page', 'original_url', 'import_method', 'extract_status', 'extract_confidence', 'extract_warnings', 'extract_missing_fields',
   'status', 'title', 'subtitle', 'description', 'language', 'servings_value', 'servings_unit_text',
   'favorite',
   'would_cook_again',
@@ -25,6 +26,31 @@ const SOURCE_KEYS = ['source_name', ...SOURCE_FIELDS]
 function normalizeTimeSource(v) {
   if (v === 'original' || v === 'estimated') return v
   return null
+}
+
+function attachSourceFields(row) {
+  const sourceType = row.source_type ?? 'manual'
+  const originalUrl = row.original_url != null ? String(row.original_url).trim() || null : null
+  const sourceSiteUrl = row.source_site_url != null ? String(row.source_site_url).trim() || null : null
+  let source_url = originalUrl
+  if (!source_url && sourceType === 'url' && sourceSiteUrl && urlLooksLikeRecipePage(sourceSiteUrl)) {
+    source_url = sourceSiteUrl
+  }
+  return {
+    source_type: sourceType,
+    source_name: row.source_name ?? null,
+    source_url,
+    original_url: originalUrl,
+    source_subtitle: row.source_subtitle ?? null,
+    source_book_title: row.source_book_title ?? null,
+    source_author: row.source_author ?? null,
+    source_year: row.source_year ?? null,
+    source_page: row.source_page ?? null,
+    source_image_path: row.source_image_path ?? null,
+    source_image_processing_pending: Number(row.source_image_processing_pending) === 1,
+    source_domain: row.source_domain ?? null,
+    source_favicon_url: row.source_favicon_url ?? null,
+  }
 }
 
 /** True if this time came from URL/image extract and should not be overwritten without confirmation. */
@@ -149,14 +175,15 @@ function resolveSource(db, body, existingSourceId = null) {
 export function listRecipes() {
   const db = getDb()
   const rows = db.prepare(`
-    SELECT r.id, r.source_id, r.source_page, r.import_method, r.extract_status, r.status,
+    SELECT r.id, r.source_id, r.source_page, r.original_url, r.import_method, r.extract_status, r.status,
            r.favorite,
            r.would_cook_again,
            r.title, r.subtitle, r.description, r.language, r.servings_value, r.servings_unit_text,
            r.prep_time_min, r.cook_time_min,
            r.prep_time_source, r.cook_time_source, r.prep_time_confidence, r.cook_time_confidence,
            r.image_path, r.image_urls_json, r.image_processing_pending, r.created_at, r.updated_at,
-           s.type AS source_type, s.name AS source_name, s.url AS source_url, s.subtitle AS source_subtitle, s.book_title AS source_book_title,
+           s.type AS source_type, s.name AS source_name, s.url AS source_site_url, s.domain AS source_domain,
+           s.favicon_url AS source_favicon_url, s.subtitle AS source_subtitle, s.book_title AS source_book_title,
            s.author AS source_author, s.year AS source_year, s.image_path AS source_image_path,
            s.image_processing_pending AS source_image_processing_pending
     FROM recipes r LEFT JOIN recipe_sources s ON r.source_id = s.id
@@ -164,16 +191,7 @@ export function listRecipes() {
   `).all()
   const mapped = rows.map((row) => ({
     ...rowToRecipe(row),
-    source_type: row.source_type ?? 'manual',
-    source_name: row.source_name ?? null,
-    source_url: row.source_url ?? null,
-    source_subtitle: row.source_subtitle ?? null,
-    source_book_title: row.source_book_title ?? null,
-    source_author: row.source_author ?? null,
-    source_year: row.source_year ?? null,
-    source_page: row.source_page ?? null,
-    source_image_path: row.source_image_path ?? null,
-    source_image_processing_pending: Number(row.source_image_processing_pending) === 1,
+    ...attachSourceFields(row),
   }))
   const tagMap = getTagsForRecipeIds(mapped.map((r) => r.id))
   return mapped.map((r) => ({ ...r, tags: tagMap.get(r.id) ?? [] }))
@@ -280,21 +298,25 @@ export function getRecipeById(id) {
   if (recipeRow.source_id) {
     const s = db
       .prepare(
-        'SELECT type, name, url, subtitle, book_title, author, year, image_path, image_processing_pending FROM recipe_sources WHERE id = ?',
+        'SELECT type, name, url, domain, favicon_url, subtitle, book_title, author, year, image_path, image_processing_pending FROM recipe_sources WHERE id = ?',
       )
       .get(recipeRow.source_id)
     if (s) {
-      sourceData = {
+      sourceData = attachSourceFields({
         source_type: s.type ?? 'manual',
         source_name: s.name,
-        source_url: s.url ?? null,
+        source_site_url: s.url ?? null,
+        source_domain: s.domain ?? null,
+        source_favicon_url: s.favicon_url ?? null,
         source_subtitle: s.subtitle ?? null,
         source_book_title: s.book_title ?? null,
         source_author: s.author ?? null,
         source_year: s.year ?? null,
         source_image_path: s.image_path ?? null,
-        source_image_processing_pending: Number(s.image_processing_pending) === 1,
-      }
+        source_image_processing_pending: s.image_processing_pending,
+        original_url: recipeRow.original_url,
+        source_page: recipeRow.source_page,
+      })
     }
   }
 
@@ -323,6 +345,7 @@ export function getRecipeById(id) {
   return {
     ...rowToRecipe(recipeRow),
     source_type: sourceData?.source_type ?? 'manual',
+    original_url: recipeRow.original_url != null ? String(recipeRow.original_url).trim() || null : null,
     ...(sourceData || {}),
     tags,
     ingredients: flatIngredients,
@@ -434,17 +457,18 @@ export function createRecipe(body) {
 
   const result = db.prepare(`
     INSERT INTO recipes (
-      source_id, source_page, import_method, extract_status, status,
+      source_id, source_page, original_url, import_method, extract_status, status,
       title, subtitle, description, language, servings_value, servings_unit_text,
       would_cook_again, prep_time_min, cook_time_min,
       prep_time_source, cook_time_source, prep_time_confidence, cook_time_confidence,
       image_path, image_urls_json, image_processing_pending,
       created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     sourceId,
     (recipe.source_page ?? '').trim() || null,
+    body && body.original_url != null ? String(body.original_url).trim() || null : null,
     recipe.import_method ?? 'manual',
     recipe.extract_status ?? null,
     recipe.title ?? '',
@@ -533,27 +557,27 @@ export function updateRecipe(id, body) {
     sourceId = null
   }
 
+  let originalUrl =
+    body && 'original_url' in body
+      ? body.original_url != null
+        ? String(body.original_url).trim() || null
+        : null
+      : existingRow.original_url != null
+        ? String(existingRow.original_url).trim() || null
+        : null
+
   if (body && 'source_url' in body) {
     const urlVal = body.source_url != null ? String(body.source_url).trim() : ''
     const linkedId = sourceId ?? existingRow.source_id ?? null
     if (linkedId) {
       const srcRow = db.prepare('SELECT type FROM recipe_sources WHERE id = ?').get(linkedId)
       if (srcRow?.type === 'url') {
-        if (urlVal) {
-          let hostName = urlVal
-          try {
-            hostName = new URL(urlVal).hostname.replace(/^www\./i, '')
-          } catch {
-            /* keep urlVal */
-          }
-          db.prepare('UPDATE recipe_sources SET url = ?, name = ? WHERE id = ?').run(urlVal, hostName, linkedId)
-        } else {
-          db.prepare('UPDATE recipe_sources SET url = NULL WHERE id = ?').run(linkedId)
-        }
+        originalUrl = urlVal || null
       }
     } else if (urlVal) {
       const urlSource = findOrCreateUrlSource(urlVal)
       sourceId = urlSource?.id ?? sourceId
+      originalUrl = urlVal
     }
   }
 
@@ -596,7 +620,7 @@ export function updateRecipe(id, body) {
 
   db.prepare(`
     UPDATE recipes SET
-      source_id = ?, source_page = ?, import_method = ?, extract_status = ?, status = ?,
+      source_id = ?, source_page = ?, original_url = ?, import_method = ?, extract_status = ?, status = ?,
       title = ?, subtitle = ?, description = ?, language = ?, servings_value = ?, servings_unit_text = ?,
       would_cook_again = ?, prep_time_min = ?, cook_time_min = ?,
       prep_time_source = ?, cook_time_source = ?, prep_time_confidence = ?, cook_time_confidence = ?,
@@ -606,6 +630,7 @@ export function updateRecipe(id, body) {
   `).run(
     sourceId,
     source_page,
+    originalUrl,
     import_method,
     extract_status,
     status,
@@ -876,6 +901,7 @@ function rowToRecipe(row) {
     id: row.id,
     source_id: row.source_id,
     source_page: row.source_page ?? null,
+    original_url: row.original_url != null ? String(row.original_url).trim() || null : null,
     import_method: row.import_method,
     favorite: row.favorite === 1 || row.favorite === true,
     would_cook_again: row.would_cook_again ?? null,
@@ -913,7 +939,7 @@ function rowToRecipe(row) {
 
 function sanitizeRecipeInput(body) {
   const allowed = [
-    'source_id', 'source_page', 'import_method', 'extract_status', 'status',
+    'source_id', 'source_page', 'original_url', 'import_method', 'extract_status', 'status',
     'title', 'subtitle', 'description', 'language', 'servings', 'servings_value', 'servings_unit_text',
     'prep_time_min',
     'cook_time_min',

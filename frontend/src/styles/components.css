@@ -345,10 +345,6 @@
   .recipe-card__body {
     padding-right: var(--content-padding-tablet);
   }
-
-  .recipe-card__actions {
-    right: var(--content-padding-tablet);
-  }
 }
 
 .recipe-card {
@@ -374,9 +370,9 @@
 }
 
 .recipe-card__thumb {
-  flex: 0 0 88px;
-  width: 88px;
-  height: 88px;
+  flex: 0 0 92px;
+  width: 92px;
+  height: 92px;
   max-width: none;
   display: flex;
   align-items: center;
@@ -439,6 +435,7 @@
   color: var(--color-text);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -446,16 +443,18 @@
 .recipe-card__meta-line {
   margin: 0;
   font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .recipe-card__desc {
   margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .recipe-card__review {
@@ -463,39 +462,6 @@
   margin-top: 0.25rem;
   font-size: 0.7rem;
   padding: 2px 8px;
-}
-
-.recipe-card__actions {
-  position: absolute;
-  top: 50%;
-  right: var(--content-padding-mobile);
-  transform: translateY(-50%);
-  display: flex;
-  gap: 4px;
-  opacity: 1;
-}
-
-.recipe-card__action-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-xs);
-  cursor: pointer;
-  color: var(--color-text-muted);
-}
-
-.recipe-card__action-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.recipe-card__action-btn--favorite-active {
-  color: var(--color-accent);
 }
 
 .recipes-sort__visible {
@@ -545,20 +511,22 @@
   align-items: center;
 }
 
-@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) {
+@media (min-width: 1100px) {
   .recipe-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
-    gap: var(--spacing-lg);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
   }
 
   .recipe-list {
-    margin: 0 calc(-1 * var(--content-padding-desktop));
+    margin: 0 auto;
+    max-width: 1440px;
+    padding-inline: clamp(24px, 4vw, 48px);
   }
 
   .recipe-card {
-    min-height: 200px;
-    max-height: 220px;
+    min-height: 156px;
+    max-height: 176px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -573,20 +541,19 @@
   }
 
   .recipe-card__thumb {
-    flex: 0 0 220px;
-    width: 220px;
-    max-width: 40%;
-    height: auto;
+    flex: 0 0 clamp(120px, 11vw, 148px);
+    width: clamp(120px, 11vw, 148px);
+    height: clamp(120px, 11vw, 148px);
     margin: 0;
     border-radius: 0;
   }
 
   .recipe-card__thumb img {
-    object-fit: contain;
+    object-fit: cover;
   }
 
   .recipe-card__placeholder {
-    min-height: 120px;
+    min-height: 100%;
   }
 
   .recipe-card__placeholder svg {
@@ -599,30 +566,18 @@
   }
 
   .recipe-card__body {
-    padding: var(--spacing-md) var(--spacing-lg);
-    justify-content: flex-start;
+    padding: 0.8rem 1rem;
+    justify-content: center;
+    gap: 0.35rem;
   }
 
   .recipe-card__title {
-    font-size: 1.125rem;
-    font-weight: 650;
+    font-size: 1rem;
+    font-weight: 620;
   }
 
   .recipe-card__review {
-    margin-top: auto;
-  }
-
-  .recipe-card__actions {
-    top: var(--spacing-sm);
-    right: var(--spacing-sm);
-    transform: none;
-    opacity: 0;
-    transition: opacity var(--transition-fast);
-  }
-
-  .recipe-card:hover .recipe-card__actions,
-  .recipe-card:focus-within .recipe-card__actions {
-    opacity: 1;
+    margin-top: 0.1rem;
   }
 
   .recipes-sort__visible {
@@ -643,6 +598,12 @@
     background: var(--color-surface);
     color: var(--color-text);
     cursor: pointer;
+  }
+}
+
+@media (min-width: 1320px) {
+  .recipe-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

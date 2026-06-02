@@ -1,4 +1,5 @@
 import type { RecipeListItem } from '../api/recipes'
+import { formatUrlDomain } from './formatUrlDomain'
 
 export type RecipeSourceDisplayLabel =
   | 'Buch'
@@ -9,8 +10,19 @@ export type RecipeSourceDisplayLabel =
 
 type SourceFields = Pick<
   RecipeListItem,
-  'source_type' | 'source_id' | 'source_name' | 'source_url' | 'import_method'
+  | 'source_type'
+  | 'source_id'
+  | 'source_name'
+  | 'source_url'
+  | 'original_url'
+  | 'source_domain'
+  | 'import_method'
 >
+
+export function isWebsiteSourceType(type: string | null | undefined): boolean {
+  const t = (type ?? '').toLowerCase()
+  return t === 'url' || t === 'website'
+}
 
 /** UI source type label — does not treat arbitrary source_name as Book. */
 export function getRecipeSourceDisplayLabel(recipe: SourceFields): RecipeSourceDisplayLabel {
@@ -18,7 +30,7 @@ export function getRecipeSourceDisplayLabel(recipe: SourceFields): RecipeSourceD
   const hasManaged = recipe.source_id != null
 
   if (hasManaged && type === 'book') return 'Buch'
-  if (hasManaged && type === 'url') return 'Website'
+  if (hasManaged && isWebsiteSourceType(type)) return 'Website'
   if (hasManaged && type === 'manual') return 'Manuell'
   if (hasManaged && (type === 'other' || type === 'website')) {
     return recipe.source_url?.trim() ? 'Website' : 'Manuell'
@@ -32,11 +44,27 @@ export function getRecipeSourceDisplayLabel(recipe: SourceFields): RecipeSourceD
   return 'Quelle unbekannt'
 }
 
-/** Compact card/detail meta: book title when type is book, else standard label. */
+/** Compact card/detail meta: book title or website domain. */
 export function formatRecipeSourceMeta(recipe: SourceFields): string {
   const label = getRecipeSourceDisplayLabel(recipe)
   if (label === 'Buch' && recipe.source_name?.trim()) return recipe.source_name.trim()
+  if (label === 'Website') {
+    const domain =
+      recipe.source_domain?.trim() ||
+      recipe.source_name?.trim() ||
+      (recipe.original_url?.trim() ? formatUrlDomain(recipe.original_url) : '') ||
+      (recipe.source_url?.trim() ? formatUrlDomain(recipe.source_url) : '')
+    return domain || 'Website'
+  }
   return label
+}
+
+/** Clickable original recipe page URL (not the website source site root). */
+export function getRecipeOriginalPageUrl(recipe: SourceFields): string | null {
+  const original = recipe.original_url?.trim()
+  if (original) return original
+  if (isRecipeWebsiteSource(recipe) && recipe.source_url?.trim()) return recipe.source_url.trim()
+  return null
 }
 
 export function isManagedBookSource(recipe: SourceFields): boolean {

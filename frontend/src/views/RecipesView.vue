@@ -54,7 +54,8 @@
     <p v-if="loading && !recipes.length" class="loading-message">Rezepte werden geladen…</p>
 
     <!-- Recipe Grid -->
-    <div v-if="!loading || recipes.length" class="recipe-grid recipe-list">
+    <div v-if="!loading || recipes.length" class="recipe-overview-wrap">
+      <div class="recipe-grid recipe-list">
       <article
         v-for="recipe in filteredAndSortedRecipes"
         :key="recipe.id"
@@ -89,37 +90,8 @@
           <p v-if="recipeCardDescription(recipe)" class="recipe-card__desc meta-text">{{ recipeCardDescription(recipe) }}</p>
           <span v-if="recipeNeedsReview(recipe.status)" class="recipe-card__review status-chip-review">Prüfen</span>
         </div>
-        <div class="recipe-card__actions">
-          <button
-            type="button"
-            class="recipe-card__action-btn recipe-card__action-btn--favorite"
-            :class="{ 'recipe-card__action-btn--favorite-active': recipe.favorite }"
-            :title="recipe.favorite ? 'Favorit entfernen' : 'Als Favorit speichern'"
-            @click.stop="toggleFavorite(recipe.id)"
-          >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M12 17.27L18.18 21L16.54 13.97L22 9.24L14.81 8.63L12 2L9.19 8.63L2 9.24L7.46 13.97L5.82 21L12 17.27Z"
-                :fill="recipe.favorite ? 'currentColor' : 'none'"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="recipe-card__action-btn recipe-card__action-btn--edit"
-            title="Rezept bearbeiten"
-            @click.stop="startEdit(recipe.id)"
-          >
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-        </div>
       </article>
+      </div>
     </div>
 
     <div v-if="!loading && recipes.length && !filteredAndSortedRecipes.length" class="empty-state">
@@ -596,7 +568,7 @@
             </div>
             <a
               v-else-if="hasRecipeUrlSource(viewingRecipe)"
-              :href="viewingRecipe.source_url!"
+              :href="getRecipeOriginalPageUrl(viewingRecipe)!"
               class="recipe-detail-source-link"
               target="_blank"
               rel="noopener noreferrer"
@@ -826,7 +798,12 @@ import { getPerServingValue } from '../utils/nutrition'
 import { getRecipeCardImageUrl, getRecipeHeroImageUrl } from '../utils/recipeDisplayImage'
 import { recipeNeedsReview } from '../utils/recipeStatusLabel'
 import { formatRecipeCardMeta } from '../utils/recipeCardMeta'
-import { formatRecipeSourceMeta, isManagedBookSource, isRecipeWebsiteSource } from '../utils/recipeSourceLabel'
+import {
+  formatRecipeSourceMeta,
+  getRecipeOriginalPageUrl,
+  isManagedBookSource,
+  isRecipeWebsiteSource,
+} from '../utils/recipeSourceLabel'
 import {
   formatRecipeDetailSourceMeta,
   formatDetailServingsCount,
@@ -1550,7 +1527,7 @@ function jumpDetailSection(tab: DetailTabId, elementId: string) {
 
 function openOriginalFromMenu() {
   detailMenuOpen.value = false
-  const url = viewingRecipe.value?.source_url
+  const url = getRecipeOriginalPageUrl(viewingRecipe.value ?? {})
   if (url) window.open(url, '_blank', 'noopener,noreferrer')
 }
 
@@ -1583,7 +1560,7 @@ function hasRecipeBookSource(recipe: Recipe | RecipeListItemWithIngredients | nu
 
 function hasRecipeUrlSource(recipe: Recipe | RecipeListItemWithIngredients | null | undefined): boolean {
   if (!recipe) return false
-  return isRecipeWebsiteSource(recipe) && !!recipe.source_url
+  return isRecipeWebsiteSource(recipe) && !!getRecipeOriginalPageUrl(recipe)
 }
 
 function mergeTimesIntoFormInitial(recipe: Recipe) {
@@ -2033,7 +2010,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .recipes-view {
-  max-width: 1400px;
+  max-width: none;
   margin: 0 auto;
   min-width: 0;
 }

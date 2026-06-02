@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import Database from 'better-sqlite3'
+import { runWebsiteSourceMigrations } from './migrateWebsiteSources.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dbPath = process.env.DB_PATH || ':memory:'
@@ -38,6 +39,8 @@ export function initDb() {
       name TEXT NOT NULL,
       subtitle TEXT,
       url TEXT,
+      domain TEXT,
+      favicon_url TEXT,
       book_title TEXT,
       author TEXT,
       year INTEGER,
@@ -50,6 +53,7 @@ export function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source_id INTEGER REFERENCES recipe_sources(id),
       source_page TEXT,
+      original_url TEXT,
       import_method TEXT NOT NULL DEFAULT 'manual' CHECK (import_method IN ('manual', 'url', 'image')),
       extract_status TEXT CHECK (extract_status IS NULL OR extract_status IN ('pending', 'done', 'failed')),
       extract_confidence REAL,
@@ -163,6 +167,8 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_recipe_history_recipe_id ON recipe_history(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_tags_tag ON recipe_tags(tag);
   `)
+
+  runWebsiteSourceMigrations(database)
 }
 
 export { dbPath }

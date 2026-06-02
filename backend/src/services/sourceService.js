@@ -1,7 +1,13 @@
 import { getDb } from '../db/index.js'
 import { getThumbnailPathIfExists } from '../utils/uploadPaths.js'
+import {
+  canonicalWebsiteSourceUrl,
+  faviconUrlForDomain,
+  normalizeDomainFromUrl,
+} from '../utils/normalizeDomain.js'
 
 const SOURCE_TYPES = ['book', 'url', 'manual', 'other']
+const WEBSITE_SOURCE_TYPES = ['url']
 
 /**
  * List all recipe sources (e.g. for dropdowns). Ordered by name.
@@ -9,9 +15,13 @@ const SOURCE_TYPES = ['book', 'url', 'manual', 'other']
 export function listSources() {
   const db = getDb()
   const rows = db.prepare(`
-    SELECT id, type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending, created_at
-    FROM recipe_sources
-    ORDER BY name, id
+    SELECT s.id, s.type, s.name, s.subtitle, s.url, s.domain, s.favicon_url,
+           s.book_title, s.author, s.year, s.image_path, s.image_processing_pending, s.created_at,
+           COUNT(r.id) AS recipe_count
+    FROM recipe_sources s
+    LEFT JOIN recipes r ON r.source_id = s.id
+    GROUP BY s.id
+    ORDER BY s.type, s.name, s.id
   `).all()
   return rows.map(rowToSource)
 }
@@ -22,41 +32,61 @@ export function listSources() {
 export function getSourceById(id) {
   const db = getDb()
   const row = db.prepare(`
-    SELECT id, type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending, created_at
-    FROM recipe_sources WHERE id = ?
+    SELECT s.id, s.type, s.name, s.subtitle, s.url, s.domain, s.favicon_url,
+           s.book_title, s.author, s.year, s.image_path, s.image_processing_pending, s.created_at,
+           (SELECT COUNT(*) FROM recipes r WHERE r.source_id = s.id) AS recipe_count
+    FROM recipe_sources s WHERE s.id = ?
   `).get(Number(id))
   return row ? rowToSource(row) : null
 }
 
 /**
- * Find an existing URL source or create one. Uses the final fetched URL as canonical link text.
- * @param {string} url
+ * Find or create a website source keyed by normalized domain (not full recipe URL).
+ * @param {string} url – recipe or site URL (domain is derived)
  * @param {{ name?: string }} [options]
- * @returns {ReturnType<typeof getSourceById> | null}
  */
 export function findOrCreateUrlSource(url, options = {}) {
   const normalized = url != null ? String(url).trim() : ''
   if (!normalized) return null
 
-  const db = getDb()
-  const existing = db
-    .prepare(`SELECT id FROM recipe_sources WHERE type = 'url' AND url = ?`)
-    .get(normalized)
-  if (existing) return getSourceById(existing.id)
+  const domain = normalizeDomainFromUrl(normalized)
+  if (!domain) return null
 
-  let name = options.name != null ? String(options.name).trim() : ''
-  if (!name) {
-    try {
-      name = new URL(normalized).hostname.replace(/^www\./i, '')
-    } catch {
-      name = normalized
-    }
+  const db = getDb()
+  const typeList = WEBSITE_SOURCE_TYPES.map(() => '?').join(', ')
+  let existing = db
+    .prepare(
+      `SELECT id FROM recipe_sources WHERE type IN (${typeList}) AND domain = ? LIMIT 1`,
+    )
+    .get(...WEBSITE_SOURCE_TYPES, domain)
+
+  if (!existing) {
+    existing = db
+      .prepare(
+        `SELECT id FROM recipe_sources WHERE type IN (${typeList}) AND domain IS NULL AND (name = ? OR url = ? OR url LIKE ?) LIMIT 1`,
+      )
+      .get(...WEBSITE_SOURCE_TYPES, domain, normalized, `%://${domain}%`)
   }
 
+  if (existing) {
+    const src = getSourceById(existing.id)
+    if (src && !src.domain) {
+      db.prepare(
+        `UPDATE recipe_sources SET domain = ?, name = ?, url = ?, favicon_url = COALESCE(favicon_url, ?) WHERE id = ?`,
+      ).run(domain, domain, canonicalWebsiteSourceUrl(domain), faviconUrlForDomain(domain), src.id)
+      return getSourceById(src.id)
+    }
+    return src
+  }
+
+  const name = options.name != null ? String(options.name).trim() : domain
+  const siteUrl = canonicalWebsiteSourceUrl(domain)
+  const favicon = faviconUrlForDomain(domain)
+
   db.prepare(`
-    INSERT INTO recipe_sources (type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending)
-    VALUES ('url', ?, NULL, ?, NULL, NULL, NULL, NULL, 0)
-  `).run(name, normalized)
+    INSERT INTO recipe_sources (type, name, subtitle, url, domain, favicon_url, book_title, author, year, image_path, image_processing_pending)
+    VALUES ('url', ?, NULL, ?, ?, ?, NULL, NULL, NULL, NULL, 0)
+  `).run(name || domain, siteUrl, domain, favicon)
 
   const id = db.prepare('SELECT last_insert_rowid() as id').get().id
   return getSourceById(id)
@@ -71,8 +101,8 @@ export function createSource(body) {
   const type = SOURCE_TYPES.includes(p.type) ? p.type : 'book'
   const name = (p.name ?? p.book_title ?? '').trim() || 'Unnamed'
   db.prepare(`
-    INSERT INTO recipe_sources (type, name, subtitle, url, book_title, author, year, image_path, image_processing_pending)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    INSERT INTO recipe_sources (type, name, subtitle, url, domain, favicon_url, book_title, author, year, image_path, image_processing_pending)
+    VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, 0)
   `).run(
     type,
     name,
@@ -81,7 +111,7 @@ export function createSource(body) {
     (p.book_title ?? name).trim() || null,
     (p.author ?? '').trim() || null,
     p.year != null ? Number(p.year) : null,
-    (p.image_path ?? '').trim() || null
+    (p.image_path ?? '').trim() || null,
   )
   const id = db.prepare('SELECT last_insert_rowid() as id').get().id
   return getSourceById(id)
@@ -89,8 +119,6 @@ export function createSource(body) {
 
 /**
  * Set source cover URL and processing flag (internal: finalize deferred upload).
- * @param {number|string} id
- * @param {{ image_path: string | null, image_processing_pending: boolean }} params
  */
 export function setSourceImagePathAndPending(id, { image_path, image_processing_pending }) {
   const db = getDb()
@@ -108,7 +136,7 @@ export function setSourceImagePathAndPending(id, { image_path, image_processing_
  */
 export function updateSource(id, body) {
   const db = getDb()
-  const existing = db.prepare('SELECT id FROM recipe_sources WHERE id = ?').get(Number(id))
+  const existing = db.prepare('SELECT id, type FROM recipe_sources WHERE id = ?').get(Number(id))
   if (!existing) return null
   const p = sanitizeSourceInput(body)
   const type = p.type != null && SOURCE_TYPES.includes(p.type) ? p.type : undefined
@@ -154,12 +182,16 @@ export function deleteSource(id) {
 }
 
 function rowToSource(row) {
+  const type = row.type ?? 'book'
   return {
     id: row.id,
-    type: row.type ?? 'book',
+    type,
+    source_kind: type === 'url' ? 'website' : type,
     name: row.name,
     subtitle: row.subtitle ?? null,
     url: row.url ?? null,
+    domain: row.domain ?? null,
+    favicon_url: row.favicon_url ?? null,
     book_title: row.book_title ?? null,
     author: row.author ?? null,
     year: row.year ?? null,
@@ -167,6 +199,7 @@ function rowToSource(row) {
     image_processing_pending: row.image_processing_pending === 1,
     image_thumb_path:
       row.image_processing_pending === 1 ? null : getThumbnailPathIfExists(row.image_path),
+    recipe_count: row.recipe_count != null ? Number(row.recipe_count) : undefined,
     created_at: row.created_at,
   }
 }

@@ -12,15 +12,20 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export interface RecipeSource {
   id: number
   type: 'book' | 'url' | 'manual' | 'other'
+  /** API alias: website sources use DB type `url`. */
+  source_kind?: 'book' | 'website' | 'manual' | 'other'
   name: string
   subtitle: string | null
   url: string | null
+  domain?: string | null
+  favicon_url?: string | null
   book_title: string | null
   author: string | null
   year: number | null
   image_path: string | null
   image_processing_pending?: boolean
   image_thumb_path?: string | null
+  recipe_count?: number
   created_at: string
 }
 

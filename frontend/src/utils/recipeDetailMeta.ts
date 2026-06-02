@@ -1,4 +1,5 @@
 import type { RecipeListItem } from '../api/recipes'
+import { formatUrlDomain } from './formatUrlDomain'
 import {
   getRecipeSourceDisplayLabel,
   isManagedBookSource,
@@ -8,7 +9,14 @@ type RecipeTimeSource = 'original' | 'estimated' | null | undefined
 
 type DetailSourceFields = Pick<
   RecipeListItem,
-  'source_type' | 'source_id' | 'source_name' | 'source_url' | 'source_page' | 'import_method'
+  | 'source_type'
+  | 'source_id'
+  | 'source_name'
+  | 'source_url'
+  | 'original_url'
+  | 'source_domain'
+  | 'source_page'
+  | 'import_method'
 >
 
 /** Compact duration: 5 Min., 25 Min., 1h 15 Min. */
@@ -27,14 +35,7 @@ export function formatCompactRecipeMinutes(
   return `${n} Min.`
 }
 
-export function formatUrlDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./i, '')
-  } catch {
-    const trimmed = url.trim()
-    return trimmed.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0] || trimmed
-  }
-}
+export { formatUrlDomain } from './formatUrlDomain'
 
 /** Primary detail metadata source label (book title + page, domain, import type, …). */
 export function formatRecipeDetailSourceMeta(recipe: DetailSourceFields): string {
@@ -47,10 +48,12 @@ export function formatRecipeDetailSourceMeta(recipe: DetailSourceFields): string
   }
 
   if (label === 'Website') {
-    const url = recipe.source_url?.trim()
-    if (url) return formatUrlDomain(url)
-    if (recipe.source_name?.trim()) return recipe.source_name.trim()
-    return 'Website'
+    const domain =
+      recipe.source_domain?.trim() ||
+      recipe.source_name?.trim() ||
+      (recipe.original_url?.trim() ? formatUrlDomain(recipe.original_url) : '') ||
+      (recipe.source_url?.trim() ? formatUrlDomain(recipe.source_url) : '')
+    return domain || 'Website'
   }
 
   if (label === 'Buch' && recipe.source_name?.trim()) {
