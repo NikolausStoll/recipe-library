@@ -3102,7 +3102,7 @@ onBeforeUnmount(() => {
 .cooking-mode {
   max-width: 68rem;
   margin: 0 auto;
-  padding-bottom: var(--spacing-2xl);
+  padding-bottom: var(--spacing-xs);
   min-width: 0;
   overflow-x: clip;
 }
@@ -3129,7 +3129,6 @@ onBeforeUnmount(() => {
 
 .cooking-mode__exit:hover {
   color: var(--color-text);
-  text-decoration: underline;
 }
 
 .cooking-mode__exit:focus-visible {
