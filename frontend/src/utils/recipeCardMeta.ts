@@ -13,8 +13,8 @@ function healthLabel(
 ): string | null {
   const score = recipe.health_score?.estimate?.healthScore
   if (score == null) return null
-  if (score >= 70) return 'Balanced'
-  if (score >= 50) return 'Moderate'
+  if (score >= 70) return 'Ausgewogen'
+  if (score >= 50) return 'Mittel'
   return null
 }
 
@@ -28,7 +28,7 @@ function primaryTagLabel(recipe: RecipeListItem): string | null {
 export function formatRecipeCardMeta(recipe: RecipeListItem): string {
   const parts: string[] = []
   const mins = totalMinutes(recipe)
-  if (mins != null && mins > 0) parts.push(`${mins} min`)
+  if (mins != null && mins > 0) parts.push(`${mins} Min.`)
 
   const tag = primaryTagLabel(recipe)
   if (tag && parts.length < 3) parts.push(tag)

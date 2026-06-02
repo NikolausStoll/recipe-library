@@ -1,7 +1,7 @@
 <template>
   <div class="page more-view">
     <header class="page-header more-view__header">
-      <h1 class="page-header__title h2">More</h1>
+      <h1 class="page-header__title h2">Mehr</h1>
     </header>
     <ul class="more-list surface-card">
       <li v-for="item in navItems" :key="item.to">
@@ -12,12 +12,12 @@
       </li>
       <li>
         <a href="#settings" class="more-list__link">
-          <span>Settings</span>
+          <span>Einstellungen</span>
           <span class="more-list__chevron" aria-hidden="true">›</span>
         </a>
       </li>
       <li id="settings" class="more-list__theme">
-        <span>Theme</span>
+        <span>Design</span>
         <div class="more-list__theme-btns">
           <button
             v-for="opt in themeOptions"
@@ -34,9 +34,9 @@
     </ul>
 
     <section class="more-about surface-card" aria-labelledby="more-about-heading">
-      <h2 id="more-about-heading" class="more-about__title">About</h2>
+      <h2 id="more-about-heading" class="more-about__title">Info</h2>
       <p class="meta-text more-about__text">
-        Recipe Library is a calm personal cookbook for your own recipes, favorites, and cooking notes.
+        Die Rezeptbibliothek ist dein ruhiges persönliches Kochbuch für Rezepte, Favoriten und Kochnotizen.
       </p>
       <p class="meta-text more-about__version">Version {{ appVersion }}</p>
     </section>
@@ -51,14 +51,14 @@ const { preference, setPreference } = useTheme()
 const appVersion = packageJson.version
 
 const themeOptions: { value: ThemePreference; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Hell' },
+  { value: 'dark', label: 'Dunkel' },
   { value: 'system', label: 'System' },
 ]
 
 const navItems = [
-  { to: '/sources', label: 'Sources' },
-  { to: '/favorites', label: 'Favorites' },
+  { to: '/sources', label: 'Quellen' },
+  { to: '/favorites', label: 'Favoriten' },
   { to: '/admin/extract-usage', label: 'Admin' },
 ]
 </script>

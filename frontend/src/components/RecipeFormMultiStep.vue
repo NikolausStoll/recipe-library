@@ -1,7 +1,7 @@
 <template>
   <div class="recipe-form-multi">
     <div v-if="editingStatus === 'draft'" class="editor-review-banner">
-      <span class="status-chip-review">Needs review</span>
+      <span class="status-chip-review">Prüfen</span>
       <p>Review AI-extracted ingredients and instructions before cooking.</p>
       <button type="button" class="btn btn--secondary btn--small" @click="emit('confirm')">Mark as reviewed</button>
     </div>
@@ -861,9 +861,9 @@ const steps = [
 ]
 
 function sectionStatus(idx: number): string {
-  if (idx === 0) return form.title.trim() ? 'Complete' : 'Missing'
-  if (idx === 1) return form.ingredients.some((i) => (i.name || '').trim()) ? 'Complete' : 'Needs review'
-  if (idx === 2) return form.recipe_steps.some((s) => s.instruction.trim()) ? 'Complete' : 'Needs review'
+  if (idx === 0) return form.title.trim() ? 'Vollständig' : 'Fehlt'
+  if (idx === 1) return form.ingredients.some((i) => (i.name || '').trim()) ? 'Vollständig' : 'Prüfen'
+  if (idx === 2) return form.recipe_steps.some((s) => s.instruction.trim()) ? 'Vollständig' : 'Prüfen'
   return ''
 }
 

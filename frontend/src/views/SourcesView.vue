@@ -2,10 +2,10 @@
   <div class="page sources-view">
     <header class="page-header sources-header">
       <div>
-        <h1 class="page-header__title h2">Sources</h1>
-        <p class="page-header__subtitle meta-text">{{ sources.length }} cookbook{{ sources.length !== 1 ? 's' : '' }}</p>
+        <h1 class="page-header__title h2">Quellen</h1>
+        <p class="page-header__subtitle meta-text">{{ sources.length }} Kochbuch{{ sources.length !== 1 ? 'er' : '' }}</p>
       </div>
-      <button type="button" class="btn btn--primary" aria-label="Add book source" @click="openNew">Add source</button>
+      <button type="button" class="btn btn--primary" aria-label="Buchquelle hinzufügen" @click="openNew">Quelle hinzufügen</button>
     </header>
 
     <SourceBookOverlay
@@ -18,7 +18,7 @@
     />
 
     <p v-if="listError" class="form__error">{{ listError }}</p>
-    <p v-if="loading && !sources.length" class="loading meta-text">Loading…</p>
+    <p v-if="loading && !sources.length" class="loading meta-text">Wird geladen…</p>
 
     <div v-else class="source-grid">
       <button
@@ -35,8 +35,8 @@
             :alt="s.name"
             loading="lazy"
           />
-          <span v-else-if="s.image_processing_pending" class="source-card__placeholder">Pending</span>
-          <span v-else class="source-card__placeholder">No cover</span>
+          <span v-else-if="s.image_processing_pending" class="source-card__placeholder">Ausstehend</span>
+          <span v-else class="source-card__placeholder">Kein Cover</span>
         </div>
         <div class="source-card__body">
           <h2 class="source-card__title">{{ s.name }}</h2>
@@ -46,8 +46,8 @@
     </div>
 
     <p v-if="!loading && !sources.length" class="empty-state">
-      <h3>No sources yet</h3>
-      <p>Add cookbooks you cook from often.</p>
+      <h3>Noch keine Quellen</h3>
+      <p>Füge Kochbücher hinzu, aus denen du häufig kochst.</p>
     </p>
   </div>
 </template>
@@ -76,7 +76,7 @@ async function load() {
   try {
     sources.value = await listSources()
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : 'Failed to load sources'
+    listError.value = e instanceof Error ? e.message : 'Quellen konnten nicht geladen werden'
   } finally {
     loading.value = false
   }

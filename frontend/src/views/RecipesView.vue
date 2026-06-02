@@ -2,8 +2,8 @@
   <div class="recipes-view">
     <template v-if="!isDetailRoute">
     <header class="recipes-header page-header">
-      <h1 class="recipes-title h2">{{ favoritesOnly ? 'Favorites' : 'Recipes' }}</h1>
-      <router-link to="/add" class="btn btn--primary recipes-header__add-desktop">Add recipe</router-link>
+      <h1 class="recipes-title h2">{{ favoritesOnly ? 'Favoriten' : 'Rezepte' }}</h1>
+      <router-link to="/add" class="btn btn--primary recipes-header__add-desktop">Rezept hinzufügen</router-link>
     </header>
 
     <div class="recipes-toolbar">
@@ -16,12 +16,12 @@
           v-model="searchQuery"
           type="search"
           class="search-field__input"
-          placeholder="Search recipes, ingredients, tags…"
-          aria-label="Search recipes"
+          placeholder="Rezepte, Zutaten, Tags suchen…"
+          aria-label="Rezepte suchen"
         />
       </div>
       <div class="recipes-toolbar__filters">
-        <div class="chip-row recipes-filter-chips" role="group" aria-label="Filter recipes">
+        <div class="chip-row recipes-filter-chips" role="group" aria-label="Rezepte filtern">
           <button
             v-for="chip in filterChips"
             :key="chip.id"
@@ -35,13 +35,13 @@
         </div>
         <div class="recipes-toolbar__meta">
           <span class="meta-text recipes-toolbar__count" aria-live="polite">
-            {{ filteredAndSortedRecipes.length }} recipe{{ filteredAndSortedRecipes.length !== 1 ? 's' : '' }}
+            {{ filteredAndSortedRecipes.length }} Rezept{{ filteredAndSortedRecipes.length !== 1 ? 'e' : '' }}
           </span>
           <label class="recipes-sort">
             <span class="recipes-sort__visible meta-text">{{ sortByLabel }}</span>
-            <select v-model="sortBy" class="recipes-sort__select" aria-label="Sort by">
-              <option value="updated-desc">Recently updated</option>
-              <option value="updated-asc">Oldest updated</option>
+            <select v-model="sortBy" class="recipes-sort__select" aria-label="Sortieren nach">
+              <option value="updated-desc">Zuletzt aktualisiert</option>
+              <option value="updated-asc">Älteste Aktualisierung</option>
               <option value="title-asc">Name (A–Z)</option>
               <option value="title-desc">Name (Z–A)</option>
             </select>
@@ -51,7 +51,7 @@
     </div>
 
     <p v-if="error" class="error-message">{{ error }}</p>
-    <p v-if="loading && !recipes.length" class="loading-message">Loading recipes...</p>
+    <p v-if="loading && !recipes.length" class="loading-message">Rezepte werden geladen…</p>
 
     <!-- Recipe Grid -->
     <div v-if="!loading || recipes.length" class="recipe-grid recipe-list">
@@ -71,9 +71,9 @@
           <div
             v-else-if="recipe.image_processing_pending"
             class="recipe-card__placeholder recipe-card__placeholder--pending"
-            title="Image not processed yet"
+            title="Bild noch nicht verarbeitet"
           >
-            <span class="recipe-card__pending-label">Pending</span>
+            <span class="recipe-card__pending-label">Ausstehend</span>
           </div>
           <div v-else class="recipe-card__placeholder" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -87,14 +87,14 @@
           <h3 class="recipe-card__title">{{ recipe.title }}</h3>
           <p v-if="formatRecipeCardMeta(recipe)" class="recipe-card__meta-line meta-text">{{ formatRecipeCardMeta(recipe) }}</p>
           <p v-if="recipeCardDescription(recipe)" class="recipe-card__desc meta-text">{{ recipeCardDescription(recipe) }}</p>
-          <span v-if="recipeNeedsReview(recipe.status)" class="recipe-card__review status-chip-review">Needs review</span>
+          <span v-if="recipeNeedsReview(recipe.status)" class="recipe-card__review status-chip-review">Prüfen</span>
         </div>
         <div class="recipe-card__actions">
           <button
             type="button"
             class="recipe-card__action-btn recipe-card__action-btn--favorite"
             :class="{ 'recipe-card__action-btn--favorite-active': recipe.favorite }"
-            :title="recipe.favorite ? 'Unfavorite' : 'Favorite'"
+            :title="recipe.favorite ? 'Favorit entfernen' : 'Als Favorit speichern'"
             @click.stop="toggleFavorite(recipe.id)"
           >
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -110,7 +110,7 @@
           <button
             type="button"
             class="recipe-card__action-btn recipe-card__action-btn--edit"
-            title="Edit recipe"
+            title="Rezept bearbeiten"
             @click.stop="startEdit(recipe.id)"
           >
             <svg viewBox="0 0 24 24" fill="none">
@@ -127,8 +127,8 @@
         <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <h3>No recipes match your search</h3>
-      <p>Try adjusting your search terms</p>
+      <h3>Keine passenden Rezepte</h3>
+      <p>Versuche andere Suchbegriffe</p>
     </div>
 
     <div v-if="!loading && !recipes.length" class="empty-state">
@@ -137,26 +137,26 @@
         <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <h3>No recipes yet</h3>
-      <p>Use Add to capture a recipe from a photo, URL, or manual entry.</p>
+      <h3>Noch keine Rezepte</h3>
+      <p>Füge ein Rezept per Foto, URL oder manueller Eingabe hinzu.</p>
     </div>
     </template>
 
     <!-- Cooking mode -->
     <article v-else-if="isCookingMode && viewingRecipe" class="cooking-mode">
       <header class="cooking-mode__top">
-        <button type="button" class="cooking-mode__exit" @click="exitCookingMode">Exit</button>
-        <span class="cooking-mode__label meta-text">Cooking</span>
+        <button type="button" class="cooking-mode__exit" @click="exitCookingMode">Beenden</button>
+        <span class="cooking-mode__label meta-text">Kochmodus</span>
       </header>
       <div class="cooking-mode__layout">
         <div class="cooking-mode__main">
           <p class="cooking-mode__progress meta-text">
-            Step {{ cookingStepIndex + 1 }} of {{ cookingSteps.length }}
+            Schritt {{ cookingStepIndex + 1 }} von {{ cookingSteps.length }}
           </p>
           <p class="cooking-mode__text">{{ cookingSteps[cookingStepIndex]?.instruction }}</p>
           <div class="cooking-mode__nav">
             <button type="button" class="btn btn--secondary" :disabled="cookingStepIndex <= 0" @click="cookingStepIndex--">
-              Previous
+              Zurück
             </button>
             <button
               type="button"
@@ -164,7 +164,7 @@
               :disabled="cookingStepIndex >= cookingSteps.length - 1"
               @click="cookingStepIndex++"
             >
-              Next
+              Weiter
             </button>
           </div>
           <div v-if="cookingStepIndex >= cookingSteps.length - 1" class="cooking-mode__completion">
@@ -174,19 +174,19 @@
               :disabled="hasCookedToday(viewingRecipe.id)"
               @click="markCookedToday(viewingRecipe.id)"
             >
-              {{ hasCookedToday(viewingRecipe.id) ? 'Cooked today' : 'Mark cooked today' }}
+              {{ hasCookedToday(viewingRecipe.id) ? 'Heute gekocht' : 'Heute gekocht' }}
             </button>
           </div>
         </div>
-        <aside class="cooking-mode__aside" aria-label="Ingredients">
-          <h2 class="cooking-mode__aside-title">Ingredients</h2>
+        <aside class="cooking-mode__aside" aria-label="Zutaten">
+          <h2 class="cooking-mode__aside-title">Zutaten</h2>
           <ul class="cooking-mode__ingredient-list">
             <li v-for="(line, idx) in cookingIngredientLines" :key="idx">{{ line }}</li>
           </ul>
         </aside>
       </div>
       <details class="cooking-mode__ingredients-mobile">
-        <summary>All ingredients</summary>
+        <summary>Alle Zutaten</summary>
         <ul>
           <li v-for="(line, idx) in cookingIngredientLines" :key="`m-${idx}`">{{ line }}</li>
         </ul>
@@ -194,25 +194,25 @@
     </article>
 
     <!-- Recipe detail (full page) -->
-    <p v-else-if="!viewingRecipe" class="loading-message">Loading recipe…</p>
+    <p v-else-if="!viewingRecipe" class="loading-message">Rezept wird geladen…</p>
     <article v-else class="recipe-detail-page">
       <header class="recipe-detail-nav">
         <button
           type="button"
           class="recipe-detail-nav__btn recipe-detail-nav__btn--back"
-          :aria-label="`Back to ${favoritesOnly ? 'favorites' : 'recipes'}`"
+          :aria-label="`Zurück zu ${favoritesOnly ? 'Favoriten' : 'Rezepten'}`"
           @click="closeDetailView"
         >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span class="recipe-detail-nav__back-label">Back to {{ favoritesOnly ? 'favorites' : 'recipes' }}</span>
+          <span class="recipe-detail-nav__back-label">Zurück zu {{ favoritesOnly ? 'Favoriten' : 'Rezepten' }}</span>
         </button>
         <div class="recipe-detail-nav__menu-wrap">
           <button
             type="button"
             class="recipe-detail-nav__btn"
-            aria-label="More actions"
+            aria-label="Mehr Aktionen"
             aria-haspopup="true"
             :aria-expanded="detailMenuOpen"
             @click.stop="detailMenuOpen = !detailMenuOpen"
@@ -225,31 +225,31 @@
           </button>
           <div v-if="detailMenuOpen" class="recipe-detail-nav__menu" @click.stop>
             <button type="button" class="recipe-detail-nav__menu-edit-non-desktop" @click="detailMenuOpen = false; editFromDetail()">
-              Edit recipe
+              Rezept bearbeiten
             </button>
             <button
               v-if="hasRecipeUrlSource(viewingRecipe)"
               type="button"
               @click="openOriginalFromMenu"
             >
-              Open original recipe
+              Original öffnen
             </button>
             <button
               type="button"
               :disabled="timeEstimateLoading"
               @click="detailMenuOpen = false; runEstimateTimesForDetail()"
             >
-              Re-estimate prep/cook time
+              Zeiten neu schätzen
             </button>
             <button
               v-if="recipeNeedsReview(viewingRecipe.status)"
               type="button"
               @click="detailMenuOpen = false; editFromDetail()"
             >
-              Review recipe
+              Rezept prüfen
             </button>
             <button type="button" class="recipe-detail-nav__menu-danger" @click="deleteFromDetail">
-              Delete recipe
+              Rezept löschen
             </button>
           </div>
         </div>
@@ -269,7 +269,7 @@
             class="recipe-detail-pending-hero"
             @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
           >
-            <span class="recipe-detail-pending-hero__text">Image not processed yet — open editor to crop and optimize</span>
+            <span class="recipe-detail-pending-hero__text">Bild noch nicht verarbeitet — zum Zuschneiden und Optimieren bitte bearbeiten</span>
           </button>
           <img
             v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
@@ -279,8 +279,8 @@
           <button
             type="button"
             class="recipe-detail-favorite-star"
-            :aria-label="viewingRecipe.favorite ? 'Remove from favorites' : 'Add to favorites'"
-            :title="viewingRecipe.favorite ? 'Remove from favorites' : 'Add to favorites'"
+            :aria-label="viewingRecipe.favorite ? 'Favorit entfernen' : 'Zu Favoriten hinzufügen'"
+            :title="viewingRecipe.favorite ? 'Favorit entfernen' : 'Zu Favoriten hinzufügen'"
             :class="{ 'recipe-detail-favorite-star--active': viewingRecipe.favorite }"
             @click.stop="toggleFavorite(viewingRecipe.id)"
           >
@@ -291,8 +291,8 @@
         <div class="recipe-detail-main-col">
         <div class="recipe-detail-identity">
         <div v-if="recipeNeedsReview(viewingRecipe.status)" class="recipe-detail-review-inline">
-          <span class="status-chip-review">Needs review</span>
-          <button type="button" class="recipe-detail-review-inline__link" @click="editFromDetail">Review</button>
+          <span class="status-chip-review">Prüfen</span>
+          <button type="button" class="recipe-detail-review-inline__link" @click="editFromDetail">Prüfen</button>
         </div>
 
         <h1 class="recipe-detail-title">{{ viewingRecipe.title }}</h1>
@@ -309,12 +309,12 @@
           <p v-if="detailMetaSource || detailMetaServings" class="recipe-detail-meta-simple__line">
             <span v-if="detailMetaSource">{{ detailMetaSource }}</span>
             <span v-if="detailMetaSource && detailMetaServings" aria-hidden="true"> · </span>
-            <span v-if="detailMetaServings">{{ detailMetaServings }} servings</span>
+            <span v-if="detailMetaServings">{{ detailMetaServings }} Portionen</span>
           </p>
           <p v-if="detailMetaPrep || detailMetaCook" class="recipe-detail-meta-simple__line">
-            <span v-if="detailMetaPrep">{{ detailMetaPrep.value }} prep</span>
+            <span v-if="detailMetaPrep">{{ detailMetaPrep.value }} Vorb.</span>
             <span v-if="detailMetaPrep && detailMetaCook" aria-hidden="true"> · </span>
-            <span v-if="detailMetaCook">{{ detailMetaCook.value }} cook</span>
+            <span v-if="detailMetaCook">{{ detailMetaCook.value }} Garzeit</span>
           </p>
         </div>
 
@@ -376,8 +376,8 @@
             type="button"
             class="recipe-detail-meta__refresh"
             :disabled="timeEstimateLoading"
-            title="Re-estimate prep and cook times"
-            aria-label="Re-estimate prep and cook times"
+            title="Zeiten neu schätzen"
+            aria-label="Zeiten neu schätzen"
             @click="runEstimateTimesForDetail"
           >
             ↻
@@ -387,14 +387,14 @@
 
         <div class="recipe-detail-actions">
           <button type="button" class="btn btn--primary recipe-detail-action recipe-detail-action--primary" @click="startCookingMode">
-            Cook
+            Kochen
           </button>
           <button
             type="button"
             class="recipe-detail-action recipe-detail-action--secondary recipe-detail-action--edit-desktop"
             @click="editFromDetail"
           >
-            Edit
+            Bearbeiten
           </button>
         </div>
 
@@ -406,7 +406,7 @@
           </section>
 
           <section id="recipe-section-steps" class="recipe-doc-section">
-            <h2 class="recipe-doc-section__title">Steps</h2>
+            <h2 class="recipe-doc-section__title">Zubereitung</h2>
             <ol class="recipe-steps-list">
               <li v-for="(step, idx) in viewingRecipe.recipe_steps" :key="idx" class="recipe-step">
                 <span class="recipe-step-number">{{ idx + 1 }}.</span>
@@ -416,7 +416,7 @@
           </section>
 
           <section v-if="viewingRecipe.tips?.length" class="recipe-doc-section">
-            <h2 class="recipe-doc-section__title">Tips</h2>
+            <h2 class="recipe-doc-section__title">Tipps</h2>
             <ul class="recipe-tips-list">
               <li v-for="(tip, idx) in viewingRecipe.tips" :key="idx">{{ tip }}</li>
             </ul>
@@ -425,14 +425,14 @@
           <section id="recipe-section-health" class="recipe-doc-section">
             <div class="recipe-health-section">
               <div class="recipe-doc-section__head">
-                <h2 class="recipe-doc-section__title">Health</h2>
+                <h2 class="recipe-doc-section__title">Gesundheitscheck</h2>
                 <button
                   v-if="healthScoreResult && healthScoreResult.estimate.healthScore != null"
                   type="button"
                   class="recipe-detail-section-refresh"
                   :disabled="healthScoreLoading"
-                  title="Recalculate health score"
-                  aria-label="Recalculate health score"
+                  title="Gesundheitscheck neu berechnen"
+                  aria-label="Gesundheitscheck neu berechnen"
                   @click="requestDetailHealthScore"
                 >
                   ↻
@@ -452,7 +452,7 @@
                     v-if="healthScoreResult.estimate.confidence != null"
                     class="recipe-health-confidence"
                   >
-                    Confidence: {{ Math.round(healthScoreResult.estimate.confidence * 100) }}%
+                    Sicherheit: {{ Math.round(healthScoreResult.estimate.confidence * 100) }}%
                   </span>
                 </div>
                 <p v-if="healthScoreResult.estimate.summary" class="recipe-health-summary">
@@ -460,20 +460,20 @@
                 </p>
                 <div class="recipe-health-columns">
                   <div v-if="healthScoreResult.estimate.positives?.length" class="recipe-health-column">
-                    <h3 class="recipe-health-column-title">Positives</h3>
+                    <h3 class="recipe-health-column-title">Positiv</h3>
                     <ul class="recipe-health-list">
                       <li v-for="(p, i) in healthScoreResult.estimate.positives" :key="'p-' + i">{{ p }}</li>
                     </ul>
                   </div>
                   <div v-if="healthScoreResult.estimate.concerns?.length" class="recipe-health-column">
-                    <h3 class="recipe-health-column-title">Concerns</h3>
+                    <h3 class="recipe-health-column-title">Hinweise</h3>
                     <ul class="recipe-health-list">
                       <li v-for="(c, i) in healthScoreResult.estimate.concerns" :key="'c-' + i">{{ c }}</li>
                     </ul>
                   </div>
                 </div>
                 <div v-if="healthScoreResult.estimate.improvementTips?.length" class="recipe-health-tips">
-                  <h3 class="recipe-health-column-title">Tips</h3>
+                  <h3 class="recipe-health-column-title">Tipps</h3>
                   <ul class="recipe-health-list">
                     <li v-for="(t, i) in healthScoreResult.estimate.improvementTips" :key="'t-' + i">{{ t }}</li>
                   </ul>
@@ -487,7 +487,7 @@
                   :disabled="healthScoreLoading"
                   @click="requestDetailHealthScore"
                 >
-                  {{ healthScoreLoading ? 'Estimating…' : 'Get health score' }}
+                  {{ healthScoreLoading ? 'Wird berechnet…' : 'Gesundheitscheck holen' }}
                 </button>
               </div>
             </div>
@@ -495,14 +495,14 @@
 
           <section id="recipe-section-nutrition" class="recipe-doc-section">
             <div class="recipe-doc-section__head">
-              <h2 class="recipe-doc-section__title">Nutrition</h2>
+              <h2 class="recipe-doc-section__title">Nährwerte</h2>
               <button
                 v-if="hasNutrition"
                 type="button"
                 class="recipe-detail-section-refresh"
                 :disabled="nutritionLoading"
-                title="Re-estimate nutrition"
-                aria-label="Re-estimate nutrition"
+                title="Nährwerte neu schätzen"
+                aria-label="Nährwerte neu schätzen"
                 @click="requestDetailNutritionEstimate"
               >
                 ↻
@@ -510,19 +510,19 @@
             </div>
             <div v-if="hasNutrition" class="recipe-nutrition">
               <div v-if="nutritionPerServing.kcal != null" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Calories per serving</span>
+                <span class="recipe-nutrition-label">Kalorien pro Portion</span>
                 <span class="recipe-nutrition-value">{{ nutritionPerServing.kcal }} kcal</span>
               </div>
               <div v-if="nutritionPerServing.protein != null" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Protein per serving</span>
+                <span class="recipe-nutrition-label">Eiweiß pro Portion</span>
                 <span class="recipe-nutrition-value">{{ nutritionPerServing.protein }} g</span>
               </div>
               <div v-if="nutritionPerServing.carbs != null" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Carbs per serving</span>
+                <span class="recipe-nutrition-label">Kohlenhydrate pro Portion</span>
                 <span class="recipe-nutrition-value">{{ nutritionPerServing.carbs }} g</span>
               </div>
               <div v-if="nutritionPerServing.fat != null" class="recipe-nutrition-item">
-                <span class="recipe-nutrition-label">Fat per serving</span>
+                <span class="recipe-nutrition-label">Fett pro Portion</span>
                 <span class="recipe-nutrition-value">{{ nutritionPerServing.fat }} g</span>
               </div>
             </div>
@@ -534,13 +534,13 @@
                 @click="requestDetailNutritionEstimate"
                 :disabled="nutritionLoading"
               >
-                {{ nutritionLoading ? 'Estimating nutrition…' : 'Estimate nutrition' }}
+                {{ nutritionLoading ? 'Nährwerte werden geschätzt…' : 'Nährwerte schätzen' }}
               </button>
             </div>
           </section>
 
           <section id="recipe-section-source" class="recipe-doc-section">
-            <h2 class="recipe-doc-section__title">Source</h2>
+            <h2 class="recipe-doc-section__title">Quelle</h2>
             <p class="recipe-detail-source-type meta-text">{{ formatRecipeSourceMeta(viewingRecipe) }}</p>
             <div v-if="hasRecipeBookSource(viewingRecipe)" class="recipe-detail-book-source">
               <img
@@ -565,7 +565,7 @@
                   ><span v-if="viewingRecipe.source_year">{{ viewingRecipe.source_year }}</span>
                 </p>
                 <p v-if="viewingRecipe.source_page" class="recipe-detail-book-source__meta">
-                  Page {{ viewingRecipe.source_page }}
+                  Seite {{ viewingRecipe.source_page }}
                 </p>
               </div>
             </div>
@@ -576,22 +576,22 @@
               target="_blank"
               rel="noopener noreferrer"
             >
-              Open original recipe
+              Original öffnen
             </a>
           </section>
 
           <section id="recipe-section-history" class="recipe-doc-section recipe-doc-section--history">
-            <h2 class="recipe-doc-section__title">Cook history</h2>
+            <h2 class="recipe-doc-section__title">Kochverlauf</h2>
             <div class="recipe-detail-history">
               <p v-if="(recipeHistories[viewingRecipe.id] ?? []).length === 0" class="recipe-detail-history__empty meta-text">
-                Not cooked yet
+                Noch nicht gekocht
               </p>
               <template v-else>
                 <p class="recipe-detail-history__latest">
-                  Last cooked: <strong>{{ recipeHistories[viewingRecipe.id]?.[0] }}</strong>
+                  Zuletzt gekocht: <strong>{{ recipeHistories[viewingRecipe.id]?.[0] }}</strong>
                 </p>
                 <p v-if="(recipeHistories[viewingRecipe.id] ?? []).length > 1" class="recipe-detail-history__previous meta-text">
-                  Previously: {{ (recipeHistories[viewingRecipe.id] ?? []).slice(1, 4).join(' · ') }}
+                  Zuvor: {{ (recipeHistories[viewingRecipe.id] ?? []).slice(1, 4).join(' · ') }}
                 </p>
               </template>
               <button
@@ -600,7 +600,7 @@
                 :disabled="hasCookedToday(viewingRecipe.id)"
                 @click="markCookedToday(viewingRecipe.id)"
               >
-                {{ hasCookedToday(viewingRecipe.id) ? 'Cooked today' : 'Mark cooked today' }}
+                {{ hasCookedToday(viewingRecipe.id) ? 'Heute gekocht' : 'Heute gekocht' }}
               </button>
             </div>
           </section>
@@ -621,7 +621,7 @@
               class="recipe-detail-pending-hero"
               @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
             >
-              <span class="recipe-detail-pending-hero__text">Image not processed yet — open editor to crop and optimize</span>
+            <span class="recipe-detail-pending-hero__text">Bild noch nicht verarbeitet — zum Zuschneiden und Optimieren bitte bearbeiten</span>
             </button>
             <img
               v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
@@ -631,8 +631,8 @@
             <button
               type="button"
               class="recipe-detail-favorite-star"
-              :aria-label="viewingRecipe.favorite ? 'Remove from favorites' : 'Add to favorites'"
-              :title="viewingRecipe.favorite ? 'Remove from favorites' : 'Add to favorites'"
+              :aria-label="viewingRecipe.favorite ? 'Favorit entfernen' : 'Zu Favoriten hinzufügen'"
+              :title="viewingRecipe.favorite ? 'Favorit entfernen' : 'Zu Favoriten hinzufügen'"
               :class="{ 'recipe-detail-favorite-star--active': viewingRecipe.favorite }"
               @click.stop="toggleFavorite(viewingRecipe.id)"
             >
@@ -642,12 +642,12 @@
 
           <div id="recipe-section-ingredients" class="recipe-detail-ingredients-panel">
             <div class="recipe-detail-ingredients-panel__head">
-              <h2 class="recipe-detail-ingredients-panel__title">Ingredients</h2>
+              <h2 class="recipe-detail-ingredients-panel__title">Zutaten</h2>
               <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
                 <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
                 <span class="servings-value">{{ displayServings }}</span>
                 <button type="button" class="servings-btn" @click="adjustServings(1)">+</button>
-                <span class="servings-label">servings</span>
+                <span class="servings-label">Portionen</span>
               </div>
             </div>
             <div class="recipe-detail-ingredients-scroll">
@@ -676,16 +676,16 @@
       @click.self="showWouldCookAgainPrompt = false"
     >
       <div class="would-cook-again-panel">
-        <h3>Would you cook this again?</h3>
-        <p class="would-cook-again-subtitle">Select one option. You can always change it later in Edit Recipe.</p>
+        <h3>Würdest du das wieder kochen?</h3>
+        <p class="would-cook-again-subtitle">Wähle eine Option. Du kannst sie später in „Bearbeiten“ ändern.</p>
         <div class="would-cook-again-actions">
-          <button type="button" class="btn btn--primary" @click="setWouldCookAgain('yes')">Yes</button>
-          <button type="button" class="btn btn--secondary" @click="setWouldCookAgain('maybe')">Maybe</button>
-          <button type="button" class="btn btn--secondary" @click="setWouldCookAgain('no')">No</button>
+          <button type="button" class="btn btn--primary" @click="setWouldCookAgain('yes')">Ja</button>
+          <button type="button" class="btn btn--secondary" @click="setWouldCookAgain('maybe')">Vielleicht</button>
+          <button type="button" class="btn btn--secondary" @click="setWouldCookAgain('no')">Nein</button>
         </div>
         <div class="would-cook-again-close">
           <button type="button" class="btn btn--secondary btn--block" @click="showWouldCookAgainPrompt = false">
-            Not now
+            Später
           </button>
         </div>
       </div>
@@ -850,8 +850,8 @@ const activeFilter = ref(
 const cookingStepIndex = ref(0)
 
 const sortByLabels: Record<typeof sortBy.value, string> = {
-  'updated-desc': 'Recently updated',
-  'updated-asc': 'Oldest updated',
+  'updated-desc': 'Zuletzt aktualisiert',
+  'updated-asc': 'Älteste Aktualisierung',
   'title-asc': 'Name (A–Z)',
   'title-desc': 'Name (Z–A)',
 }
@@ -859,13 +859,13 @@ const sortByLabels: Record<typeof sortBy.value, string> = {
 const sortByLabel = computed(() => sortByLabels[sortBy.value])
 
 const filterChips = [
-  { id: 'all', label: 'All' },
-  { id: 'favorites', label: 'Favorites' },
-  { id: 'quick', label: 'Quick' },
-  { id: 'healthy', label: 'Healthy' },
-  { id: 'dinner', label: 'Dinner' },
-  { id: 'books', label: 'From books' },
-  { id: 'review', label: 'Needs review' },
+  { id: 'all', label: 'Alle' },
+  { id: 'favorites', label: 'Favoriten' },
+  { id: 'quick', label: 'Schnell' },
+  { id: 'healthy', label: 'Gesund' },
+  { id: 'dinner', label: 'Abendessen' },
+  { id: 'books', label: 'Aus Büchern' },
+  { id: 'review', label: 'Prüfen' },
 ] as const
 
 const isCookingMode = computed(() => route.query.cook === '1' && viewingRecipe.value != null)
@@ -909,11 +909,11 @@ type DetailTabId = 'ingredients' | 'steps' | 'health' | 'nutrition' | 'source' |
 const activeDetailTab = ref<DetailTabId>('steps')
 
 const detailTabsMobile: { id: DetailTabId; label: string; target: string }[] = [
-  { id: 'steps', label: 'Steps', target: 'recipe-section-steps' },
-  { id: 'health', label: 'Health', target: 'recipe-section-health' },
-  { id: 'nutrition', label: 'Nutrition', target: 'recipe-section-nutrition' },
-  { id: 'source', label: 'Source', target: 'recipe-section-source' },
-  { id: 'history', label: 'History', target: 'recipe-section-history' },
+  { id: 'steps', label: 'Zubereitung', target: 'recipe-section-steps' },
+  { id: 'health', label: 'Gesundheitscheck', target: 'recipe-section-health' },
+  { id: 'nutrition', label: 'Nährwerte', target: 'recipe-section-nutrition' },
+  { id: 'source', label: 'Quelle', target: 'recipe-section-source' },
+  { id: 'history', label: 'Kochverlauf', target: 'recipe-section-history' },
 ]
 
 const showWouldCookAgainPrompt = ref(false)
@@ -928,7 +928,7 @@ async function loadRecipeHistories(recipeIds: number[]) {
         const res = await getRecipeHistory(id)
         map[id] = res.history
       } catch (err) {
-        console.error('Failed to load history for', id, err)
+        console.error('Kochverlauf konnte nicht geladen werden für', id, err)
         map[id] = []
       }
     })
@@ -950,7 +950,7 @@ async function markCookedToday(recipeId: number) {
       showWouldCookAgainPrompt.value = true
     }
   } catch (err) {
-    console.error('Failed to mark recipe cooked:', err)
+    console.error('Rezept konnte nicht als gekocht markiert werden:', err)
   }
 }
 
@@ -971,7 +971,7 @@ async function setWouldCookAgain(value: 'yes' | 'maybe' | 'no') {
       ;(formInitial.value as any).would_cook_again = updated?.would_cook_again ?? value
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to update would cook again'
+    error.value = err instanceof Error ? err.message : '„Würdest du das wieder kochen?“ konnte nicht aktualisiert werden'
   }
 }
 
@@ -1288,7 +1288,7 @@ async function loadList() {
     rebuildFuse()
     await loadRecipeHistories(data.map((recipe) => recipe.id))
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load recipes'
+    error.value = e instanceof Error ? e.message : 'Rezepte konnten nicht geladen werden'
   } finally {
     loading.value = false
   }
@@ -1311,7 +1311,7 @@ async function toggleFavorite(recipeId: number) {
       await loadList()
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to update favorite'
+    error.value = e instanceof Error ? e.message : 'Favorit konnte nicht aktualisiert werden'
   }
 }
 
@@ -1321,9 +1321,9 @@ async function loadRecipeDetail(id: number) {
     displayServings.value = viewingRecipe.value.servings || 1
     healthScoreResult.value = viewingRecipe.value.health_score ?? null
     healthScoreError.value = ''
-    document.title = `${viewingRecipe.value.title} – Recipe Library`
+    document.title = `${viewingRecipe.value.title} – Rezeptbibliothek`
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load recipe'
+    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht geladen werden'
     router.replace(listPath.value)
   }
 }
@@ -1345,7 +1345,7 @@ async function runNutritionEstimate(recipeId: number, options?: { refreshList?: 
       await loadRecipeDetail(recipeId)
     }
   } catch (e) {
-    console.error('Nutrition estimate failed:', e)
+    console.error('Nährwert-Schätzung fehlgeschlagen:', e)
   } finally {
     nutritionLoading.value = false
   }
@@ -1386,7 +1386,7 @@ async function runHealthScoreEstimate(recipeId: number) {
       viewingRecipe.value = { ...viewingRecipe.value, health_score: result }
     }
   } catch (e) {
-    healthScoreError.value = e instanceof Error ? e.message : 'Health score request failed'
+    healthScoreError.value = e instanceof Error ? e.message : 'Gesundheitscheck fehlgeschlagen'
     healthScoreResult.value = null
   } finally {
     healthScoreLoading.value = false
@@ -1405,7 +1405,7 @@ function formatRecipeMinutes(
 ): string {
   if (v == null || Number.isNaN(Number(v)) || Number(v) <= 0) return '−'
   const n = Math.round(Number(v))
-  return `${n} min`
+  return `${n} Min.`
 }
 
 function recipeCardDescription(recipe: RecipeListItemWithIngredients): string | null {
@@ -1427,7 +1427,7 @@ function openOriginalFromMenu() {
 async function deleteFromDetail() {
   const id = viewingRecipe.value?.id
   if (!id) return
-  if (!confirm('Delete this recipe? This cannot be undone.')) return
+  if (!confirm('Dieses Rezept löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return
   detailMenuOpen.value = false
   error.value = ''
   try {
@@ -1435,7 +1435,7 @@ async function deleteFromDetail() {
     closeDetailView()
     await loadList()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to delete recipe'
+    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht gelöscht werden'
   }
 }
 
@@ -1496,7 +1496,7 @@ async function runEstimateTimesFlow(recipeId: number) {
       if (p.prep) {
         if (
           window.confirm(
-            `Do you want to overwrite original ${p.prep.current} min with estimated ${p.prep.suggested} min?`
+            `Originale Vorbereitungszeit (${p.prep.current} Min.) durch geschätzte Zeit (${p.prep.suggested} Min.) ersetzen?`
           )
         ) {
           rp = true
@@ -1505,7 +1505,7 @@ async function runEstimateTimesFlow(recipeId: number) {
       if (p.cook) {
         if (
           window.confirm(
-            `Do you want to overwrite original ${p.cook.current} min with estimated ${p.cook.suggested} min?`
+            `Originale Garzeit (${p.cook.current} Min.) durch geschätzte Zeit (${p.cook.suggested} Min.) ersetzen?`
           )
         ) {
           rc = true
@@ -1563,8 +1563,8 @@ function clearDetailState() {
   timeEstimateError.value = ''
   detailMenuOpen.value = false
   activeDetailTab.value = 'steps'
-  const pageTitle = props.favoritesOnly ? 'Favorites' : 'Recipes'
-  document.title = `${pageTitle} – Recipe Library`
+  const pageTitle = props.favoritesOnly ? 'Favoriten' : 'Rezepte'
+  document.title = `${pageTitle} – Rezeptbibliothek`
 }
 
 function closeDetailView() {
@@ -1643,7 +1643,7 @@ function startEdit(id: number) {
     }
     showRecipeForm.value = true
   }).catch((e) => {
-    error.value = e instanceof Error ? e.message : 'Failed to load recipe'
+    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht geladen werden'
   })
 }
 
@@ -1718,7 +1718,7 @@ async function onFormSubmit(
           body: formData,
         })
         if (!response.ok) {
-          throw new Error('Failed to upload image')
+          throw new Error('Bild konnte nicht hochgeladen werden')
         }
       }
     }
@@ -1743,7 +1743,7 @@ async function onFormSubmit(
       await loadList()
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to save recipe'
+    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht gespeichert werden'
   }
 }
 
@@ -1755,20 +1755,20 @@ async function onConfirmRecipe() {
     editingStatus.value = 'confirmed'
     await loadList()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to confirm recipe'
+    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht bestätigt werden'
   }
 }
 
 async function onDeleteFromEdit() {
   if (!editingId.value) return
-  if (!confirm('Delete this recipe? This cannot be undone.')) return
+  if (!confirm('Dieses Rezept löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return
   error.value = ''
   try {
     await deleteRecipe(editingId.value)
     closeEdit()
     await loadList()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to delete recipe'
+    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht gelöscht werden'
   }
 }
 

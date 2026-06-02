@@ -11,7 +11,7 @@ type DetailSourceFields = Pick<
   'source_type' | 'source_id' | 'source_name' | 'source_url' | 'source_page' | 'import_method'
 >
 
-/** Compact duration: 5min, 25min, 1h 15min. */
+/** Compact duration: 5 Min., 25 Min., 1h 15 Min. */
 export function formatCompactRecipeMinutes(
   v: number | null | undefined,
   source?: RecipeTimeSource
@@ -22,9 +22,9 @@ export function formatCompactRecipeMinutes(
     const h = Math.floor(n / 60)
     const m = n % 60
     if (m === 0) return `${h}h`
-    return `${h}h ${m}min`
+    return `${h}h ${m} Min.`
   }
-  return `${n}min`
+  return `${n} Min.`
 }
 
 export function formatUrlDomain(url: string): string {
@@ -40,7 +40,7 @@ export function formatUrlDomain(url: string): string {
 export function formatRecipeDetailSourceMeta(recipe: DetailSourceFields): string {
   const label = getRecipeSourceDisplayLabel(recipe)
   const page = recipe.source_page?.trim()
-  const pageSuffix = page ? ` · p. ${page}` : ''
+  const pageSuffix = page ? ` · S. ${page}` : ''
 
   if (isManagedBookSource(recipe) && recipe.source_name?.trim()) {
     return `${recipe.source_name.trim()}${pageSuffix}`
@@ -53,7 +53,7 @@ export function formatRecipeDetailSourceMeta(recipe: DetailSourceFields): string
     return 'Website'
   }
 
-  if (label === 'Book' && recipe.source_name?.trim()) {
+  if (label === 'Buch' && recipe.source_name?.trim()) {
     return `${recipe.source_name.trim()}${pageSuffix}`
   }
 
@@ -62,7 +62,7 @@ export function formatRecipeDetailSourceMeta(recipe: DetailSourceFields): string
 
 export function formatDetailServingsLabel(servings: number | null | undefined): string | null {
   if (servings == null || servings <= 0) return null
-  return `${servings} serving${servings === 1 ? '' : 's'}`
+  return `${servings} Portion${servings === 1 ? '' : 'en'}`
 }
 
 /** Servings count only for compact detail metadata row. */
@@ -75,16 +75,16 @@ export type DetailSourceKind = 'book' | 'website' | 'photo' | 'manual' | 'unknow
 
 export function getRecipeDetailSourceKind(recipe: DetailSourceFields): DetailSourceKind {
   const label = getRecipeSourceDisplayLabel(recipe)
-  if (label === 'Book') return 'book'
+  if (label === 'Buch') return 'book'
   if (label === 'Website') return 'website'
-  if (label === 'Photo import') return 'photo'
-  if (label === 'Manual') return 'manual'
+  if (label === 'Fotoimport') return 'photo'
+  if (label === 'Manuell') return 'manual'
   return 'unknown'
 }
 
 export interface DetailTimeMeta {
   value: string
-  label: 'PREP' | 'COOK'
+  label: 'VORB.' | 'GARZEIT'
 }
 
 export function formatDetailPrepMeta(
@@ -93,7 +93,7 @@ export function formatDetailPrepMeta(
   if (!recipe) return null
   const value = formatCompactRecipeMinutes(recipe.prep_time_min, recipe.prep_time_source)
   if (!value) return null
-  return { value, label: 'PREP' }
+  return { value, label: 'VORB.' }
 }
 
 export function formatDetailCookMeta(
@@ -102,5 +102,5 @@ export function formatDetailCookMeta(
   if (!recipe) return null
   const value = formatCompactRecipeMinutes(recipe.cook_time_min, recipe.cook_time_source)
   if (!value) return null
-  return { value, label: 'COOK' }
+  return { value, label: 'GARZEIT' }
 }

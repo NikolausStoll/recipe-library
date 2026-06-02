@@ -14,14 +14,14 @@ const router = createRouter({
           path: 'recipes/:id?',
           name: 'recipes',
           component: () => import('../views/RecipesView.vue'),
-          meta: { title: 'Recipes' },
+          meta: { title: 'Rezepte' },
         },
         {
           path: 'favorites/:id?',
           name: 'favorites',
           component: () => import('../views/RecipesView.vue'),
           props: { favoritesOnly: true },
-          meta: { title: 'Favorites' },
+          meta: { title: 'Favoriten' },
         },
         {
           path: 'plan',
@@ -33,31 +33,31 @@ const router = createRouter({
           path: 'add',
           name: 'add',
           component: () => import('../views/AddRecipeView.vue'),
-          meta: { title: 'Add recipe' },
+          meta: { title: 'Rezept hinzufügen' },
         },
         {
           path: 'shopping',
           name: 'shopping',
           component: () => import('../views/ShoppingView.vue'),
-          meta: { title: 'Shopping' },
+          meta: { title: 'Einkauf' },
         },
         {
           path: 'sources/:id?',
           name: 'sources',
           component: () => import('../views/SourcesView.vue'),
-          meta: { title: 'Sources' },
+          meta: { title: 'Quellen' },
         },
         {
           path: 'more',
           name: 'more',
           component: () => import('../views/MoreView.vue'),
-          meta: { title: 'More' },
+          meta: { title: 'Mehr' },
         },
         {
           path: 'admin/extract-usage',
           name: 'admin-extract-usage',
           component: () => import('../views/AdminExtractUsageView.vue'),
-          meta: { title: 'Admin · AI token usage' },
+          meta: { title: 'Admin · KI-Tokennutzung' },
         },
       ],
     },
@@ -66,7 +66,7 @@ const router = createRouter({
 
 router.afterEach((to) => {
   const title = to.meta.title as string
-  if (title) document.title = `${title} – Recipe Library`
+  if (title) document.title = `${title} – Rezeptbibliothek`
 })
 
 export default router

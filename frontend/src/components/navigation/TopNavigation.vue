@@ -2,7 +2,7 @@
   <nav class="top-nav" aria-label="Main">
     <router-link to="/recipes" class="top-nav__brand">
       <span class="top-nav__brand-mark" aria-hidden="true">📖</span>
-      <span class="top-nav__brand-text">Recipe Library</span>
+      <span class="top-nav__brand-text">Rezeptbibliothek</span>
     </router-link>
     <div class="top-nav__links">
       <router-link
@@ -16,11 +16,11 @@
       </router-link>
     </div>
     <div class="top-nav__actions">
-      <button type="button" class="icon-btn" :title="themeLabel" aria-label="Toggle theme" @click="toggle">
+      <button type="button" class="icon-btn" :title="themeLabel" aria-label="Design umschalten" @click="toggle">
         <span aria-hidden="true">{{ resolved === 'dark' ? '☀' : '☾' }}</span>
       </button>
       <router-link to="/more" class="top-nav__link top-nav__more" :class="{ 'top-nav__link--active': route.path === '/more' }">
-        More
+        Mehr
       </router-link>
     </div>
   </nav>
@@ -35,13 +35,13 @@ const route = useRoute()
 const { resolved, toggle } = useTheme()
 
 const items = [
-  { to: '/recipes', label: 'Recipes', match: (p: string) => p.startsWith('/recipes') },
+  { to: '/recipes', label: 'Rezepte', match: (p: string) => p.startsWith('/recipes') },
   { to: '/plan', label: 'Plan', match: (p: string) => p.startsWith('/plan') },
-  { to: '/shopping', label: 'Shopping', match: (p: string) => p.startsWith('/shopping') },
-  { to: '/sources', label: 'Sources', match: (p: string) => p.startsWith('/sources') },
+  { to: '/shopping', label: 'Einkauf', match: (p: string) => p.startsWith('/shopping') },
+  { to: '/sources', label: 'Quellen', match: (p: string) => p.startsWith('/sources') },
 ]
 
-const themeLabel = computed(() => (resolved.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'))
+const themeLabel = computed(() => (resolved.value === 'dark' ? 'Zum hellen Design wechseln' : 'Zum dunklen Design wechseln'))
 
 function isActive(item: (typeof items)[0]) {
   return item.match(route.path)

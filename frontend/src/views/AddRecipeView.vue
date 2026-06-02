@@ -1,8 +1,8 @@
 <template>
   <div class="page add-recipe-view">
     <header class="page-header">
-      <h1 class="page-header__title h2">Add recipe</h1>
-      <p class="page-header__subtitle">Capture a recipe from a photo, website, or start from scratch.</p>
+      <h1 class="page-header__title h2">Rezept hinzufügen</h1>
+      <p class="page-header__subtitle">Importiere ein Rezept per Foto, Website oder starte von Grund auf.</p>
     </header>
 
     <div class="add-recipe-options">
@@ -55,32 +55,32 @@ type AddOption = {
 const allOptions: AddOption[] = [
   {
     id: 'photo',
-    title: 'Take photo',
-    description: 'Capture a recipe from a cookbook, magazine, or note.',
+    title: 'Foto aufnehmen',
+    description: 'Rezept aus Kochbuch, Zeitschrift oder Notiz erfassen.',
     action: () => {
       showImageImport.value = true
     },
   },
   {
     id: 'upload',
-    title: 'Upload image',
-    description: 'Use photos you already took.',
+    title: 'Bild hochladen',
+    description: 'Fotos verwenden, die bereits aufgenommen wurden.',
     action: () => {
       showImageImport.value = true
     },
   },
   {
     id: 'url',
-    title: 'Paste website',
-    description: 'Import from a recipe URL.',
+    title: 'Website einfügen',
+    description: 'Von einer Rezept-URL importieren.',
     action: () => {
       showUrlImport.value = true
     },
   },
   {
     id: 'manual',
-    title: 'Manual entry',
-    description: 'Start with an empty recipe.',
+    title: 'Manuell eingeben',
+    description: 'Mit einem leeren Rezept starten.',
     action: goManual,
   },
 ]

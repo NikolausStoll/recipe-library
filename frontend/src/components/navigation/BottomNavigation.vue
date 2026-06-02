@@ -12,7 +12,7 @@
     </router-link>
     <router-link to="/add" class="mobile-bottom-nav__item mobile-bottom-nav__item--add" :class="{ 'mobile-bottom-nav__item--active': route.path === '/add' }">
       <span class="mobile-bottom-nav__icon mobile-bottom-nav__icon--add" aria-hidden="true">+</span>
-      <span class="mobile-bottom-nav__label">Add</span>
+      <span class="mobile-bottom-nav__label">Neu</span>
     </router-link>
     <router-link
       v-for="item in rightItems"
@@ -33,13 +33,13 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 
 const sideItems = [
-  { to: '/recipes', label: 'Recipes', icon: '⌂', match: (p: string) => p.startsWith('/recipes') },
+  { to: '/recipes', label: 'Rezepte', icon: '⌂', match: (p: string) => p.startsWith('/recipes') },
   { to: '/plan', label: 'Plan', icon: '◷', match: (p: string) => p.startsWith('/plan') },
 ]
 
 const rightItems = [
-  { to: '/shopping', label: 'Shopping', icon: '☐', match: (p: string) => p.startsWith('/shopping') },
-  { to: '/more', label: 'More', icon: '⋯', match: (p: string) => p === '/more' || p.startsWith('/sources') || p.startsWith('/admin') || p.startsWith('/favorites') },
+  { to: '/shopping', label: 'Einkauf', icon: '☐', match: (p: string) => p.startsWith('/shopping') },
+  { to: '/more', label: 'Mehr', icon: '⋯', match: (p: string) => p === '/more' || p.startsWith('/sources') || p.startsWith('/admin') || p.startsWith('/favorites') },
 ]
 
 function isActive(item: { match: (p: string) => boolean }) {
