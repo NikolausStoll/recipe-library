@@ -2567,7 +2567,7 @@ onBeforeUnmount(() => {
   );
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) {
   .recipe-detail-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
@@ -2657,7 +2657,7 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) {
   .recipe-detail-side-panel {
     position: sticky;
     top: calc(var(--top-nav-height) + var(--spacing-md));

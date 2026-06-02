@@ -11,6 +11,7 @@
 
 ### Style
 - **Frontend**: Vue 3 Composition API with `<script setup>`, TypeScript, CSS custom properties
+- **PWA config**: Keep `frontend/public/manifest.webmanifest` valid and linked from `frontend/index.html`; preserve `start_url`, `scope`, `theme_color`, `background_color`, and icon entries when changing `display` mode.
 - **Backend**: ES modules, async/await, prepared statements, thin routes with service layer
 - **Naming**: Descriptive names, camelCase for JS/TS, kebab-case for files/URLs
 - **Comments**: Only when logic isn't self-evident, no redundant comments

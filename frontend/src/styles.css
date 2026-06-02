@@ -173,6 +173,18 @@ body {
   color: var(--color-text);
 }
 
+@media (display-mode: fullscreen) {
+  body {
+    overscroll-behavior: none;
+  }
+}
+
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior: auto;
+  }
+}
+
 .app-modal-overlay {
   position: fixed;
   inset: 0;

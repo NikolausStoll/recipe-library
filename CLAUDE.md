@@ -19,6 +19,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Views**: Recipes (list + detail + cooking mode), Plan/Shopping placeholders, Add recipe, Sources, More (theme, favorites link, admin), Admin extract usage
 - **Navigation**: Desktop top nav (Recipes, Plan, Shopping, Sources, More + Add); mobile bottom nav (Recipes, Plan, **Add**, Shopping, More). Sources on mobile under More.
 - **Styling**: Semantic tokens in `styles.css` + shared primitives in `styles/components.css`; violet accent (not orange); `useTheme` + `data-theme` on `<html>`
+- **PWA manifest**: `frontend/public/manifest.webmanifest` is linked in `frontend/index.html` (`<link rel="manifest" ...>`). Keep `start_url`, `scope`, `theme_color`, `background_color`, and icons valid; `display` can be toggled between `fullscreen` (testing) and `standalone` (default app-shell behavior).
 - **Copy**: UI shows **Needs review** for `status === 'draft'` (backend unchanged)
 - **Key Components**:
   - `RecipeForm.vue` - Main recipe entry/edit form
