@@ -2314,6 +2314,12 @@ onBeforeUnmount(() => {
   transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
 }
 
+@media (min-width: 1100px) {
+  .recipe-detail-favorite-star {
+    right: 7px;
+  }
+}
+
 .recipe-detail-favorite-star:hover {
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-bg) 88%, transparent);
@@ -2343,10 +2349,14 @@ onBeforeUnmount(() => {
   .recipe-detail-side-panel::before {
     display: none;
   }
+
+  .recipe-detail-ingredients-panel {
+    margin-top: 10px;
+  }
 }
 
 .recipe-detail-ingredients-panel {
-  padding: 0 var(--content-padding-mobile) var(--spacing-lg);
+  padding: 0 var(--content-padding-mobile) var(--spacing-xs);
   min-width: 0;
 }
 
@@ -2367,7 +2377,7 @@ onBeforeUnmount(() => {
   width: min(68%, 720px);
   height: 1px;
   border: 0;
-  margin: 40px auto 28px;
+  margin: 12px auto 28px;
   background: linear-gradient(
     to right,
     transparent,
@@ -2617,7 +2627,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-bottom: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 
 .recipe-detail-meta-simple__line {
@@ -2742,7 +2753,7 @@ onBeforeUnmount(() => {
   font-weight: 500;
   color: var(--color-text);
   cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .recipe-detail-action.btn--primary {
@@ -2751,7 +2762,26 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-action--primary {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
   border-color: transparent;
+}
+
+.recipe-detail-action--primary:hover,
+.recipe-detail-action--primary:focus-visible,
+.recipe-detail-action--primary:active {
+  color: var(--color-accent-text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .recipe-detail-action--primary:hover {
+    background: var(--color-accent-hover);
+  }
+}
+
+.recipe-detail-action--primary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 55%, white);
+  outline-offset: 2px;
 }
 
 .recipe-detail-action--secondary:hover {
@@ -2774,15 +2804,22 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 767px) {
+  .recipe-detail-actions {
+    width: 100%;
+  }
+
   .recipe-detail-action {
     min-height: 40px;
     padding: 9px 14px;
     font-size: 0.875rem;
   }
 
-  .recipe-detail-action.btn--primary {
-    min-height: 42px;
-    padding: 10px 16px;
+  .recipe-detail-action.btn--primary,
+  .recipe-detail-action--primary {
+    width: 100%;
+    min-height: 46px;
+    padding: 11px 18px;
+    justify-content: center;
   }
 }
 
