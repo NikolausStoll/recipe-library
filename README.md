@@ -17,7 +17,7 @@ A full-stack recipe management application with AI-powered recipe extraction fro
 - **Admin · Extract usage**: Table of OpenAI token usage with per-request cost estimate (¢) for supported models
 - **Personal cookbook UI**: Image-led redesign with violet accent, desktop top nav, mobile bottom nav (Recipes · Plan · Add · Shopping · More), unified recipe search, filter chips, and **Needs review** (UI label for `draft` status)
 - **Light/Dark Mode**: Semantic design tokens (`data-theme` on `<html>`), Work Sans typography
-- **Installable PWA shell**: `frontend/public/manifest.webmanifest` with app icons, `start_url`/`scope`, and configurable `display` mode (currently `fullscreen` for Android installed-app testing; switch back to `standalone` if needed)
+- **Installable PWA shell**: `frontend/public/manifest.webmanifest` + `frontend/public/sw.js` (registered in `frontend/src/main.ts`) with app icons, `start_url`/`scope`, and configurable `display` mode (currently `fullscreen` for Android installed-app testing; switch back to `standalone` if needed)
 - **Token Usage Tracking**: Monitor OpenAI API costs via `ai_token_usage` table
 
 ## Project Structure
