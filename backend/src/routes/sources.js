@@ -81,12 +81,29 @@ router.put('/:id', (req, res) => {
 })
 
 /**
- * DELETE /api/sources/:id – delete source. Fails if any recipe references it.
+ * DELETE /api/sources/:id – delete source.
+ * Query `unlink_recipes=1`: for website sources (`type: url`), clears `recipes.source_id` first (keeps `original_url`), then deletes.
  */
 router.delete('/:id', (req, res) => {
-  const deleted = sourceService.deleteSource(req.params.id)
-  if (!deleted) return res.status(400).json({ error: 'Source in use by recipes or not found' })
-  res.status(204).send()
+  const unlinkRecipes =
+    req.query.unlink_recipes === '1' ||
+    req.query.unlink_recipes === 'true' ||
+    req.query.unlink_recipes === true
+  const result = sourceService.deleteSource(req.params.id, { unlinkRecipes })
+  if (result.ok) {
+    return res.status(204).send()
+  }
+  if (result.reason === 'not_found') {
+    return res.status(404).json({ error: 'Source not found' })
+  }
+  if (result.reason === 'in_use') {
+    return res.status(409).json({
+      error: 'Source in use by recipes',
+      recipe_count: result.recipeCount ?? 0,
+      can_unlink: result.canUnlink === true,
+    })
+  }
+  return res.status(400).json({ error: 'Could not delete source' })
 })
 
 /**

@@ -171,14 +171,43 @@ export function updateSource(id, body) {
 }
 
 /**
- * Delete a source. Returns false if any recipe references it (and does not delete).
+ * Delete a source.
+ * @param {number|string} id
+ * @param {{ unlinkRecipes?: boolean }} [options]
+ * @returns {{ ok: true, unlinkedRecipeCount: number } | { ok: false, reason: 'not_found'|'in_use'|'unlink_not_allowed', recipeCount?: number, canUnlink?: boolean }}
  */
-export function deleteSource(id) {
+export function deleteSource(id, options = {}) {
   const db = getDb()
-  const refs = db.prepare('SELECT COUNT(*) as n FROM recipes WHERE source_id = ?').get(Number(id))
-  if (refs.n > 0) return false
-  const result = db.prepare('DELETE FROM recipe_sources WHERE id = ?').run(Number(id))
-  return result.changes > 0
+  const sourceId = Number(id)
+  const source = db.prepare('SELECT id, type FROM recipe_sources WHERE id = ?').get(sourceId)
+  if (!source) {
+    return { ok: false, reason: 'not_found' }
+  }
+
+  const refs = db.prepare('SELECT COUNT(*) as n FROM recipes WHERE source_id = ?').get(sourceId)
+  const recipeCount = refs?.n ?? 0
+  const isWebsite = source.type === 'url'
+  let unlinkedRecipeCount = 0
+
+  if (recipeCount > 0) {
+    if (options.unlinkRecipes && isWebsite) {
+      const unlink = db.prepare('UPDATE recipes SET source_id = NULL WHERE source_id = ?').run(sourceId)
+      unlinkedRecipeCount = unlink.changes
+    } else {
+      return {
+        ok: false,
+        reason: 'in_use',
+        recipeCount,
+        canUnlink: isWebsite,
+      }
+    }
+  }
+
+  const result = db.prepare('DELETE FROM recipe_sources WHERE id = ?').run(sourceId)
+  if (result.changes < 1) {
+    return { ok: false, reason: 'not_found' }
+  }
+  return { ok: true, unlinkedRecipeCount }
 }
 
 function rowToSource(row) {

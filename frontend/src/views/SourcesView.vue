@@ -73,7 +73,12 @@
         </div>
 
         <ul v-if="websiteSources.length" class="website-source-list">
-          <li v-for="s in websiteSources" :key="s.id" class="website-source-row">
+          <li
+            v-for="s in websiteSources"
+            :key="s.id"
+            class="website-source-row"
+            :class="{ 'website-source-row--menu-open': websiteMenuOpenId === s.id }"
+          >
             <span class="website-source-row__icon" aria-hidden="true">
               <img
                 v-if="s.favicon_url"
@@ -93,6 +98,37 @@
             <span class="website-source-row__count meta-text">
               {{ s.recipe_count ?? 0 }} Rezept{{ (s.recipe_count ?? 0) !== 1 ? 'e' : '' }}
             </span>
+            <div class="website-source-row__menu-wrap">
+              <button
+                type="button"
+                class="website-source-row__menu-btn"
+                :aria-expanded="websiteMenuOpenId === s.id"
+                aria-haspopup="true"
+                aria-label="Weitere Aktionen"
+                @click.stop="toggleWebsiteMenu(s.id)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="6" r="1.5" fill="currentColor" />
+                  <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                  <circle cx="12" cy="18" r="1.5" fill="currentColor" />
+                </svg>
+              </button>
+              <div
+                v-if="websiteMenuOpenId === s.id"
+                class="website-source-row__menu"
+                role="menu"
+                @click.stop
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="website-source-row__menu-danger"
+                  @click="openWebsiteDeleteDialog(s)"
+                >
+                  Website-Quelle löschen
+                </button>
+              </div>
+            </div>
           </li>
         </ul>
         <p v-else class="sources-section__empty meta-text">
@@ -100,13 +136,66 @@
         </p>
       </section>
     </template>
+
+    <div
+      v-if="websiteDeleteTarget"
+      class="source-delete-dialog-overlay"
+      role="presentation"
+      @click.self="closeWebsiteDeleteDialog"
+    >
+      <div
+        class="source-delete-dialog"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="websiteDeleteTarget ? 'website-delete-title' : undefined"
+      >
+        <h3 id="website-delete-title" class="source-delete-dialog__title">Website-Quelle löschen?</h3>
+        <p v-if="websiteDeleteRecipeCount === 0" class="source-delete-dialog__text">
+          Diese Quelle wird entfernt.
+        </p>
+        <template v-else>
+          <p class="source-delete-dialog__text">
+            Diese Quelle ist mit {{ websiteDeleteRecipeCount }} Rezept{{
+              websiteDeleteRecipeCount !== 1 ? 'en' : ''
+            }}
+            verknüpft.
+          </p>
+          <p class="source-delete-dialog__hint meta-text">
+            Die Rezepte bleiben erhalten. Original-URLs der Rezepte werden beibehalten.
+          </p>
+        </template>
+        <p v-if="websiteDeleteError" class="form__error">{{ websiteDeleteError }}</p>
+        <div class="source-delete-dialog__actions">
+          <button
+            type="button"
+            class="btn btn--secondary"
+            :disabled="websiteDeleteLoading"
+            @click="closeWebsiteDeleteDialog"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            class="btn btn--danger"
+            :disabled="websiteDeleteLoading"
+            @click="confirmWebsiteDelete"
+          >
+            {{
+              websiteDeleteRecipeCount > 0
+                ? 'Rezepte behalten und Quelle entfernen'
+                : 'Löschen'
+            }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import SourceBookOverlay from '../components/SourceBookOverlay.vue'
-import { listSources } from '../api/sources'
+import { deleteSource, listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
 
 const sources = ref<RecipeSource[]>([])
@@ -115,6 +204,15 @@ const listError = ref('')
 const overlayOpen = ref(false)
 const overlaySourceId = ref<number | null>(null)
 const overlayInitial = ref<RecipeSource | null>(null)
+const websiteMenuOpenId = ref<number | null>(null)
+const websiteDeleteTarget = ref<RecipeSource | null>(null)
+const websiteDeleteLoading = ref(false)
+const websiteDeleteError = ref('')
+
+/** Ignore the document click that opened the menu (same gesture). */
+let ignoreWebsiteMenuOutsideClick = false
+
+const websiteDeleteRecipeCount = computed(() => websiteDeleteTarget.value?.recipe_count ?? 0)
 
 const bookSources = computed(() => sources.value.filter((s) => s.type === 'book'))
 const websiteSources = computed(() =>
@@ -173,7 +271,68 @@ async function onSourceDeleted() {
   await load()
 }
 
-onMounted(load)
+function toggleWebsiteMenu(id: number) {
+  if (websiteMenuOpenId.value === id) {
+    websiteMenuOpenId.value = null
+    return
+  }
+  websiteMenuOpenId.value = id
+  ignoreWebsiteMenuOutsideClick = true
+  requestAnimationFrame(() => {
+    ignoreWebsiteMenuOutsideClick = false
+  })
+}
+
+function closeWebsiteMenu() {
+  websiteMenuOpenId.value = null
+}
+
+function openWebsiteDeleteDialog(source: RecipeSource) {
+  closeWebsiteMenu()
+  websiteDeleteError.value = ''
+  websiteDeleteTarget.value = source
+}
+
+function closeWebsiteDeleteDialog() {
+  if (websiteDeleteLoading.value) return
+  websiteDeleteTarget.value = null
+  websiteDeleteError.value = ''
+}
+
+async function confirmWebsiteDelete() {
+  const target = websiteDeleteTarget.value
+  if (!target) return
+  websiteDeleteLoading.value = true
+  websiteDeleteError.value = ''
+  const unlinkRecipes = (target.recipe_count ?? 0) > 0
+  try {
+    await deleteSource(target.id, { unlinkRecipes })
+    closeWebsiteDeleteDialog()
+    await load()
+  } catch (e) {
+    websiteDeleteError.value =
+      e instanceof Error ? e.message : 'Website-Quelle konnte nicht gelöscht werden'
+  } finally {
+    websiteDeleteLoading.value = false
+  }
+}
+
+function onDocumentClickForWebsiteMenu(event: MouseEvent) {
+  if (ignoreWebsiteMenuOutsideClick) return
+  if (websiteMenuOpenId.value == null) return
+  const el = event.target as HTMLElement
+  if (el.closest('.website-source-row__menu-wrap')) return
+  closeWebsiteMenu()
+}
+
+onMounted(() => {
+  load()
+  document.addEventListener('click', onDocumentClickForWebsiteMenu)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClickForWebsiteMenu)
+})
 </script>
 
 <style scoped>
@@ -285,7 +444,7 @@ onMounted(load)
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .website-source-row {
@@ -294,6 +453,11 @@ onMounted(load)
   gap: var(--spacing-md);
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--color-border);
+  position: relative;
+}
+
+.website-source-row--menu-open {
+  z-index: 20;
 }
 
 .website-source-row:last-child {
@@ -336,6 +500,123 @@ onMounted(load)
 .website-source-row__count {
   flex-shrink: 0;
   font-size: 0.8125rem;
+}
+
+.website-source-row__menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.website-source-row__menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -4px -8px -4px 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.website-source-row__menu-btn:hover,
+.website-source-row__menu-btn:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+  outline: none;
+}
+
+.website-source-row__menu-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  pointer-events: none;
+}
+
+.website-source-row__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  min-width: 12rem;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.website-source-row__menu button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.website-source-row__menu button:hover {
+  background: var(--color-surface-subtle);
+}
+
+.website-source-row__menu-danger {
+  color: var(--color-danger);
+}
+
+.source-delete-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background: var(--color-bg-overlay);
+}
+
+.source-delete-dialog {
+  width: min(100%, 26rem);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.source-delete-dialog__title {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.source-delete-dialog__text {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--color-text);
+  line-height: 1.45;
+}
+
+.source-delete-dialog__hint {
+  margin: 0 0 var(--spacing-md);
+}
+
+.source-delete-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+  margin-top: var(--spacing-md);
 }
 
 .loading {

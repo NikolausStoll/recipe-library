@@ -35,7 +35,7 @@
 - `recipe_sources.type`: `book` (Kochbücher) or `url` (website; UI label **Website**). Do not count websites as books.
 - URL import: `findOrCreateUrlSource()` dedupes by `recipe_sources.domain` (normalized hostname, `www` stripped). `recipe_sources.url` is the site root (`https://domain`); per-recipe page URL is `recipes.original_url`.
 - On startup, `initDb()` runs `migrateWebsiteSources.js` (adds columns, dedupes legacy URL sources by domain, moves full URLs to `recipes.original_url` when safe).
-- Sources UI: **Kochbücher** (cover cards) and **Websites** (compact rows with optional `favicon_url`).
+- Sources UI: **Kochbücher** (cover cards) and **Websites** (compact rows with optional `favicon_url`, More menu → delete). `DELETE /api/sources/:id?unlink_recipes=1` unlinks website sources from recipes (`source_id = NULL`, keeps `original_url`) then deletes the source row.
 
 ### Security
 - Never expose `.env` files or API keys

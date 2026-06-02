@@ -219,7 +219,13 @@ async function save() {
 
 async function onDelete() {
   if (!props.sourceId) return
-  if (!confirm('Really delete book source? Only works if no recipe uses it.')) return
+  if (
+    !confirm(
+      'Kochbuch-Quelle löschen?\n\nNur möglich, wenn kein Rezept diese Quelle verwendet.',
+    )
+  ) {
+    return
+  }
   saving.value = true
   formError.value = ''
   try {

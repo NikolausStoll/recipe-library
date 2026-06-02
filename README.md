@@ -269,7 +269,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
   - Body: Any source fields
   - Response: Updated source object
 
-- **`DELETE /api/sources/:id`** – Delete source
+- **`DELETE /api/sources/:id`** – Delete source (fails with **409** if recipes reference it). Query **`unlink_recipes=1`**: for website sources (`type: url`), sets `recipes.source_id` to `NULL` (keeps `original_url`) then deletes the source.
   - Fails if recipes reference this source (foreign key constraint)
 
 - **`POST /api/sources/:id/cover`** – Upload book cover image

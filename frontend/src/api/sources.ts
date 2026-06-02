@@ -62,10 +62,27 @@ export function updateSource(id: number, payload: Partial<RecipeSourceInput>): P
   }).then((res) => handleResponse<RecipeSource>(res))
 }
 
-export function deleteSource(id: number): Promise<void> {
-  return fetch(`${API_BASE}/sources/${id}`, { method: 'DELETE' }).then((res) =>
-    handleResponse<void>(res)
-  )
+export interface SourceDeleteConflict {
+  error: string
+  recipe_count?: number
+  can_unlink?: boolean
+}
+
+export function deleteSource(
+  id: number,
+  options?: { unlinkRecipes?: boolean },
+): Promise<void> {
+  const qs = options?.unlinkRecipes ? '?unlink_recipes=1' : ''
+  return fetch(`${API_BASE}/sources/${id}${qs}`, { method: 'DELETE' }).then(async (res) => {
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as SourceDeleteConflict
+      const err = new Error(body.error || 'Source in use by recipes')
+      ;(err as Error & SourceDeleteConflict).recipe_count = body.recipe_count
+      ;(err as Error & { can_unlink?: boolean }).can_unlink = body.can_unlink
+      throw err
+    }
+    return handleResponse<void>(res)
+  })
 }
 
 export async function uploadSourceCover(
