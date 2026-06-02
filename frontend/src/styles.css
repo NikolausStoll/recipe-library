@@ -70,6 +70,16 @@
   --z-modal: 9000;
   --z-crop-modal: 10000;
 
+  /*
+   * Shared layout breakpoints (use the same @media pattern in CSS):
+   * Narrow (mobile + tablet portrait): default styles, or max-width: 1023px
+   * Wide (tablet landscape + desktop):
+   *   @media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) { ... }
+   */
+  --layout-bp-narrow-max: 1023px;
+  --layout-bp-wide-min: 1024px;
+  --layout-bp-desktop-min: 1200px;
+
   /* Legacy aliases (existing components) */
   --color-primary: var(--color-accent);
   --color-primary-dark: var(--color-accent-hover);

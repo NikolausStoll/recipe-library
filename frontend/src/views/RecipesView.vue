@@ -2182,7 +2182,7 @@ onBeforeUnmount(() => {
 .recipes-header__add-desktop {
   display: none;
 }
-@media (min-width: 1024px) {
+@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) {
   .recipes-header__add-desktop {
     display: inline-flex;
   }
@@ -3254,7 +3254,7 @@ onBeforeUnmount(() => {
 }
 
 .cooking-mode__ingredients-mobile .recipe-ingredient-group__heading {
-  margin-bottom: var(--spacing-sd);
+  margin-bottom: var(--spacing-md);
 }
 
 .cooking-mode__ingredient-list {
@@ -3267,10 +3267,10 @@ onBeforeUnmount(() => {
   padding: 0.35rem 0;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) {
   .cooking-mode__layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
     gap: var(--spacing-xl);
     align-items: start;
   }

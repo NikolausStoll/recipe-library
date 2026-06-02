@@ -16,6 +16,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Framework**: Vue 3 with Composition API, TypeScript
 - **Routing**: Vue Router with `AppShell` wrapper (`createWebHistory`); `/` redirects to `/recipes` (recipes are home; dashboard removed from primary nav)
 - **Vite `base`**: Use `base: '/'` (root-relative built assets). A relative base (`./`) breaks reloads on nested routes (e.g. `/admin/extract-usage`): the browser requests `/admin/assets/…` and gets a non-JS response (Firefox: `NS_ERROR_CORRUPTED_CONTENT`).
+- **Responsive layout**: Narrow (mobile + tablet portrait) by default; wide layouts (recipe overview cards, recipe detail side panel, cooking ingredients aside) only at `@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px)` — see `--layout-bp-*` comments in `styles.css`.
 - **Views**: Recipes (list + detail + cooking mode), Plan/Shopping placeholders, Add recipe, Sources, More (theme, favorites link, admin), Admin extract usage
 - **Navigation**: Desktop top nav (Recipes, Plan, Shopping, Sources, More + Add); mobile bottom nav (Recipes, Plan, **Add**, Shopping, More). Sources on mobile under More.
 - **Styling**: Semantic tokens in `styles.css` + shared primitives in `styles/components.css`; violet accent (not orange); `useTheme` + `data-theme` on `<html>`
