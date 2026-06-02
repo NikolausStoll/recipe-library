@@ -496,18 +496,6 @@
   margin-bottom: var(--spacing-md);
 }
 
-.recipes-header__add-desktop {
-  display: none;
-  text-decoration: none;
-  flex-shrink: 0;
-}
-
-@media (min-width: 1024px) {
-  .recipes-header__add-desktop {
-    display: inline-flex;
-  }
-}
-
 .recipes-toolbar {
   margin-bottom: var(--spacing-lg);
 }

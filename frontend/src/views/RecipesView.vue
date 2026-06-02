@@ -161,35 +161,55 @@
             <button
               type="button"
               class="btn btn--primary"
-              :disabled="cookingStepIndex >= cookingSteps.length - 1"
-              @click="cookingStepIndex++"
+              :disabled="isFinalCookingStep && hasCookedToday(viewingRecipe.id)"
+              @click="advanceCookingStep"
             >
-              Weiter
-            </button>
-          </div>
-          <div v-if="cookingStepIndex >= cookingSteps.length - 1" class="cooking-mode__completion">
-            <button
-              type="button"
-              class="btn btn--secondary btn--small"
-              :disabled="hasCookedToday(viewingRecipe.id)"
-              @click="markCookedToday(viewingRecipe.id)"
-            >
-              {{ hasCookedToday(viewingRecipe.id) ? 'Heute gekocht' : 'Heute gekocht' }}
+              {{ isFinalCookingStep ? 'Heute gekocht' : 'Weiter' }}
             </button>
           </div>
         </div>
         <aside class="cooking-mode__aside" aria-label="Zutaten">
           <h2 class="cooking-mode__aside-title">Zutaten</h2>
-          <ul class="cooking-mode__ingredient-list">
-            <li v-for="(line, idx) in cookingIngredientLines" :key="idx">{{ line }}</li>
-          </ul>
+          <div class="cooking-mode__ingredient-groups">
+            <section
+              v-for="(section, sidx) in cookingIngredientSections"
+              :key="`cook-d-${section.key}-${sidx}`"
+              class="recipe-ingredient-group"
+            >
+              <h3 v-if="section.heading" class="recipe-ingredient-group__heading">{{ section.heading }}</h3>
+              <ul class="recipe-ingredients-list recipe-ingredients-list--panel cooking-mode__ingredient-list">
+                <li
+                  v-for="(line, idx) in section.items"
+                  :key="`cook-d-${sidx}-${idx}`"
+                  class="recipe-ingredient"
+                >
+                  <span class="recipe-ingredient-text">{{ line.text }}</span>
+                </li>
+              </ul>
+            </section>
+          </div>
         </aside>
       </div>
-      <details class="cooking-mode__ingredients-mobile">
+      <details class="cooking-mode__ingredients-mobile" open>
         <summary>Alle Zutaten</summary>
-        <ul>
-          <li v-for="(line, idx) in cookingIngredientLines" :key="`m-${idx}`">{{ line }}</li>
-        </ul>
+        <div class="cooking-mode__ingredient-groups">
+          <section
+            v-for="(section, sidx) in cookingIngredientSections"
+            :key="`cook-m-${section.key}-${sidx}`"
+            class="recipe-ingredient-group"
+          >
+            <h3 v-if="section.heading" class="recipe-ingredient-group__heading">{{ section.heading }}</h3>
+            <ul class="recipe-ingredients-list recipe-ingredients-list--panel cooking-mode__ingredient-list">
+              <li
+                v-for="(line, idx) in section.items"
+                :key="`cook-m-${sidx}-${idx}`"
+                class="recipe-ingredient"
+              >
+                <span class="recipe-ingredient-text">{{ line.text }}</span>
+              </li>
+            </ul>
+          </section>
+        </div>
       </details>
     </article>
 
@@ -770,7 +790,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
 import type { IFuseOptions } from 'fuse.js'
@@ -879,13 +899,100 @@ const isCookingMode = computed(() => route.query.cook === '1' && viewingRecipe.v
 
 const cookingSteps = computed(() => viewingRecipe.value?.recipe_steps ?? [])
 
-const cookingIngredientLines = computed(() => {
+type WakeLockSentinelLike = {
+  release: () => Promise<void>
+  released?: boolean
+}
+
+const cookingWakeLock = ref<WakeLockSentinelLike | null>(null)
+
+const cookingServings = computed(() => {
+  const fromQuery = Number(route.query.cookServings)
+  if (Number.isFinite(fromQuery) && fromQuery >= 1) return Math.max(1, Math.round(fromQuery))
+  if (displayServings.value >= 1) return displayServings.value
+  return Math.max(1, viewingRecipe.value?.servings ?? 1)
+})
+
+const isFinalCookingStep = computed(() => cookingStepIndex.value >= cookingSteps.value.length - 1)
+
+const cookingIngredientSections = computed(() => {
   const recipe = viewingRecipe.value
-  if (!recipe?.ingredients?.length) return [] as string[]
-  return recipe.ingredients.map((ing) => {
-    const parts = [ing.amount, ing.unit, ing.ingredient || ing.name].filter(Boolean)
-    return parts.join(' ').trim() || ing.original_text || ''
-  })
+  if (!recipe) return []
+
+  const originalServings = recipe.servings || 1
+  const scale = cookingServings.value / originalServings
+  const servingsChanged = cookingServings.value !== originalServings
+  const isImageBookRecipe = recipe.import_method === 'image' && recipe.source_id != null && recipe.source_type === 'book'
+  const shouldShowOriginalText = isImageBookRecipe && !servingsChanged
+
+  type IngredientLine = { text: string; category: string | null }
+  const sections: { heading: string | null; key: string; items: IngredientLine[] }[] = []
+  const pushToSection = (heading: string | null, key: string, text: string, category: string | null = null) => {
+    let section = sections.length ? sections[sections.length - 1] : null
+    if (!section || section.key !== key) {
+      sections.push({ heading, key, items: [] })
+      section = sections[sections.length - 1]
+    }
+    section.items.push({ text, category })
+  }
+
+  const formatAmountRange = (amount: number | null | undefined, amountMax: number | null | undefined) => {
+    if (amount == null) return ''
+    const scaledMin = parseFloat(String(amount)) * scale
+    const roundedMin = Math.round(scaledMin * 100) / 100
+
+    if (amountMax != null && amountMax !== amount) {
+      const scaledMax = parseFloat(String(amountMax)) * scale
+      const roundedMax = Math.round(scaledMax * 100) / 100
+      return `${roundedMin}-${roundedMax}`
+    }
+    return `${roundedMin}`
+  }
+
+  if (recipe.ingredients?.length) {
+    for (const ing of recipe.ingredients) {
+      let text = ''
+      const cat = ing.category?.trim() ? ing.category.trim() : null
+      if (shouldShowOriginalText && ing.original_text) {
+        text = ing.original_text ?? ''
+      } else {
+        const amountText = formatAmountRange(ing.amount ?? null, ing.amount_max ?? null)
+        const ingredientName = (ing.name || ing.ingredient || '').trim()
+        const additional = ing.additional_info ? ` (${ing.additional_info})` : ''
+        text = ([amountText, ing.unit ?? null, ingredientName].filter(Boolean).join(' ').trim() + additional).trim()
+      }
+      if (text) {
+        const key = `section-${ing.section_id ?? 'manual'}-${ing.section_heading ?? 'no-heading'}`
+        pushToSection(ing.section_heading ?? null, key, text, cat)
+      }
+    }
+  } else if (recipe.parsed_recipe?.ingredientsSections?.length) {
+    recipe.parsed_recipe.ingredientsSections.forEach((section, idx) => {
+      const sectionKey = `parsed-${idx}-${section.heading ?? 'no-heading'}`
+      for (const item of section.items ?? []) {
+        const amountText = formatAmountRange(item.amount ?? null, (item as any).amountMax ?? null)
+        const ingredientName = (item.ingredient ?? '').trim()
+        const additional = (item as any).additionalInfo ? ` (${(item as any).additionalInfo})` : ''
+        const catRaw = (item as { category?: string | null }).category
+        const cat = catRaw?.trim() ? catRaw.trim() : null
+
+        let text = ''
+        if (shouldShowOriginalText && item.originalText?.trim()) {
+          text = item.originalText.trim()
+        } else {
+          text = [amountText, item.unit ?? null, ingredientName]
+            .filter(Boolean)
+            .join(' ')
+            .trim()
+          text = (text + additional).trim()
+        }
+
+        if (text) pushToSection(section.heading ?? null, sectionKey, text, cat)
+      }
+    })
+  }
+
+  return sections
 })
 const showImportOverlay = ref(false)
 const showUrlImportOverlay = ref(false)
@@ -1597,17 +1704,63 @@ function closeDetailView() {
 
 function startCookingMode() {
   cookingStepIndex.value = 0
-  router.push({ path: route.path, query: { ...route.query, cook: '1' } })
+  router.push({
+    path: route.path,
+    query: { ...route.query, cook: '1', cookServings: String(Math.max(1, displayServings.value || 1)) },
+  })
 }
 
 function exitCookingMode() {
   const q = { ...route.query } as Record<string, string>
   delete q.cook
+  delete q.cookServings
   router.push({ path: route.path, query: q })
 }
 
 function adjustServings(delta: number) {
   displayServings.value = Math.max(1, displayServings.value + delta)
+}
+
+async function advanceCookingStep() {
+  if (!viewingRecipe.value) return
+  if (isFinalCookingStep.value) {
+    if (hasCookedToday(viewingRecipe.value.id)) return
+    await markCookedToday(viewingRecipe.value.id)
+    return
+  }
+  cookingStepIndex.value += 1
+}
+
+async function requestCookingWakeLock() {
+  if (!isCookingMode.value || typeof window === 'undefined' || !('wakeLock' in navigator)) return
+  try {
+    const navWithWakeLock = navigator as Navigator & {
+      wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> }
+    }
+    cookingWakeLock.value = await navWithWakeLock.wakeLock?.request('screen') ?? null
+  } catch {
+    cookingWakeLock.value = null
+  }
+}
+
+async function releaseCookingWakeLock() {
+  if (!cookingWakeLock.value) return
+  try {
+    await cookingWakeLock.value.release()
+  } catch {
+    // Ignore release failures to keep exit flow smooth.
+  } finally {
+    cookingWakeLock.value = null
+  }
+}
+
+async function onVisibilityChangeForCookingWakeLock() {
+  if (!isCookingMode.value) return
+  if (document.visibilityState === 'visible') {
+    await requestCookingWakeLock()
+    return
+  }
+  await releaseCookingWakeLock()
 }
 
 function editFromDetail() {
@@ -1833,6 +1986,7 @@ onMounted(() => {
   document.addEventListener('click', hideCoverOverlay)
   document.addEventListener('click', onDocumentClickForAddMenu)
   document.addEventListener('click', onDocumentClickForDetailMenu)
+  document.addEventListener('visibilitychange', onVisibilityChangeForCookingWakeLock)
 })
 
 watch(
@@ -1853,11 +2007,27 @@ watch(showRecipeForm, (open) => {
   document.body.classList.toggle('app-modal-open', open)
 })
 
+watch(
+  isCookingMode,
+  async (active) => {
+    if (active) {
+      await nextTick()
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      await requestCookingWakeLock()
+      return
+    }
+    await releaseCookingWakeLock()
+  },
+  { immediate: true },
+)
+
 onBeforeUnmount(() => {
   document.removeEventListener('click', hideCoverOverlay)
   document.removeEventListener('click', onDocumentClickForAddMenu)
   document.removeEventListener('click', onDocumentClickForDetailMenu)
+  document.removeEventListener('visibilitychange', onVisibilityChangeForCookingWakeLock)
   document.body.classList.remove('app-modal-open')
+  releaseCookingWakeLock()
 })
 </script>
 
@@ -2007,6 +2177,15 @@ onBeforeUnmount(() => {
   width: 20px;
   height: 20px;
   stroke-width: 2;
+}
+
+.recipes-header__add-desktop {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .recipes-header__add-desktop {
+    display: inline-flex;
+  }
 }
 
 .recipes-toolbar {
@@ -2520,17 +2699,12 @@ onBeforeUnmount(() => {
 
 .recipe-ingredients-list--panel .recipe-ingredient {
   padding: 0.65rem 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.recipe-ingredients-list--panel .recipe-ingredient:last-child {
   border-bottom: none;
 }
 
 @media (min-width: 768px) {
   .recipe-ingredients-list--panel .recipe-ingredient {
     padding: 0.45rem 0;
-    border-bottom: none;
   }
 }
 
@@ -2926,7 +3100,7 @@ onBeforeUnmount(() => {
 }
 
 .cooking-mode {
-  max-width: 56rem;
+  max-width: 68rem;
   margin: 0 auto;
   padding-bottom: var(--spacing-2xl);
   min-width: 0;
@@ -2942,20 +3116,26 @@ onBeforeUnmount(() => {
 }
 
 .cooking-mode__exit {
-  padding: 8px 12px;
+  padding: 0;
   border: none;
-  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .cooking-mode__exit:hover {
   color: var(--color-text);
-  background: var(--color-surface-subtle);
+  text-decoration: underline;
+}
+
+.cooking-mode__exit:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 .cooking-mode__label {
@@ -2976,26 +3156,70 @@ onBeforeUnmount(() => {
 }
 
 .cooking-mode__text {
-  font-size: clamp(1.35rem, 3.5vw, 2rem);
-  line-height: 1.45;
-  margin: 0 0 var(--spacing-xl);
-  font-weight: 500;
+  font-size: clamp(1.1rem, 4vw, 2.2rem);
+  line-height: 1.3;
+  margin: 0 0 var(--spacing-lg);
+  font-weight: 300;
+  max-width: 42ch;
 }
 
 .cooking-mode__nav {
   display: flex;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
+  justify-content: stretch;
+  align-items: center;
   margin-bottom: 0;
+  max-width: 28rem;
+  width: 100%;
 }
 
 .cooking-mode__nav .btn {
   min-height: 44px;
   flex: 1;
-  max-width: 12rem;
+  max-width: 13.5rem;
+}
+
+.cooking-mode__nav .btn--secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.cooking-mode__nav .btn--secondary:hover:not(:disabled) {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+
+.cooking-mode__nav .btn--secondary:disabled {
+  opacity: 0.7;
 }
 
 .cooking-mode__completion {
-  margin-top: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.cooking-mode__completion-exit {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.cooking-mode__completion-exit:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.cooking-mode__completion-exit:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 .cooking-mode__aside {
@@ -3004,7 +3228,7 @@ onBeforeUnmount(() => {
 
 .cooking-mode__ingredients-mobile {
   margin-top: var(--spacing-lg);
-  padding: var(--spacing-md) 0;
+  padding: var(--spacing-md) 0 0;
   border-top: 1px solid var(--color-border);
 }
 
@@ -3012,19 +3236,48 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-weight: 500;
   color: var(--color-text-muted);
+  list-style: none;
+  margin-bottom: var(--spacing-lg);
 }
 
-.cooking-mode__ingredients-mobile ul {
-  margin: var(--spacing-sm) 0 0;
-  padding-left: var(--spacing-lg);
+.cooking-mode__ingredients-mobile summary::-webkit-details-marker {
+  display: none;
+}
+
+.cooking-mode__ingredients-mobile[open] summary {
+  color: var(--color-text);
+}
+
+.cooking-mode__ingredient-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.cooking-mode__ingredients-mobile .recipe-ingredient-group__heading {
+  margin-bottom: var(--spacing-sd);
+}
+
+.cooking-mode__ingredient-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cooking-mode__ingredient-list .recipe-ingredient {
+  padding: 0.35rem 0;
 }
 
 @media (min-width: 768px) {
   .cooking-mode__layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
-    gap: var(--spacing-2xl);
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+    gap: var(--spacing-xl);
     align-items: start;
+  }
+
+  .cooking-mode__main {
+    padding-right: var(--spacing-md);
   }
 
   .cooking-mode__nav .btn {
@@ -3034,7 +3287,7 @@ onBeforeUnmount(() => {
 
   .cooking-mode__aside {
     display: block;
-    padding: var(--spacing-md);
+    padding: 0 0 0 var(--spacing-lg);
     border-left: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
     max-height: calc(100vh - 8rem);
     overflow-y: auto;
@@ -3048,12 +3301,6 @@ onBeforeUnmount(() => {
   }
 
   .cooking-mode__ingredient-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
     font-size: 0.9375rem;
     line-height: 1.45;
     color: var(--color-text-muted);
