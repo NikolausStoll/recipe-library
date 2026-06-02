@@ -11,21 +11,20 @@ type DetailSourceFields = Pick<
   'source_type' | 'source_id' | 'source_name' | 'source_url' | 'source_page' | 'import_method'
 >
 
-/** Compact duration: 5min, 25min, 1h 15min; optional ~ for estimated. */
+/** Compact duration: 5min, 25min, 1h 15min. */
 export function formatCompactRecipeMinutes(
   v: number | null | undefined,
   source?: RecipeTimeSource
 ): string | null {
   if (v == null || Number.isNaN(Number(v)) || Number(v) <= 0) return null
   const n = Math.round(Number(v))
-  const tilde = source === 'estimated' ? '~' : ''
   if (n >= 60) {
     const h = Math.floor(n / 60)
     const m = n % 60
-    if (m === 0) return `${tilde}${h}h`
-    return `${tilde}${h}h ${m}min`
+    if (m === 0) return `${h}h`
+    return `${h}h ${m}min`
   }
-  return `${tilde}${n}min`
+  return `${n}min`
 }
 
 export function formatUrlDomain(url: string): string {
