@@ -541,7 +541,12 @@
 
           <section id="recipe-section-source" class="recipe-doc-section">
             <h2 class="recipe-doc-section__title">Quelle</h2>
-            <p class="recipe-detail-source-type meta-text">{{ formatRecipeSourceMeta(viewingRecipe) }}</p>
+            <p
+              v-if="!hasRecipeBookSource(viewingRecipe) && !hasRecipeUrlSource(viewingRecipe)"
+              class="recipe-detail-source-type meta-text"
+            >
+              {{ formatRecipeSourceMeta(viewingRecipe) }}
+            </p>
             <div v-if="hasRecipeBookSource(viewingRecipe)" class="recipe-detail-book-source">
               <img
                 v-if="viewingRecipe.source_image_path && !viewingRecipe.source_image_processing_pending"
@@ -576,32 +581,34 @@
               target="_blank"
               rel="noopener noreferrer"
             >
-              Original öffnen
+              {{ detailMetaSource }}
             </a>
           </section>
 
           <section id="recipe-section-history" class="recipe-doc-section recipe-doc-section--history">
-            <h2 class="recipe-doc-section__title">Kochverlauf</h2>
-            <div class="recipe-detail-history">
-              <p v-if="(recipeHistories[viewingRecipe.id] ?? []).length === 0" class="recipe-detail-history__empty meta-text">
-                Noch nicht gekocht
-              </p>
-              <template v-else>
-                <p class="recipe-detail-history__latest">
-                  Zuletzt gekocht: <strong>{{ recipeHistories[viewingRecipe.id]?.[0] }}</strong>
-                </p>
-                <p v-if="(recipeHistories[viewingRecipe.id] ?? []).length > 1" class="recipe-detail-history__previous meta-text">
-                  Zuvor: {{ (recipeHistories[viewingRecipe.id] ?? []).slice(1, 4).join(' · ') }}
-                </p>
-              </template>
+            <div class="recipe-doc-section__head recipe-detail-history__head">
+              <h2 class="recipe-doc-section__title">Kochverlauf</h2>
               <button
                 type="button"
                 class="recipe-detail-history__mark btn btn--secondary btn--small"
                 :disabled="hasCookedToday(viewingRecipe.id)"
                 @click="markCookedToday(viewingRecipe.id)"
               >
-                {{ hasCookedToday(viewingRecipe.id) ? 'Heute gekocht' : 'Heute gekocht' }}
+                Heute gekocht
               </button>
+            </div>
+            <div class="recipe-detail-history">
+              <p v-if="(recipeHistories[viewingRecipe.id] ?? []).length === 0" class="recipe-detail-history__empty meta-text">
+                Noch nicht gekocht
+              </p>
+              <template v-else>
+                <p class="recipe-detail-history__latest">
+                  Zuletzt gekocht: {{ formatGermanDate(recipeHistories[viewingRecipe.id]?.[0]) }}
+                </p>
+                <p v-if="(recipeHistories[viewingRecipe.id] ?? []).length > 1" class="recipe-detail-history__previous meta-text">
+                  Vorher: {{ (recipeHistories[viewingRecipe.id] ?? []).slice(1, 4).map(formatGermanDate).join(' · ') }}
+                </p>
+              </template>
             </div>
           </section>
         </div>
@@ -979,6 +986,22 @@ function hasCookedToday(recipeId: number) {
   const history = recipeHistories.value[recipeId] ?? []
   const today = new Date().toISOString().slice(0, 10)
   return history.includes(today)
+}
+
+function formatGermanDate(value: string | null | undefined): string {
+  if (!value) return ''
+  const raw = value.trim()
+  if (!raw) return ''
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+  if (match) {
+    const [, y, m, d] = match
+    return `${d}.${m}.${y}`
+  }
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('de-DE')
+  }
+  return raw
 }
 
 const fuseOptions: IFuseOptions<RecipeListItemWithIngredients> = {
@@ -2272,10 +2295,10 @@ onBeforeUnmount(() => {
 
 .recipe-detail-favorite-star {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
+  top: 7px;
+  right: 22px;
+  width: 30px;
+  height: 30px;
   border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-bg) 78%, transparent);
@@ -2283,7 +2306,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
   z-index: 2;
@@ -2545,12 +2568,12 @@ onBeforeUnmount(() => {
   margin-top: var(--spacing-sm);
 }
 
-.recipe-detail-action--edit-desktop {
+.recipe-detail-action.recipe-detail-action--edit-desktop {
   display: none;
 }
 
 @media (min-width: 1024px) {
-  .recipe-detail-action--edit-desktop {
+  .recipe-detail-action.recipe-detail-action--edit-desktop {
     display: inline-flex;
   }
 }
@@ -3140,8 +3163,8 @@ onBeforeUnmount(() => {
 }
 
 .servings-btn {
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3411,6 +3434,10 @@ onBeforeUnmount(() => {
   gap: 0.45rem;
 }
 
+.recipe-detail-history__head {
+  margin-bottom: var(--spacing-sm);
+}
+
 .recipe-detail-history__latest,
 .recipe-detail-history__previous,
 .recipe-detail-history__empty {
@@ -3418,8 +3445,8 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-history__latest {
-  font-size: 0.92rem;
-  color: var(--color-text);
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
 }
 
 .recipe-detail-history__previous,
@@ -3429,8 +3456,15 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-history__mark {
-  align-self: flex-start;
-  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 479px) {
+  .recipe-detail-history__head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
 }
 
 .recipe-cover-overlay {
