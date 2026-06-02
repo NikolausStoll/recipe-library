@@ -1,5 +1,12 @@
-const CACHE_NAME = 'recipe-library-shell-v1'
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/favicon.png']
+const CACHE_NAME = 'recipe-library-shell-v2'
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/favicon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
