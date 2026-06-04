@@ -421,7 +421,8 @@ function groupIngredientsForSections(ingredients) {
       if (!Number.isNaN(sid)) {
         key = `id:${sid}`
       } else {
-        key = prevKey ?? `h:${(ing.section_heading ?? ing.sectionHeading ?? '').trim() || '\0'}`
+        const h = (ing.section_heading ?? ing.sectionHeading ?? '').trim()
+        key = `h:${h || '\0'}`
       }
     } else {
       const h = (ing.section_heading ?? ing.sectionHeading ?? '').trim()

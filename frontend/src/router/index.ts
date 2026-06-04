@@ -11,6 +11,12 @@ const router = createRouter({
         { path: '', redirect: '/recipes' },
         { path: 'dashboard', redirect: '/recipes' },
         {
+          path: 'recipes/:id/edit',
+          name: 'recipe-edit',
+          component: () => import('../views/RecipeEditPage.vue'),
+          meta: { title: 'Rezept bearbeiten', hideBottomNav: true },
+        },
+        {
           path: 'recipes/:id?',
           name: 'recipes',
           component: () => import('../views/RecipesView.vue'),
@@ -34,6 +40,18 @@ const router = createRouter({
           name: 'add',
           component: () => import('../views/AddRecipeView.vue'),
           meta: { title: 'Rezept hinzufügen' },
+        },
+        {
+          path: 'add/image',
+          name: 'add-image',
+          component: () => import('../views/AddRecipeImageImportView.vue'),
+          meta: { title: 'Rezept aus Bildern hinzufügen' },
+        },
+        {
+          path: 'add/url',
+          name: 'add-url',
+          component: () => import('../views/AddRecipeUrlImportView.vue'),
+          meta: { title: 'Rezept von Website importieren' },
         },
         {
           path: 'shopping',

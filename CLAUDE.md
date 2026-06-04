@@ -17,7 +17,7 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Routing**: Vue Router with `AppShell` wrapper (`createWebHistory`); `/` redirects to `/recipes` (recipes are home; dashboard removed from primary nav)
 - **Vite `base`**: Use `base: '/'` (root-relative built assets). A relative base (`./`) breaks reloads on nested routes (e.g. `/admin/extract-usage`): the browser requests `/admin/assets/…` and gets a non-JS response (Firefox: `NS_ERROR_CORRUPTED_CONTENT`).
 - **Responsive layout**: Narrow (mobile) below 768px; recipe **detail** uses a medium tablet-portrait band at 768–1099px (title/meta/actions left, compact image right, ingredients and steps in one column below); recipe detail **desktop** side panel (image above ingredients) at `min-width: 1100px`. Recipe **overview** stays compact list below `1100px` (no row action buttons) and switches to a contained 2/3-column compact horizontal card grid at `>=1100px` (3 columns from `1320px`). Cooking ingredients aside still uses `@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px)` — see `--layout-bp-*` in `styles.css`.
-- **Views**: Recipes (list + detail + cooking mode), Plan/Shopping placeholders, Add recipe, Sources, More (theme, favorites link, admin), Admin extract usage
+- **Views**: Recipes (list + detail + cooking mode), **Recipe edit page** (`/recipes/:id/edit`, `RecipeEditPage.vue` + `RecipeFormMultiStep.vue`; `id: new` for manual create), Plan/Shopping placeholders, Add recipe, Sources, More (theme, favorites link, admin), Admin extract usage
 - **Navigation**: Desktop top nav (Recipes, Plan, Shopping, Sources, More + Add); mobile bottom nav (Recipes, Plan, **Add**, Shopping, More). Sources on mobile under More.
 - **Styling**: Semantic tokens in `styles.css` + shared primitives in `styles/components.css`; violet accent (not orange); `useTheme` + `data-theme` on `<html>`
 - **PWA manifest**: `frontend/public/manifest.webmanifest` is linked in `frontend/index.html` (`<link rel="manifest" ...>`). Keep `start_url`, `scope`, `theme_color`, `background_color`, and icons valid; each manifest `sizes` value must match the actual PNG dimensions (`/icons/icon-192.png`, `/icons/icon-512.png`). Default `display` is `standalone`.
@@ -25,7 +25,8 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Copy**: UI shows **Needs review** for `status === 'draft'` (backend unchanged)
 - **Key Components**:
   - `RecipeForm.vue` - Main recipe entry/edit form
-  - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (ingredients & steps: **plain-text summary** by default; click to expand editors; **+ Add** opens new rows in edit mode; ingredient OCR original line hidden for `import_method === 'url'`; categories from `constants/ingredientCategories.ts`)
+  - `RecipeEditPage.vue` - Page shell (header, back, delete, confirm); loads recipe and hosts the form
+  - `RecipeFormMultiStep.vue` - Multi-step recipe create/edit (used on `RecipeEditPage`, not in a modal) (ingredients & steps: **plain-text summary** by default; click to expand editors; **+ Add** opens new rows in edit mode; ingredient OCR original line hidden for `import_method === 'url'`; categories from `constants/ingredientCategories.ts`)
  - `RecipeImportOverlayUnified.vue` - Unified AI import overlay: add all photos in one flow, mark optional cover image, then run OCR extraction on selected pages
   - `CropPerspectiveModal.vue` - Shared full-screen 4-point perspective crop dialog (`CropPerspectiveEditor` inside); crop points kept in memory until import/save/upload
   - `SourceCoverPicker.vue` - Book cover pick/preview with rotate/crop/remove icon row (opens crop modal)

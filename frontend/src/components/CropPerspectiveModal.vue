@@ -11,12 +11,11 @@
       <div class="crop-modal__panel">
         <header class="crop-modal__header">
           <h2 class="crop-modal__title">{{ title }}</h2>
-          <button type="button" class="crop-modal__close" aria-label="Close" @click="onCancel">×</button>
+          <button type="button" class="crop-modal__close" aria-label="Schließen" @click="onCancel">×</button>
         </header>
 
         <p class="crop-modal__hint">
-          Tap the four corners of the page in order (1 → 2 → 3 → 4). Drag markers to adjust. Nothing is saved until you
-          tap Done.
+          Tippe die vier Ecken der Seite der Reihe nach an. Ziehe die Punkte, um den Ausschnitt anzupassen. Gespeichert wird erst mit „Fertig“.
         </p>
 
         <div class="crop-modal__editor">
@@ -33,10 +32,10 @@
         <p v-if="errorText" class="crop-modal__error">{{ errorText }}</p>
 
         <footer class="crop-modal__footer">
-          <button type="button" class="btn btn--secondary" @click="onReset">Reset points</button>
+          <button type="button" class="btn btn--secondary" @click="onReset">Punkte zurücksetzen</button>
           <div class="crop-modal__footer-end">
-            <button type="button" class="btn btn--secondary" @click="onCancel">Cancel</button>
-            <button type="button" class="btn btn--primary" @click="onDone">Done</button>
+            <button type="button" class="btn btn--secondary" @click="onCancel">Abbrechen</button>
+            <button type="button" class="btn btn--primary" @click="onDone">Fertig</button>
           </div>
         </footer>
       </div>
@@ -63,8 +62,8 @@ const props = withDefaults(
     initialNaturalPoints?: CropNaturalPoint[] | null
   }>(),
   {
-    alt: 'Crop preview',
-    title: 'Crop image',
+    alt: 'Bildzuschnitt',
+    title: 'Bild zuschneiden',
     initialNaturalPoints: null,
   },
 )
@@ -109,7 +108,7 @@ function onCancel() {
 function onDone() {
   const n = displayPoints.value.length
   if (n !== 0 && n !== 4) {
-    errorText.value = 'Place all four corners, or tap Reset to clear.'
+    errorText.value = 'Setze alle vier Ecken oder tippe auf „Punkte zurücksetzen“.'
     return
   }
   if (n === 0) {
@@ -118,7 +117,7 @@ function onDone() {
   }
   const natural = editorRef.value?.getNaturalPoints() ?? []
   if (natural.length !== 4) {
-    errorText.value = 'Could not read image size. Try again.'
+    errorText.value = 'Bildgröße konnte nicht gelesen werden. Bitte erneut versuchen.'
     return
   }
   emit('confirm', natural)

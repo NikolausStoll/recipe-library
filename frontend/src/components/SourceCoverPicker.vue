@@ -61,7 +61,7 @@
           <button type="button" class="icon-btn" :disabled="disabled" title="Crop" @click="openCrop">▢</button>
           <button type="button" class="icon-btn" :disabled="disabled" title="Remove" @click="clearCover">×</button>
         </div>
-        <span v-if="hasCrop" class="crop-badge">Crop set</span>
+        <span v-if="hasCrop" class="crop-badge">Zuschnitt gesetzt</span>
       </div>
     </div>
 

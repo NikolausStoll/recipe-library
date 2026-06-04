@@ -60,7 +60,7 @@ const props = withDefaults(
     maxPoints?: number
   }>(),
   {
-    alt: 'Crop preview',
+    alt: 'Bildvorschau',
     active: true,
     maxPoints: 4,
     sourceDimensions: null,

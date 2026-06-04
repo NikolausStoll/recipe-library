@@ -1,55 +1,68 @@
 <template>
-  <Teleport to="body">
-    <div class="app-modal-overlay overlay" @click.self="emit('close')">
-      <div class="overlay__panel">
-        <div class="overlay__header">
-          <h2 class="overlay__title">Import Recipe from URL</h2>
-          <button type="button" class="overlay__close" aria-label="Close" @click="emit('close')">×</button>
-        </div>
-        <div class="overlay__body">
-          <p class="overlay__intro">
-            Paste a link to a recipe page. The page is fetched, structured data is read when available, and the recipe is
-            normalized with AI. You can review and edit everything afterward.
-          </p>
-          <label class="url-field__label" for="recipe-url-input">Recipe URL</label>
-          <input
-            id="recipe-url-input"
-            v-model="url"
-            type="url"
-            class="url-field__input"
-            placeholder="https://…"
-            autocomplete="url"
-            @keydown.enter.prevent="runImport"
-          />
-          <p v-if="scrapeWarnings.length" class="url-import__warnings">
-            <strong>Note:</strong>
-            {{ scrapeWarnings.join(' ') }}
-          </p>
-          <p v-if="error" class="url-import__error">{{ error }}</p>
-          <div class="url-import__actions">
-            <button type="button" class="btn btn--primary" :disabled="importing || !url.trim()" @click="runImport">
-              {{ importing ? 'Importing…' : 'Import' }}
-            </button>
-            <button type="button" class="btn btn--secondary" :disabled="importing" @click="emit('close')">Cancel</button>
-          </div>
+  <div class="page import-url-page">
+    <header class="import-page-header">
+      <button type="button" class="import-page-back" @click="emit('close')">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Zurück
+      </button>
+      <h1 class="page-header__title h2">Rezept von Website importieren</h1>
+    </header>
+
+    <div class="import-page-content import-page-content--narrow">
+      <p class="import-page-intro">
+        Füge einen Link zur Rezeptseite ein. Die Seite wird geladen, strukturierte Daten werden wenn möglich gelesen,
+        und das Rezept wird per KI normalisiert. Danach kannst du alles prüfen und bearbeiten.
+      </p>
+      <label class="url-field__label" for="recipe-url-input">Rezept-URL</label>
+      <input
+        id="recipe-url-input"
+        v-model="url"
+        type="url"
+        class="url-field__input"
+        placeholder="https://…"
+        autocomplete="url"
+        :disabled="importing"
+        @keydown.enter.prevent="runImport"
+      />
+      <div v-if="importing" class="import-status">
+        <p class="import-status__text">Import wird durchgeführt…</p>
+        <p class="import-status__hint">Das kann einen Moment dauern.</p>
+      </div>
+      <p v-if="scrapeWarnings.length && !importing" class="url-import__warnings">
+        <strong>Hinweis:</strong>
+        {{ scrapeWarnings.join(' ') }}
+      </p>
+      <div v-if="importFailed && !importing" class="import-error">
+        <p class="import-error__title">Import fehlgeschlagen</p>
+        <p v-if="error" class="import-error__detail">{{ error }}</p>
+        <div class="import-error__actions">
+          <button type="button" class="btn btn--primary" @click="retryImport">Erneut versuchen</button>
+          <button type="button" class="btn btn--secondary" @click="dismissError">URL prüfen</button>
         </div>
       </div>
+      <p v-else-if="error && !importing" class="url-import__error">{{ error }}</p>
+      <div class="url-import__actions">
+        <button type="button" class="btn btn--primary" :disabled="importing || !url.trim()" @click="runImport">
+          {{ importing ? 'Import wird durchgeführt…' : 'Importieren' }}
+        </button>
+        <button type="button" class="btn btn--secondary" :disabled="importing" @click="emit('close')">Abbrechen</button>
+      </div>
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { importRecipeFromUrl } from '../api/recipes'
 import type { Recipe } from '../api/recipes'
-import { useBodyModalLock } from '../composables/useBodyModalLock'
 
 const emit = defineEmits<{ done: [recipe: Recipe]; close: [] }>()
 
-useBodyModalLock()
-
 const url = ref('')
 const importing = ref(false)
+const importFailed = ref(false)
 const error = ref('')
 const scrapeWarnings = ref<string[]>([])
 
@@ -57,6 +70,7 @@ async function runImport() {
   const u = url.value.trim()
   if (!u) return
   importing.value = true
+  importFailed.value = false
   error.value = ''
   scrapeWarnings.value = []
   try {
@@ -64,75 +78,78 @@ async function runImport() {
     scrapeWarnings.value = result.scrape.warnings ?? []
     emit('done', result.recipe)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Import failed'
+    error.value = e instanceof Error ? e.message : 'Import fehlgeschlagen'
+    importFailed.value = true
   } finally {
     importing.value = false
   }
 }
+
+function retryImport() {
+  importFailed.value = false
+  void runImport()
+}
+
+function dismissError() {
+  importFailed.value = false
+  error.value = ''
+}
 </script>
 
 <style scoped>
-.overlay {
-  /* extends .app-modal-overlay */
+.import-page-header {
+  margin-bottom: var(--spacing-lg);
 }
-.overlay__panel {
-  background: var(--color-bg-elevated, #fff);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  max-width: 32rem;
-  width: 100%;
-  max-height: 90vh;
+
+.import-page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: var(--spacing-sm);
+  padding: 0.25rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.import-page-back svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.import-page-back:hover {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+}
+
+.import-page-content {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
 }
-.overlay__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
+
+.import-page-content--narrow {
+  max-width: 32rem;
 }
-.overlay__title {
+
+.import-page-intro {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-.overlay__close {
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--color-text-muted);
-  border-radius: 4px;
-}
-.overlay__close:hover {
-  background: var(--color-bg-muted);
-  color: var(--color-text);
-}
-.overlay__body {
-  padding: 1.25rem;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-.overlay__intro {
-  margin: 0 0 1rem 0;
   font-size: 0.95rem;
   color: var(--color-text-muted);
+  line-height: 1.45;
 }
+
 .url-field__label {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 0.35rem;
 }
+
 .url-field__input {
   width: 100%;
   box-sizing: border-box;
@@ -142,51 +159,111 @@ async function runImport() {
   font: inherit;
   background: var(--color-bg);
   color: var(--color-text);
-  margin-bottom: 0.75rem;
 }
+
 .url-field__input:focus {
   outline: 2px solid var(--color-primary, #2563eb);
   outline-offset: 1px;
 }
-.url-import__warnings {
-  margin: 0 0 0.75rem 0;
+
+.url-field__input:disabled {
+  opacity: 0.7;
+}
+
+.import-status {
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+}
+
+.import-status__text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.import-status__hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.import-error {
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-error) 8%, var(--color-bg-muted));
+  border: 1px solid color-mix(in srgb, var(--color-error) 25%, transparent);
+}
+
+.import-error__title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--color-text);
+}
+
+.import-error__detail {
+  margin: 0.35rem 0 0;
   font-size: 0.85rem;
   color: var(--color-text-muted);
 }
-.url-import__error {
-  margin: 0 0 0.75rem 0;
-  color: var(--color-error);
-  font-size: 0.9rem;
-}
-.url-import__actions {
+
+.import-error__actions {
+  margin-top: 0.65rem;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+.url-import__warnings {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.url-import__error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 0.9rem;
+}
+
+.url-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
 .btn {
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 6px;
   font: inherit;
   cursor: pointer;
   border: 1px solid transparent;
 }
+
 .btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
+
 .btn--primary {
   background: var(--color-btn-primary-bg);
   color: var(--color-header-fg);
   border-color: var(--color-btn-primary-bg);
 }
+
 .btn--primary:hover:not(:disabled) {
   background: var(--color-btn-primary-hover);
 }
+
 .btn--secondary {
   background: var(--color-btn-secondary-bg);
   color: var(--color-btn-secondary-fg);
   border-color: var(--color-btn-secondary-border);
 }
+
 .btn--secondary:hover:not(:disabled) {
   background: var(--color-btn-secondary-hover);
 }

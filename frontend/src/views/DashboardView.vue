@@ -126,7 +126,7 @@
         <router-link
           v-for="recipe in recentRecipes"
           :key="recipe.id"
-          :to="`/recipes?edit=${recipe.id}`"
+          :to="`/recipes/${recipe.id}/edit`"
           class="recipe-mini-card"
         >
           <div class="recipe-mini-card__image">
@@ -174,7 +174,7 @@
       </p>
       <ul class="dashboard-pending-list">
         <li v-for="r in pendingImageRecipes" :key="'p-' + r.id">
-          <router-link :to="`/recipes?edit=${r.id}`" class="dashboard-pending-link">
+          <router-link :to="`/recipes/${r.id}/edit`" class="dashboard-pending-link">
             {{ r.title }}
             <span class="dashboard-pending-meta">Recipe image</span>
           </router-link>
