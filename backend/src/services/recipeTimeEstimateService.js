@@ -7,32 +7,82 @@ import OpenAI from 'openai'
 const DEFAULT_MODEL = process.env.OPENAI_TIME_ESTIMATE_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_TIME_ESTIMATE_TEMPERATURE) || 0.2))
 
-const TIME_ESTIMATE_PROMPT = `You estimate realistic preparation and cooking times for a recipe.
+const TIME_ESTIMATE_PROMPT = `
+You estimate practical preparation and cooking times for a recipe.
 
-Return only valid JSON.
+Return only valid JSON matching the provided JSON schema.
 
 Context:
-The recipe may already contain time values, but you should always provide your own practical estimate.
-These estimates are used as editable default values in the app.
+The recipe may contain existing time values from the source, but source times are often optimistic. Use them only as weak hints. Always provide your own practical household estimate.
 
-Rules:
-- Always estimate prepTimeMinutes and cookTimeMinutes
-- Do not copy existing values blindly
-- Use the recipe data to make a realistic estimate
-- Assume a home cook / amateur cook, not a professional chef
-- Do not assume unusually fast knife skills or kitchen speed
-- Be realistic about repetitive prep work (for example peeling, chopping, washing, grating, mixing)
+Goal:
+Estimate times for a normal home cook, not a professional chef.
+The result is an editable default in a recipe app, so prefer stable, practical estimates over optimistic recipe-site times.
 
-Guidelines:
-- prepTime = active work such as washing, peeling, cutting, measuring, mixing, shaping, frying, assembling
-- cookTime = mostly passive time such as baking, simmering, boiling, resting, chilling
-- If a recipe includes a large amount of ingredients or labor-intensive prep, increase prep time accordingly
-- Do not underestimate prep time for bulky ingredients
-- Example: peeling and preparing 1 kg of potatoes takes several minutes, not 1 minute
-- Use practical household estimates, not idealized best-case timing
-- Be pragmatic, not overly precise
+Definitions:
+- prepTimeMinutes = active work before and during cooking:
+  washing, peeling, cutting, slicing, chopping, grating, measuring, mixing, seasoning, shaping, assembling, coating, filling pans, preparing sauces, cleaning herbs.
+- cookTimeMinutes = mostly passive elapsed cooking/resting time:
+  baking, roasting, simmering, boiling, steaming, chilling, resting, marinating, pressure cooking.
+- If active work happens while something cooks, count the active work as prepTime and the elapsed heat time as cookTime. Do not double-count the same minutes unless the recipe clearly requires separate active and passive phases.
 
-Output must match the JSON schema exactly (prepTimeConfidence and cookTimeConfidence between 0 and 1).`
+Estimation method:
+Use this fixed approach.
+
+1. Identify explicit cooking durations from steps.
+- Add oven/stovetop/simmer/bake/rest/chill durations to cookTimeMinutes.
+- For ranges, use the midpoint rounded to the nearest 5 minutes.
+  Example: 20 to 25 minutes → 25 minutes.
+- If multiple cooking phases happen sequentially, add them.
+- If phases clearly happen in parallel, use the longer phase instead of adding both.
+
+2. Estimate prep work from ingredients and steps.
+Start with a base prep time:
+- very simple recipe: 5 minutes
+- normal recipe: 10 minutes
+- many ingredients or several prep actions: 15 minutes
+- labor-intensive recipe: 20+ minutes
+
+Then adjust using this rubric:
+- washing/peeling/cutting 1–3 vegetables: +5 minutes
+- washing/peeling/cutting 4–6 vegetables: +10 minutes
+- washing/peeling/cutting many/bulky vegetables: +15 minutes
+- finely chopping/mincing herbs, garlic, onion, or aromatics: +3 to 8 minutes
+- grating/shredding/slicing with care: +5 to 15 minutes
+- very thin slicing, mandoline work, stuffing, rolling, stacking, shaping, assembling individual portions: +10 to 20 minutes
+- mixing a simple sauce/dressing/oil: +3 to 5 minutes
+- preparing multiple bowls/components: +5 to 10 minutes
+- handling many small repeated items, e.g. muffin cups, stacks, dumplings, cookies: +10 to 20 minutes
+- opening cans/jars or measuring pantry items: usually +1 to 3 minutes total, not each
+
+3. Apply practical minimums.
+- A recipe with multiple fresh ingredients is rarely under 10 minutes prep.
+- A recipe with peeling/slicing/chopping is rarely under 15 minutes prep.
+- A recipe with many repeated assemblies is rarely under 20 minutes prep.
+- Do not output 5 minutes prep unless the recipe is truly minimal.
+
+4. Round consistently.
+- Round prepTimeMinutes and cookTimeMinutes to the nearest 5 minutes.
+- Minimum non-zero time is 5 minutes.
+- Prefer stable rounded values like 10, 15, 20, 25, 30, 35, 40, 45.
+- Do not output overly precise values like 13 or 27.
+
+5. Confidence.
+- prepTimeConfidence:
+  - 0.8–0.95 if ingredients and prep steps are clear
+  - 0.6–0.8 if some prep is ambiguous
+  - 0.4–0.6 if the recipe is sparse or unclear
+- cookTimeConfidence:
+  - 0.85–0.95 if explicit cook durations are present
+  - 0.6–0.8 if cooking method is clear but duration is missing
+  - 0.4–0.6 if cooking is unclear
+
+Important:
+- Do not copy existing source times blindly.
+- Do not assume unusually fast knife skills.
+- Do not underestimate repetitive prep.
+- Be realistic, but not exaggerated.
+- If unsure, choose the more practical household estimate.`
 
 const TIME_ESTIMATE_JSON_SCHEMA = {
   type: 'object',

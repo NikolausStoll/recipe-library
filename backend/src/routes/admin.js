@@ -1,7 +1,10 @@
 import { Router } from 'express'
 import { listExtractUsageForAdmin } from '../services/extractUsageAdminService.js'
+import cupGramReferencesRoutes from './adminCupGramReferences.js'
 
 const router = Router()
+
+router.use('/cup-gram-references', cupGramReferencesRoutes)
 
 /**
  * GET /api/admin/extract-usage – list ai_token_usage rows with recipe title and estimated cost (USD / cents).

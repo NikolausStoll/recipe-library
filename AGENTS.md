@@ -46,7 +46,7 @@
 
 ## AI Integration
 
-- Raw recipe URL extraction (`recipeUrlExtractService.js`) uses JSON-LD and HTML only; optional LLM normalization (`recipeNormalizationService.js`, `normalizeRecipeWithLLM`) when `POST /api/recipes/extract-from-url` includes `normalize: true`
+- Raw recipe URL extraction (`recipeUrlExtractService.js`) uses JSON-LD and HTML only; optional LLM normalization (`recipeNormalizationService.js`, `normalizeRecipeWithLLM`) when `POST /api/recipes/extract-from-url` includes `normalize: true`. If raw `ingredient_lines` contain `cup`, admin-maintained rows in `cup_gram_references` (CRUD under `/api/admin/cup-gram-references`) are appended to the normalization prompt as extra reference conversions.
 - OpenAI vision API used for recipe extraction
 - Token usage logged to `ai_token_usage` table
 - Strict JSON schema validation (`RECIPE_JSON_SCHEMA`)

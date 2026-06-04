@@ -34,3 +34,52 @@ export interface ExtractUsageAdminResponse {
 export function listAdminExtractUsage(): Promise<ExtractUsageAdminResponse> {
   return fetch(`${API_BASE}/admin/extract-usage`).then((res) => handleResponse<ExtractUsageAdminResponse>(res))
 }
+
+export interface CupGramReference {
+  id: number
+  ingredient: string
+  cups: number
+  grams: number
+  note: string | null
+  position: number
+  created_at: string
+  updated_at: string
+}
+
+export function listCupGramReferences(): Promise<{ references: CupGramReference[] }> {
+  return fetch(`${API_BASE}/admin/cup-gram-references`).then((res) =>
+    handleResponse<{ references: CupGramReference[] }>(res)
+  )
+}
+
+export function createCupGramReference(body: {
+  ingredient: string
+  cups: number
+  grams: number
+  note?: string | null
+}): Promise<CupGramReference> {
+  return fetch(`${API_BASE}/admin/cup-gram-references`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then((res) => handleResponse<CupGramReference>(res))
+}
+
+export function updateCupGramReference(
+  id: number,
+  body: Partial<{ ingredient: string; cups: number; grams: number; note: string | null }>
+): Promise<CupGramReference> {
+  return fetch(`${API_BASE}/admin/cup-gram-references/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then((res) => handleResponse<CupGramReference>(res))
+}
+
+export async function deleteCupGramReference(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/admin/cup-gram-references/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error((err as { error?: string }).error || res.statusText)
+  }
+}

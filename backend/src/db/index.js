@@ -157,6 +157,17 @@ export function initDb() {
       PRIMARY KEY (recipe_id, tag)
     );
 
+    CREATE TABLE IF NOT EXISTS cup_gram_references (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ingredient TEXT NOT NULL,
+      cups REAL NOT NULL CHECK (cups > 0),
+      grams REAL NOT NULL CHECK (grams > 0),
+      note TEXT,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_sections_recipe_id ON recipe_ingredient_sections(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_ingredients_section_id ON ingredients(section_id);
     CREATE INDEX IF NOT EXISTS idx_ingredients_ingredient ON ingredients(ingredient);
