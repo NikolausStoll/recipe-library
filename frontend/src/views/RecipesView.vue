@@ -216,18 +216,20 @@
             </svg>
           </button>
           <div v-if="detailMenuOpen" class="recipe-detail-nav__menu" @click.stop>
-            <button type="button" class="recipe-detail-nav__menu-edit-non-desktop" @click="detailMenuOpen = false; editFromDetail()">
+            <button type="button" class="recipe-detail-nav__menu-item recipe-detail-nav__menu-edit-non-desktop" @click="detailMenuOpen = false; editFromDetail()">
               Rezept bearbeiten
             </button>
             <button
               v-if="hasRecipeUrlSource(viewingRecipe)"
               type="button"
+              class="recipe-detail-nav__menu-item"
               @click="openOriginalFromMenu"
             >
               Original öffnen
             </button>
             <button
               type="button"
+              class="recipe-detail-nav__menu-item"
               :disabled="timeEstimateLoading"
               @click="detailMenuOpen = false; runEstimateTimesForDetail()"
             >
@@ -236,11 +238,12 @@
             <button
               v-if="recipeNeedsReview(viewingRecipe.status)"
               type="button"
+              class="recipe-detail-nav__menu-item"
               @click="detailMenuOpen = false; editFromDetail()"
             >
               Rezept prüfen
             </button>
-            <button type="button" class="recipe-detail-nav__menu-danger" @click="deleteFromDetail">
+            <button type="button" class="recipe-detail-nav__menu-item recipe-detail-nav__menu-danger" @click="deleteFromDetail">
               Rezept löschen
             </button>
           </div>

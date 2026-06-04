@@ -39,19 +39,18 @@
               <circle cx="12" cy="18" r="1.5" fill="currentColor"/>
             </svg>
           </button>
-          <div v-if="editMenuOpen" class="recipe-detail-nav__menu" role="menu" @click.stop>
+          <div v-if="editMenuOpen" class="recipe-detail-nav__menu" @click.stop>
             <button
               v-if="showExtractionDetailsAction"
               type="button"
-              role="menuitem"
+              class="recipe-detail-nav__menu-item"
               @click="openExtractionDetailsFromMenu"
             >
               Extraktionsdetails anzeigen
             </button>
             <button
               type="button"
-              role="menuitem"
-              class="recipe-detail-nav__menu-danger"
+              class="recipe-detail-nav__menu-item recipe-detail-nav__menu-danger"
               @click="onDeleteFromMenu"
             >
               Rezept löschen
@@ -578,6 +577,7 @@ watch(() => route.params.id, initFromRoute, { immediate: true })
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.25;
+  letter-spacing: -0.02em;
 }
 
 .recipe-edit-page__badge {

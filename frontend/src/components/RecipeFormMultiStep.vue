@@ -870,23 +870,6 @@
       <!-- Step 3: Instructions -->
       <div v-if="currentStep === 2" class="form-step form-step--instructions">
         <div class="instructions-step__main">
-          <div class="ingredients-list-header">
-            <div class="ingredients-list-header__actions">
-              <button
-                v-if="hasAnyStepOriginalText"
-                type="button"
-                class="ingredients-icon-btn"
-                :class="{ 'ingredients-icon-btn--active': showOriginalStepLines }"
-                :aria-pressed="showOriginalStepLines"
-                :title="showOriginalStepLines ? 'Originale ausblenden' : 'Originale anzeigen'"
-                :aria-label="showOriginalStepLines ? 'Originale ausblenden' : 'Originale anzeigen'"
-                @click="showOriginalStepLines = !showOriginalStepLines"
-              >
-                <OriginalLanguageIcon />
-              </button>
-            </div>
-          </div>
-
           <div class="instructions-step__list">
             <div
               v-for="(step, index) in form.recipe_steps"
@@ -911,12 +894,6 @@
                         ? step.instruction
                         : 'Leerer Schritt — tippen zum Bearbeiten'
                     }}
-                  </div>
-                  <div
-                    v-if="showOriginalStepLines && parsedStepOriginalText(index)"
-                    class="instruction-card__summary-original"
-                  >
-                    {{ parsedStepOriginalText(index) }}
                   </div>
                 </div>
                 <button
@@ -963,13 +940,6 @@
                       <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                     </svg>
                   </button>
-                </div>
-                <div
-                  v-if="showOriginalStepLines && parsedStepOriginalText(index)"
-                  class="instruction-card__edit-original"
-                >
-                  <span class="instruction-card__edit-original-label">Original</span>
-                  <span class="instruction-card__edit-original-text">{{ parsedStepOriginalText(index) }}</span>
                 </div>
               </div>
             </div>
@@ -1135,7 +1105,6 @@ const showBookPicker = ref(false)
 const showUrlEdit = ref(false)
 const showOriginalLines = ref(false)
 const showFullOcrText = ref(false)
-const showOriginalStepLines = ref(false)
 
 const cookbookSources = computed(() => bookSources.value.filter((s) => s.type === 'book'))
 
@@ -1414,22 +1383,6 @@ const fullOriginalText = computed(() => {
   }
   return parts.join('\n').trim()
 })
-
-const parsedStepsOriginalText = computed(() => {
-  const pr = props.initial?.parsed_recipe
-  if (!pr?.steps?.length) return ''
-  return pr.steps.map((s, i) => `${i + 1}. ${s?.text?.trim() ?? ''}`).join('\n')
-})
-
-const hasAnyStepOriginalText = computed(() => {
-  const list = props.initial?.parsed_recipe?.steps ?? []
-  return list.some((s) => (s?.text ?? '').trim())
-})
-
-function parsedStepOriginalText(index: number): string {
-  const text = props.initial?.parsed_recipe?.steps?.[index]?.text
-  return (text ?? '').trim()
-}
 
 /** Flat indices whose original-line editor is expanded (default: collapsed when text exists). */
 const expandedOriginalLineIndices = ref<Set<number>>(new Set())
@@ -2071,7 +2024,6 @@ function assignFromInitial() {
   showUrlEdit.value = false
   showOriginalLines.value = props.editingStatus === 'draft'
   showFullOcrText.value = false
-  showOriginalStepLines.value = props.editingStatus === 'draft'
   importMethod.value = 'manual'
   if (props.initial) {
     form.title = props.initial.title ?? ''
@@ -2202,7 +2154,6 @@ watch(
   (status) => {
     if (status === 'draft' || status === 'confirmed') {
       showOriginalLines.value = status === 'draft'
-      showOriginalStepLines.value = status === 'draft'
     }
   }
 )
@@ -3718,45 +3669,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   min-width: 0;
 }
 
-.ingredients-list-header + .instructions-step__list > .instruction-card:first-child,
-.ingredients-list-header + .instructions-full-original + .instructions-step__list > .instruction-card:first-child {
-  padding-top: 0;
-}
-
-.instructions-full-original {
-  margin: 0 0 var(--spacing-xs);
-  padding: 0;
-  border: none;
-  background: transparent;
-}
-
-.instructions-full-original__summary {
-  cursor: pointer;
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-  user-select: none;
-  list-style: none;
-}
-
-.instructions-full-original__summary::-webkit-details-marker {
-  display: none;
-}
-
-.instructions-full-original__summary::before {
-  content: '▸ ';
-}
-
-.instructions-full-original[open] .instructions-full-original__summary::before {
-  content: '▾ ';
-}
-
-.instructions-full-original__body {
-  margin-top: var(--spacing-xs);
-  max-height: 10rem;
-  overflow: auto;
-  font-size: 0.75rem;
-}
-
 .instructions-step__list {
   display: flex;
   flex-direction: column;
@@ -3833,16 +3745,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   white-space: pre-wrap;
 }
 
-.instruction-card__summary-original {
-  margin-top: 0.2rem;
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-  line-height: 1.4;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
 .instruction-card__edit {
   display: flex;
   flex-direction: column;
@@ -3876,31 +3778,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   outline: none;
   border-color: var(--color-input-focus);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 18%, transparent);
-}
-
-.instruction-card__edit-original {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0 0.25rem 0 1.7rem;
-  min-width: 0;
-}
-
-.instruction-card__edit-original-label {
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-text-soft, var(--color-text-muted));
-}
-
-.instruction-card__edit-original-text {
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-  line-height: 1.4;
-  word-break: break-word;
-  white-space: pre-wrap;
 }
 
 .ingredient-input {
