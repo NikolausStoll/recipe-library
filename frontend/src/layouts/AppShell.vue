@@ -1,18 +1,23 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--no-bottom-nav': hideBottomNav }">
     <header class="app-shell__header">
       <TopNavigation />
     </header>
     <main class="app-shell__main">
       <router-view />
     </main>
-    <BottomNavigation />
+    <BottomNavigation v-if="!hideBottomNav" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import TopNavigation from '../components/navigation/TopNavigation.vue'
 import BottomNavigation from '../components/navigation/BottomNavigation.vue'
+
+const route = useRoute()
+const hideBottomNav = computed(() => route.meta.hideBottomNav === true)
 </script>
 
 <style scoped>
@@ -31,7 +36,7 @@ import BottomNavigation from '../components/navigation/BottomNavigation.vue'
 }
 
 .app-shell__main {
-  flex: 1;
+  flex: 1 1 auto;
   width: 100%;
   max-width: var(--page-max-width);
   margin: 0 auto;
@@ -43,6 +48,10 @@ import BottomNavigation from '../components/navigation/BottomNavigation.vue'
   .app-shell__main {
     padding: var(--content-padding-mobile);
     padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--content-padding-mobile));
+  }
+
+  .app-shell--no-bottom-nav .app-shell__main {
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--content-padding-mobile));
   }
 }
 

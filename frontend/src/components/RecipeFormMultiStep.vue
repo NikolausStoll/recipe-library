@@ -1,12 +1,26 @@
 <template>
   <div class="recipe-form-multi">
-    <div v-if="editingStatus === 'draft'" class="editor-review-banner">
-      <span class="status-chip-review">Prüfen</span>
-      <p>Review AI-extracted ingredients and instructions before cooking.</p>
-      <button type="button" class="btn btn--secondary btn--small" @click="emit('confirm')">Mark as reviewed</button>
+    <div v-if="editingStatus === 'draft'" class="editor-review-banner" role="region" aria-label="Rezept prüfen">
+      <div class="editor-review-banner__content">
+        <span class="editor-review-banner__badge">Prüfen</span>
+        <div class="editor-review-banner__body">
+          <p class="editor-review-banner__text">
+            KI hat dieses Rezept aus Bildern oder einer Website extrahiert. Bitte Zutaten und Zubereitung prüfen, bevor du danach kochst.
+          </p>
+          <details v-if="extractionSummary.length" class="editor-review-summary-details">
+            <summary>Erkanntes Rezept</summary>
+            <ul class="editor-review-summary">
+              <li v-for="(line, i) in extractionSummary" :key="i">{{ line }}</li>
+            </ul>
+          </details>
+        </div>
+        <button type="button" class="btn btn--secondary btn--small editor-review-banner__action" @click="emit('confirm')">
+          Als geprüft markieren
+        </button>
+      </div>
     </div>
 
-    <nav class="editor-sections" aria-label="Recipe sections">
+    <nav class="editor-sections" aria-label="Rezeptbereiche">
       <button
         v-for="(step, idx) in steps"
         :key="step.id"
@@ -26,7 +40,7 @@
       <div v-if="currentStep === 0" class="form-step">
         <!-- Recipe Image Upload -->
         <div class="form-section form-section--image">
-          <h4 class="form-section__title">Recipe Image</h4>
+          <h4 class="form-section__title">Rezeptbild</h4>
           <div class="image-upload">
             <div v-if="(currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview" class="image-upload__preview">
               <button
@@ -42,31 +56,31 @@
                     <path d="M21 15L16 10L5 21" stroke="currentColor" stroke-width="2" />
                   </svg>
                 </span>
-                <span class="image-upload__pending-text">Image not processed yet — click to crop and optimize</span>
+                <span class="image-upload__pending-text">Bild noch nicht verarbeitet — tippen zum Zuschneiden und Optimieren</span>
               </button>
               <template v-else>
-                <img :src="(imagePreview || currentImageUrl) ?? undefined" alt="Recipe preview" class="image-upload__preview-img" />
+                <img :src="(imagePreview || currentImageUrl) ?? undefined" alt="Rezeptvorschau" class="image-upload__preview-img" />
                 <div class="image-upload__preview-icons">
                   <button
                     v-if="imageFile"
                     type="button"
                     class="icon-btn"
-                    title="Rotate"
+                    title="Bild drehen"
                     @click="rotateNewImage"
                   >
                     ↻
                   </button>
-                  <button type="button" class="icon-btn" title="Crop" @click="openCropModal(imageFile ? 'new' : 'existing')">
+                  <button type="button" class="icon-btn" title="Zuschneiden" @click="openCropModal(imageFile ? 'new' : 'existing')">
                     ▢
                   </button>
                 </div>
-                <span v-if="hasCropSet" class="image-upload__crop-badge">Crop set</span>
+                <span v-if="hasCropSet" class="image-upload__crop-badge">Zuschnitt gesetzt</span>
               </template>
               <button
                 type="button"
                 class="image-upload__remove"
                 @click="removeImage"
-                title="Remove image"
+                title="Bild entfernen"
               >
                 <svg viewBox="0 0 24 24" fill="none">
                   <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -79,7 +93,7 @@
                 <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M21 15L16 10L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <p>No image yet</p>
+              <p>Noch kein Bild</p>
             </div>
             <input
               ref="imageInputRef"
@@ -99,13 +113,13 @@
                   <path d="M17 8L12 3L7 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M12 3V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                {{ (currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview ? 'Change Image' : 'Upload Image' }}
+                {{ (currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview ? 'Bild ändern' : 'Bild hochladen' }}
               </button>
             </div>
           </div>
           <label v-if="imageFile && imagePreview" class="image-upload__defer">
             <input v-model="deferImageProcessing" type="checkbox" />
-            <span>Upload original now; crop and optimize later (recommended for photos from your phone)</span>
+            <span>Original jetzt hochladen; Zuschnitt und Optimierung später (empfohlen für Handyfotos)</span>
           </label>
           <p v-if="cropError" class="image-upload__crop-error">{{ cropError }}</p>
         </div>
@@ -113,50 +127,50 @@
         <CropPerspectiveModal
           :open="cropModalOpen"
           :src="cropModalSrc"
-          title="Crop recipe image"
-          alt="Recipe crop"
+          title="Rezeptbild zuschneiden"
+          alt="Rezeptbild Zuschnitt"
           :initial-natural-points="cropModalInitialPoints"
           @confirm="onCropModalConfirm"
           @cancel="closeCropModal"
         />
 
         <div class="form-field form-field--required">
-          <label for="recipe-title">Recipe Title</label>
+          <label for="recipe-title">Rezepttitel</label>
           <input
             id="recipe-title"
             v-model="form.title"
             type="text"
             required
-            placeholder="e.g., Grandma's Apple Pie"
+            placeholder="z. B. Omas Apfelkuchen"
             class="form-input"
           />
         </div>
 
         <div class="form-field">
-          <label for="recipe-subtitle">Subtitle</label>
+          <label for="recipe-subtitle">Untertitel</label>
           <input
             id="recipe-subtitle"
             v-model="form.subtitle"
             type="text"
-            placeholder="A short tagline (optional)"
+            placeholder="Kurzer Untertitel (optional)"
             class="form-input"
           />
         </div>
 
         <div class="form-field">
-          <label for="recipe-description">Description</label>
+          <label for="recipe-description">Beschreibung</label>
           <textarea
             id="recipe-description"
             v-model="form.description"
             rows="3"
-            placeholder="Brief intro or story about this recipe"
+            placeholder="Kurze Einleitung oder Geschichte zum Rezept"
             class="form-textarea"
           />
         </div>
 
         <div class="form-row">
           <div class="form-field">
-            <label for="recipe-servings">Servings</label>
+            <label for="recipe-servings">Portionen</label>
             <input
               id="recipe-servings"
               v-model.number="form.servings"
@@ -170,10 +184,10 @@
         </div>
         <div
           class="form-row form-row--prep-cook-estimate"
-          :class="{ 'form-row--prep-cook-estimate--three': editingId != null }"
+          :class="{ 'form-row--prep-cook-estimate--with-refresh': editingId != null && hasPrepOrCookTimes }"
         >
           <div class="form-field">
-            <label for="recipe-prep-time">Prep Time (min)</label>
+            <label for="recipe-prep-time">Vorbereitung (Min.)</label>
             <input
               id="recipe-prep-time"
               v-model.number="form.prep_time"
@@ -184,7 +198,7 @@
             />
           </div>
           <div class="form-field">
-            <label for="recipe-cook-time">Cook Time (min)</label>
+            <label for="recipe-cook-time">Garzeit (Min.)</label>
             <input
               id="recipe-cook-time"
               v-model.number="form.cook_time"
@@ -194,28 +208,40 @@
               class="form-input"
             />
           </div>
-          <div v-if="editingId != null" class="form-field form-field--estimate-after-times">
+          <div v-if="editingId != null && hasPrepOrCookTimes" class="form-field form-field--estimate-refresh">
             <span class="form-field__label-spacer" aria-hidden="true"></span>
             <button
               type="button"
-              class="btn btn--secondary form-field--estimate-btn"
+              class="editor-estimate-refresh"
               :disabled="timeEstimateLoading"
-              title="Estimate prep and cook times with AI"
+              title="Zeiten neu schätzen"
+              aria-label="Zeiten neu schätzen"
               @click="emit('estimateTimes')"
             >
-              Estimate
+              ↻
             </button>
           </div>
         </div>
+        <p v-if="estimateHints.times" class="editor-estimate-hint" role="status">
+          {{ estimateHints.times }}
+          <button
+            type="button"
+            class="btn btn--ghost btn--tiny editor-estimate-retry"
+            :disabled="timeEstimateLoading"
+            @click="emit('estimateTimes')"
+          >
+            Erneut versuchen
+          </button>
+        </p>
 
         <div class="form-row">
           <div class="form-field">
-            <label for="would-cook-again">Would you cook this again?</label>
+            <label for="would-cook-again">Würdest du es wieder kochen?</label>
             <select id="would-cook-again" v-model="form.would_cook_again" class="form-input">
-              <option :value="null">— Not set —</option>
-              <option value="yes">Yes</option>
-              <option value="maybe">Maybe</option>
-              <option value="no">No</option>
+              <option :value="null">— Nicht gesetzt —</option>
+              <option value="yes">Ja</option>
+              <option value="maybe">Vielleicht</option>
+              <option value="no">Nein</option>
             </select>
           </div>
         </div>
@@ -230,46 +256,200 @@
               :disabled="tagGenerateLoading"
               @click="emit('generateTags')"
             >
-              {{ tagGenerateLoading ? 'Tagging…' : 'Suggest tags (AI)' }}
+              {{ tagGenerateLoading ? 'Tags werden vorgeschlagen…' : 'Tags vorschlagen' }}
             </button>
           </div>
         </div>
 
-        <!-- Source Selection -->
-        <div class="form-section">
-          <h4 class="form-section__title">Source</h4>
-          <div class="form-radio-group">
-            <label class="form-radio">
-              <input v-model="sourceType" type="radio" value="none" />
-              <span>None / Manual</span>
-            </label>
-            <label class="form-radio">
-              <input v-model="sourceType" type="radio" value="book" />
-              <span>From Book</span>
-            </label>
+        <div
+          v-if="editingId != null && (hasHealthScore || estimateHints.health)"
+          class="form-section editor-health-section"
+        >
+          <div class="form-section__head">
+            <h4 class="form-section__title">Gesundheitscheck</h4>
+            <button
+              v-if="hasHealthScore"
+              type="button"
+              class="editor-estimate-refresh"
+              :disabled="healthEstimateLoading"
+              title="Gesundheitscheck neu berechnen"
+              aria-label="Gesundheitscheck neu berechnen"
+              @click="emit('estimateHealth')"
+            >
+              ↻
+            </button>
+          </div>
+          <div v-if="hasHealthScore" class="editor-health-summary">
+            <span class="editor-health-score">{{ healthScoreValue }}</span>
+            <span class="editor-health-score-max">/ 100</span>
+            <p v-if="healthScoreSummary" class="editor-health-summary__text meta-text">{{ healthScoreSummary }}</p>
+          </div>
+          <p v-if="estimateHints.health" class="editor-estimate-hint" role="status">
+            {{ estimateHints.health }}
+            <button
+              type="button"
+              class="btn btn--ghost btn--tiny editor-estimate-retry"
+              :disabled="healthEstimateLoading"
+              @click="emit('estimateHealth')"
+            >
+              Erneut versuchen
+            </button>
+          </p>
+        </div>
+
+        <!-- Source -->
+        <div class="form-section source-section">
+          <h4 class="form-section__title">Quelle</h4>
+
+          <!-- Case A: primary website source -->
+          <div v-if="sourceUiCase === 'website'" class="source-block">
+            <p class="source-block__kind">Website</p>
+            <div class="source-link-row">
+              <a
+                :href="websiteLinkHref"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="source-link-row__link"
+              >{{ websiteDisplayDomain }}</a>
+              <button
+                type="button"
+                class="source-link-row__edit"
+                title="Original-URL bearbeiten"
+                aria-label="Original-URL bearbeiten"
+                @click="showUrlEdit = !showUrlEdit"
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <button
+              v-if="!showBookPicker"
+              type="button"
+              class="btn btn--ghost btn--small source-block__action"
+              @click="openBookPicker"
+            >
+              Mit Kochbuch verknüpfen
+            </button>
           </div>
 
-          <div v-if="showUrlSourceField" class="form-field source-url-field">
-            <label for="source-url">Source URL</label>
+          <!-- Case B: primary cookbook source -->
+          <div v-else-if="sourceUiCase === 'book'" class="source-block">
+            <p class="source-block__kind">Kochbuch</p>
+            <div v-if="!showBookPicker" class="source-book-card">
+              <div class="source-book-card__cover">
+                <img v-if="primaryBookCover" :src="primaryBookCover" :alt="primaryBookTitle" />
+                <span v-else aria-hidden="true">?</span>
+              </div>
+              <div class="source-book-card__meta">
+                <div class="source-book-card__title">{{ primaryBookTitle }}</div>
+                <div v-if="primaryBookSubtitle" class="source-book-card__subtitle">{{ primaryBookSubtitle }}</div>
+                <div v-if="primaryBookMetaLine" class="source-book-card__line meta-text">{{ primaryBookMetaLine }}</div>
+                <div v-if="form.source_page.trim()" class="source-book-card__line meta-text">
+                  Seite {{ form.source_page.trim() }}
+                </div>
+              </div>
+            </div>
+            <div v-if="!showBookPicker" class="source-block__inline-actions">
+              <button type="button" class="btn btn--ghost btn--tiny" @click="openBookPicker">Ändern</button>
+              <button type="button" class="btn btn--ghost btn--tiny" @click="unlinkBookSource">Entfernen</button>
+            </div>
+            <div v-if="!showBookPicker" class="form-field source-page-field">
+              <label for="source-page-inline">Seitenzahl</label>
+              <input
+                id="source-page-inline"
+                v-model="form.source_page"
+                type="text"
+                placeholder="z. B. 42"
+                class="form-input form-input--small"
+              />
+            </div>
+            <div v-if="hasOriginalUrl && !showBookPicker" class="source-original-link">
+              <p class="source-block__kind source-block__kind--secondary">Original-Link</p>
+              <div class="source-link-row">
+                <a
+                  :href="originalLinkHref"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="source-link-row__link"
+                >{{ originalLinkDomain }}</a>
+                <button
+                  type="button"
+                  class="source-link-row__edit"
+                  title="Original-URL bearbeiten"
+                  aria-label="Original-URL bearbeiten"
+                  @click="showUrlEdit = !showUrlEdit"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Case C: original URL only -->
+          <div v-else-if="sourceUiCase === 'original-only'" class="source-block">
+            <p class="source-block__kind">Original-Link</p>
+            <div class="source-link-row">
+              <a
+                :href="originalLinkHref"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="source-link-row__link"
+              >{{ originalLinkDomain }}</a>
+              <button
+                type="button"
+                class="source-link-row__edit"
+                title="Original-URL bearbeiten"
+                aria-label="Original-URL bearbeiten"
+                @click="showUrlEdit = !showUrlEdit"
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <button
+              v-if="!showBookPicker"
+              type="button"
+              class="btn btn--ghost btn--small source-block__action"
+              @click="openBookPicker"
+            >
+              Mit Kochbuch verknüpfen
+            </button>
+          </div>
+
+          <!-- Case D: manual -->
+          <div v-else class="source-block">
+            <p class="source-block__kind">Manuell</p>
+            <div v-if="!showBookPicker && !showUrlEdit" class="source-block__inline-actions">
+              <button type="button" class="btn btn--ghost btn--small" @click="openBookPicker">Mit Kochbuch verknüpfen</button>
+              <button type="button" class="btn btn--ghost btn--small" @click="showUrlEdit = true">Original-URL hinzufügen</button>
+            </div>
+          </div>
+
+          <div v-if="showUrlEdit" class="source-url-edit form-field">
+            <label for="source-original-url">Original-URL</label>
             <input
-              id="source-url"
-              v-model="sourceUrl"
+              id="source-original-url"
+              v-model="originalPageUrl"
               type="url"
               inputmode="url"
-              placeholder="https://example.com/recipe"
+              placeholder="https://example.com/rezept"
               class="form-input"
             />
-            <p class="source-url-field__hint">Original page this recipe was imported from.</p>
+            <button type="button" class="btn btn--ghost btn--tiny" @click="showUrlEdit = false">Fertig</button>
           </div>
 
-          <div v-if="sourceType === 'book'" class="source-selection">
+          <div v-if="showBookPicker" class="source-book-picker">
             <div class="source-books">
               <div
-                v-for="source in bookSources"
+                v-for="source in cookbookSources"
                 :key="source.id"
                 class="source-book"
                 :class="{ 'source-book--selected': selectedSourceId === source.id }"
-                @click="selectedSourceId = source.id"
+                @click="selectBookFromPicker(source.id)"
               >
                 <div class="source-book__cover">
                   <img v-if="source.image_path" :src="source.image_path" :alt="source.name" />
@@ -281,74 +461,151 @@
                 </div>
               </div>
             </div>
-            <router-link to="/sources" class="link-secondary">+ Add New Book</router-link>
-            <div v-if="selectedSourceId" class="form-field">
-              <label for="source-page">Page Number</label>
+            <router-link to="/sources" class="link-secondary">+ Neues Kochbuch</router-link>
+            <div v-if="pickerBookSelected" class="form-field">
+              <label for="source-page">Seitenzahl</label>
               <input
                 id="source-page"
                 v-model="form.source_page"
                 type="text"
-                placeholder="e.g., 42"
+                placeholder="z. B. 42"
                 class="form-input form-input--small"
               />
             </div>
+            <button type="button" class="btn btn--ghost btn--tiny" @click="closeBookPicker">Abbrechen</button>
           </div>
         </div>
 
-        <!-- AI Extraction Info (moved from Review step) -->
-        <div v-if="hasExtractionFeedback" class="review-card review-card--info">
-          <div class="review-card__header">
-            <svg viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <h4>AI Extraction Info</h4>
+        <!-- AI Extraction Info -->
+        <details v-if="hasExtractionFeedback" class="extraction-details">
+          <summary class="extraction-details__summary">Details zur Extraktion</summary>
+          <div class="review-card review-card--info">
+            <div class="review-card__header">
+              <h4>KI-Extraktion</h4>
+            </div>
+            <dl class="review-list">
+              <div v-if="extractConfidence != null">
+                <dt>Sicherheit:</dt>
+                <dd>{{ Math.round(extractConfidence * 100) }}%</dd>
+              </div>
+              <div v-if="extractMissingFields?.length">
+                <dt>Fehlt:</dt>
+                <dd>{{ extractMissingFields.join(', ') }}</dd>
+              </div>
+            </dl>
           </div>
-          <dl class="review-list">
-            <div v-if="extractConfidence != null">
-              <dt>Confidence:</dt>
-              <dd>{{ Math.round(extractConfidence * 100) }}%</dd>
-            </div>
-            <div v-if="extractMissingFields?.length">
-              <dt>Missing:</dt>
-              <dd>{{ extractMissingFields.join(', ') }}</dd>
-            </div>
-          </dl>
-        </div>
+        </details>
       </div>
 
       <!-- Step 2: Ingredients -->
-      <div v-if="currentStep === 1" class="form-step form-step--ingredients">
-        <p class="ingredients-step__hint">
-          Ingredients are shown as plain text for review. Click a line to edit. New rows open in edit mode.
-          Category keys: only values in parentheses are saved (e.g. <code>produce</code>, <code>pantry</code>).
-        </p>
-        <div v-for="group in ingredientsBySection" :key="group.key" class="ingredient-section">
-          <div class="ingredient-section__heading-block">
-            <span class="ingredient-section__heading-block-label">Section heading</span>
+      <div
+        v-if="currentStep === 1"
+        class="form-step form-step--ingredients"
+        :class="{ 'form-step--ingredients--ocr-open': showFullOcrText && !!fullOriginalText }"
+      >
+        <div class="ingredients-step__layout">
+          <div class="ingredients-step__main">
+            <div class="ingredients-list-header">
+              <div class="ingredients-list-header__actions">
+                <button
+                  v-if="hasAnyOriginalText"
+                  type="button"
+                  class="ingredients-icon-btn"
+                  :class="{ 'ingredients-icon-btn--active': showOriginalLines }"
+                  :aria-pressed="showOriginalLines"
+                  :title="showOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                  :aria-label="showOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                  @click="showOriginalLines = !showOriginalLines"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 7h12M6 12h8M6 17h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    <path d="M4 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.35" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="showFullOcrText && fullOriginalText"
+              class="ingredients-ocr-mobile"
+              role="region"
+              aria-label="Originaltext"
+            >
+              <pre class="original-text-panel__body">{{ fullOriginalText }}</pre>
+            </div>
+
+        <div v-for="group in ingredientsBySection" :key="group.id" class="ingredient-section">
+          <div v-if="group.id === UNGROUPED_SECTION_ID" class="ingredient-section__ungrouped-header">
+            <span class="ingredient-section__ungrouped-title">Ohne Gruppe</span>
+          </div>
+          <div v-else class="ingredient-section__heading-row">
             <input
+              :id="`group-heading-${group.id}`"
               type="text"
               class="ingredient-section__heading-input"
               :value="group.heading ?? ''"
-              placeholder="Optional heading (e.g. Sauce, Salad)"
-              @input="updateSectionHeading(group.key, ($event.target as HTMLInputElement).value)"
+              placeholder="Gruppenname"
+              aria-label="Gruppenname"
+              @input="updateSectionHeading(group.id, ($event.target as HTMLInputElement).value)"
             />
+            <button
+              v-if="canDeleteIngredientGroup(group)"
+              type="button"
+              class="ingredients-icon-btn ingredients-icon-btn--subtle"
+              title="Leere Gruppe entfernen"
+              aria-label="Leere Gruppe entfernen"
+              @click="deleteIngredientGroup(group.id)"
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </button>
           </div>
-          <p v-if="group.heading?.trim()" class="ingredient-section__heading-preview">{{ group.heading }}</p>
 
           <div
-            v-for="item in group.items"
-            :key="`${group.key}-${item.flatIndex}`"
-            class="ingredient-card"
-            :class="{ 'ingredient-card--editing': isIngredientEditing(item.flatIndex) }"
+            class="ingredient-section__list"
+            @dragover.prevent="onIngredientSectionDragOver($event, group.id)"
+            @dragleave="onIngredientSectionDragLeave"
+            @drop.prevent="onIngredientSectionDrop($event, group.id)"
           >
+            <template v-for="item in group.items" :key="item.ing.client_id">
+              <div
+                v-if="showIngredientDropLineBefore(item)"
+                class="ingredient-drop-line"
+                aria-hidden="true"
+              />
+              <div
+                class="ingredient-card"
+                :data-ingredient-client-id="item.ing.client_id"
+                :class="{
+                  'ingredient-card--editing': isIngredientEditing(item.flatIndex),
+                  'ingredient-card--dragging': ingredientDragFromClientId === item.ing.client_id,
+                }"
+              >
             <div v-if="!isIngredientEditing(item.flatIndex)" class="ingredient-card__view">
+              <button
+                type="button"
+                class="ingredient-card__drag-handle"
+                :draggable="desktopIngredientDrag"
+                aria-label="Zutat verschieben"
+                title="Zutat verschieben"
+                @dragstart.stop="onIngredientDragStart($event, group.id, item)"
+                @dragend.stop="onIngredientDragEnd"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="9" cy="7" r="1.25" />
+                  <circle cx="15" cy="7" r="1.25" />
+                  <circle cx="9" cy="12" r="1.25" />
+                  <circle cx="15" cy="12" r="1.25" />
+                  <circle cx="9" cy="17" r="1.25" />
+                  <circle cx="15" cy="17" r="1.25" />
+                </svg>
+              </button>
               <div
                 class="ingredient-card__summary"
                 role="button"
                 tabindex="0"
-                :aria-label="'Edit ingredient: ' + ingredientLineMain(item.ing)"
+                :aria-label="'Zutat bearbeiten: ' + ingredientLineMain(item.ing)"
                 @click="openIngredientEdit(item.flatIndex)"
                 @keydown.enter.prevent="openIngredientEdit(item.flatIndex)"
                 @keydown.space.prevent="openIngredientEdit(item.flatIndex)"
@@ -356,189 +613,297 @@
                 <div class="ingredient-card__summary-main">{{ ingredientLineMain(item.ing) }}</div>
                 <div v-if="ingredientLineSub(item.ing)" class="ingredient-card__summary-sub">{{ ingredientLineSub(item.ing) }}</div>
                 <div
-                  v-if="!hideIngredientOriginalLine && (item.ing.original_text || '').trim()"
+                  v-if="showOriginalLines && (item.ing.original_text || '').trim()"
                   class="ingredient-card__summary-original"
                 >
-                  <span class="ingredient-card__summary-original-label">Original:</span>
-                  {{ truncateText(item.ing.original_text ?? '', 120) }}
+                  {{ item.ing.original_text }}
                 </div>
               </div>
-              <button
-                type="button"
-                class="btn-icon btn-icon--remove"
-                title="Remove ingredient"
-                @click.stop="removeIngredient(item.flatIndex)"
-              >
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
+              <div class="ingredient-card__aside">
+                <div class="ingredient-card__reorder ingredient-card__reorder--touch" role="group" aria-label="Reihenfolge">
+                  <button
+                    type="button"
+                    class="ingredient-card__move-btn"
+                    aria-label="Nach oben"
+                    title="Nach oben"
+                    :disabled="!canMoveIngredientInSection(item.flatIndex, -1)"
+                    @click.stop="moveIngredientInSection(item.flatIndex, -1)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 8l-6 6h12l-6-6z" fill="currentColor" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="ingredient-card__move-btn"
+                    aria-label="Nach unten"
+                    title="Nach unten"
+                    :disabled="!canMoveIngredientInSection(item.flatIndex, 1)"
+                    @click.stop="moveIngredientInSection(item.flatIndex, 1)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 16l6-6H6l6 6z" fill="currentColor" />
+                    </svg>
+                  </button>
+                </div>
+                <select
+                  :id="`ing-grp-view-${item.flatIndex}`"
+                  class="ingredient-card__group-select"
+                  :value="ingredientGroupSelectValue(item.ing)"
+                  aria-label="In Gruppe verschieben"
+                  title="In Gruppe verschieben"
+                  @change="moveIngredientToGroup(item.flatIndex, ($event.target as HTMLSelectElement).value)"
+                  @click.stop
+                >
+                  <option value="">Gruppe…</option>
+                  <option v-for="g in ingredientGroupOptions" :key="g.id" :value="g.id">{{ g.label }}</option>
+                </select>
+                <button
+                  type="button"
+                  class="ingredients-icon-btn ingredients-icon-btn--subtle"
+                  title="Entfernen"
+                  aria-label="Zutat entfernen"
+                  @click.stop="removeIngredient(item.flatIndex)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            <template v-else>
-            <div class="ingredient-card__primary">
-              <input
-                v-model="item.ing.amount"
-                type="text"
-                placeholder="1"
-                class="ingredient-input ingredient-input--amount"
-                aria-label="Amount"
-              />
-              <input
-                v-model="item.ing.unit"
-                type="text"
-                placeholder="g"
-                class="ingredient-input ingredient-input--unit"
-                aria-label="Unit"
-              />
-              <input
-                v-model="item.ing.name"
-                type="text"
-                placeholder="Ingredient name"
-                class="ingredient-input ingredient-input--name"
-                aria-label="Ingredient name"
-              />
-              <button
-                type="button"
-                class="btn-icon btn-icon--remove"
-                title="Remove ingredient"
-                @click="removeIngredient(item.flatIndex)"
-              >
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </div>
-
-            <div class="ingredient-card__secondary">
-              <div class="ingredient-card__field">
-                <label class="ingredient-card__field-label" :for="`ing-cat-${item.flatIndex}`">Category</label>
+            <div v-else class="ingredient-card__edit">
+              <div class="ingredient-card__edit-row ingredient-card__edit-row--main">
+                <button
+                  type="button"
+                  class="ingredient-card__drag-handle ingredient-card__drag-handle--edit"
+                  :draggable="desktopIngredientDrag"
+                  aria-label="Zutat verschieben"
+                  title="Zutat verschieben"
+                  @dragstart.stop="onIngredientDragStart($event, group.id, item)"
+                  @dragend.stop="onIngredientDragEnd"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="9" cy="7" r="1.25" />
+                    <circle cx="15" cy="7" r="1.25" />
+                    <circle cx="9" cy="12" r="1.25" />
+                    <circle cx="15" cy="12" r="1.25" />
+                    <circle cx="9" cy="17" r="1.25" />
+                    <circle cx="15" cy="17" r="1.25" />
+                  </svg>
+                </button>
+                <input
+                  v-model="item.ing.amount"
+                  type="text"
+                  placeholder="Menge"
+                  class="ingredient-input ingredient-input--amount"
+                  aria-label="Menge"
+                />
+                <input
+                  v-model="item.ing.unit"
+                  type="text"
+                  placeholder="Einheit"
+                  class="ingredient-input ingredient-input--unit"
+                  aria-label="Einheit"
+                />
+                <input
+                  v-model="item.ing.name"
+                  type="text"
+                  placeholder="Zutat"
+                  class="ingredient-input ingredient-input--name"
+                  aria-label="Zutat"
+                />
+                <button
+                  type="button"
+                  class="ingredients-icon-btn ingredients-icon-btn--done"
+                  aria-label="Fertig"
+                  title="Fertig"
+                  @click="closeIngredientEdit(item.flatIndex)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 12l4 4 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="ingredients-icon-btn ingredients-icon-btn--subtle"
+                  title="Zutat entfernen"
+                  aria-label="Zutat entfernen"
+                  @click="removeIngredient(item.flatIndex)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
+              <div class="ingredient-card__edit-row ingredient-card__edit-row--meta">
                 <select
                   :id="`ing-cat-${item.flatIndex}`"
                   :value="item.ing.category ?? ''"
-                  class="ingredient-card__select"
-                  aria-label="Ingredient category"
+                  class="ingredient-card__select ingredient-card__select--compact"
+                  aria-label="Kategorie"
                   @change="setIngredientCategorySelect(item.ing, ($event.target as HTMLSelectElement).value)"
                 >
-                  <option value="">— None —</option>
+                  <option value="">Kategorie</option>
                   <option
                     v-for="opt in INGREDIENT_CATEGORY_OPTIONS"
                     :key="opt.value"
                     :value="opt.value"
                   >
-                    {{ opt.labelDe }} ({{ opt.value }})
+                    {{ opt.labelDe }}
                   </option>
                 </select>
-              </div>
-              <div class="ingredient-card__field ingredient-card__field--grow">
-                <label class="ingredient-card__field-label" :for="`ing-add-${item.flatIndex}`">Additional info</label>
                 <input
                   :id="`ing-add-${item.flatIndex}`"
                   v-model="item.ing.additional_info"
                   type="text"
                   class="ingredient-card__text-input"
-                  placeholder="Notes, alternatives…"
-                  aria-label="Additional ingredient info"
+                  placeholder="Zusatzinfo"
+                  aria-label="Zusatzinfo"
                 />
               </div>
-            </div>
-
-            <div v-if="!hideIngredientOriginalLine" class="ingredient-card__original-wrap">
-              <template v-if="item.ing.original_text == null">
-                <button
-                  type="button"
-                  class="ingredient-card__link-btn"
-                  @click="item.ing.original_text = ''"
-                >
-                  + Add original line (from OCR)
-                </button>
-              </template>
-              <template v-else-if="item.ing.original_text === ''">
-                <div class="ingredient-card__original-editor">
-                  <span class="ingredient-card__field-label">Original line</span>
+              <div v-if="showOriginalLines" class="ingredient-card__edit-row ingredient-card__edit-row--original">
+                <template v-if="item.ing.original_text == null">
+                  <button
+                    type="button"
+                    class="ingredient-card__link-btn"
+                    @click="item.ing.original_text = ''"
+                  >
+                    + Originalzeile
+                  </button>
+                </template>
+                <template v-else>
                   <input
                     v-model="item.ing.original_text"
                     type="text"
                     class="ingredient-card__text-input ingredient-card__text-input--original"
-                    placeholder="Paste visible line from the source"
-                    aria-label="Original ingredient line"
+                    placeholder="Originalzeile"
+                    aria-label="Originalzeile"
                   />
                   <button
                     type="button"
-                    class="btn btn--secondary btn--tiny"
+                    class="ingredients-icon-btn ingredients-icon-btn--subtle"
+                    title="Originalzeile entfernen"
+                    aria-label="Originalzeile entfernen"
                     @click="item.ing.original_text = null"
                   >
-                    Cancel
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
                   </button>
-                </div>
-              </template>
-              <template v-else>
-                <div
-                  v-if="!isOriginalLineExpanded(item.flatIndex)"
-                  class="ingredient-card__original-collapsed"
-                >
-                  <button
-                    type="button"
-                    class="ingredient-card__link-btn"
-                    @click="toggleOriginalLineExpanded(item.flatIndex)"
-                  >
-                    Show / edit original line
-                  </button>
-                  <span class="ingredient-card__original-preview" :title="item.ing.original_text ?? ''">{{
-                    truncateText(item.ing.original_text ?? '', 72)
-                  }}</span>
-                </div>
-                <div v-else class="ingredient-card__original-editor">
-                  <span class="ingredient-card__field-label">Original line</span>
-                  <div class="ingredient-card__original-row">
-                    <input
-                      v-model="item.ing.original_text"
-                      type="text"
-                      class="ingredient-card__text-input ingredient-card__text-input--original"
-                      placeholder="Original ingredient text from OCR"
-                      aria-label="Original ingredient line"
-                    />
-                    <button
-                      type="button"
-                      class="btn-icon-small"
-                      title="Remove original text"
-                      @click="item.ing.original_text = null; collapseOriginalLine(item.flatIndex)"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn btn--secondary btn--tiny"
-                    @click="collapseOriginalLine(item.flatIndex)"
-                  >
-                    Done
-                  </button>
-                </div>
-              </template>
+                </template>
+              </div>
             </div>
-
-            <div class="ingredient-card__edit-footer">
-              <button type="button" class="btn btn--secondary btn--small" @click="closeIngredientEdit(item.flatIndex)">
-                Done
-              </button>
-            </div>
+              </div>
             </template>
+            <div
+              v-if="showIngredientDropLineAfterLast(group)"
+              class="ingredient-drop-line"
+              aria-hidden="true"
+            />
           </div>
         </div>
 
-        <button type="button" class="btn btn--secondary btn--block" @click="addIngredient">
-          + Add Ingredient
-        </button>
+        <!-- Nutrition 
+        <div
+          v-if="editingId != null && (hasNutrition || estimateHints.nutrition)"
+          class="form-section editor-nutrition-section"
+        >
+          <div class="form-section__head">
+            <h4 class="form-section__title">Nährwerte</h4>
+            <button
+              v-if="hasNutrition"
+              type="button"
+              class="editor-estimate-refresh"
+              :disabled="nutritionEstimateLoading"
+              title="Nährwerte neu schätzen"
+              aria-label="Nährwerte neu schätzen"
+              @click="emit('estimateNutrition')"
+            >
+              ↻
+            </button>
+          </div>
+          <div v-if="hasNutrition" class="editor-nutrition-grid">
+            <div v-if="nutritionPerServing.kcal != null" class="editor-nutrition-item">
+              <span class="editor-nutrition-label">Kalorien / Portion</span>
+              <span class="editor-nutrition-value">{{ nutritionPerServing.kcal }} kcal</span>
+            </div>
+            <div v-if="nutritionPerServing.protein != null" class="editor-nutrition-item">
+              <span class="editor-nutrition-label">Eiweiß / Portion</span>
+              <span class="editor-nutrition-value">{{ nutritionPerServing.protein }} g</span>
+            </div>
+            <div v-if="nutritionPerServing.carbs != null" class="editor-nutrition-item">
+              <span class="editor-nutrition-label">Kohlenhydrate / Portion</span>
+              <span class="editor-nutrition-value">{{ nutritionPerServing.carbs }} g</span>
+            </div>
+            <div v-if="nutritionPerServing.fat != null" class="editor-nutrition-item">
+              <span class="editor-nutrition-label">Fett / Portion</span>
+              <span class="editor-nutrition-value">{{ nutritionPerServing.fat }} g</span>
+            </div>
+          </div>
+          <p v-if="estimateHints.nutrition" class="editor-estimate-hint" role="status">
+            {{ estimateHints.nutrition }}
+            <button
+              type="button"
+              class="btn btn--ghost btn--tiny editor-estimate-retry"
+              :disabled="nutritionEstimateLoading"
+              @click="emit('estimateNutrition')"
+            >
+              Erneut versuchen
+            </button>
+          </p>
+        </div>
+-->
+        <div class="ingredients-step__bottom-actions">
+          <button type="button" class="btn btn--secondary btn--block" @click="addIngredient">
+            + Zutat hinzufügen
+          </button>
+          <button type="button" class="btn btn--secondary btn--block" @click="addIngredientGroup">
+            + Gruppe hinzufügen
+          </button>
+        </div>
+          </div>
+
+          <aside
+            v-if="showFullOcrText && fullOriginalText"
+            class="ingredients-ocr-aside"
+            role="complementary"
+            aria-label="Originaltext"
+          >
+            <div class="ingredients-ocr-aside__header">
+              <h5 class="ingredients-ocr-aside__title">Originaltext</h5>
+              <button
+                type="button"
+                class="btn btn--ghost btn--tiny"
+                @click="showFullOcrText = false"
+              >
+                Schließen
+              </button>
+            </div>
+            <pre class="original-text-panel__body ingredients-ocr-aside__body">{{ fullOriginalText }}</pre>
+          </aside>
+        </div>
       </div>
 
       <!-- Step 3: Instructions -->
       <div v-if="currentStep === 2" class="form-step form-step--instructions">
-        <p class="instructions-step__hint">
-          Steps are shown as plain text for review. Click to edit. New steps open in edit mode.
-        </p>
+        <div class="instructions-step__toolbar">
+          <p class="instructions-step__hint">
+            Zubereitungsschritte werden zur Prüfung als Liste angezeigt. Tippe einen Schritt an, um ihn zu bearbeiten.
+          </p>
+          <button
+            v-if="fullOriginalText"
+            type="button"
+            class="btn btn--ghost btn--small"
+            @click="showOriginalSteps = !showOriginalSteps"
+          >
+            {{ showOriginalSteps ? 'Original ausblenden' : 'Original anzeigen' }}
+          </button>
+        </div>
+        <details v-if="showOriginalSteps && fullOriginalText" class="original-text-panel">
+          <summary>Original-Zubereitung</summary>
+          <pre class="original-text-panel__body">{{ parsedStepsOriginalText }}</pre>
+        </details>
         <div
           v-for="(step, index) in form.recipe_steps"
           :key="index"
@@ -551,7 +916,7 @@
               class="instruction-block__summary"
               role="button"
               tabindex="0"
-              :aria-label="'Edit step ' + (index + 1)"
+              :aria-label="'Schritt ' + (index + 1) + ' bearbeiten'"
               @click="openStepEdit(index)"
               @keydown.enter.prevent="openStepEdit(index)"
               @keydown.space.prevent="openStepEdit(index)"
@@ -559,13 +924,13 @@
               {{
                 (step.instruction || '').trim()
                   ? step.instruction
-                  : 'Empty step — click to edit'
+                  : 'Leerer Schritt — tippen zum Bearbeiten'
               }}
             </div>
             <button
               type="button"
               class="btn-icon btn-icon--remove"
-              title="Remove step"
+              title="Schritt entfernen"
               @click.stop="removeStep(index)"
             >
               <svg viewBox="0 0 24 24" fill="none">
@@ -579,14 +944,14 @@
               <textarea
                 v-model="step.instruction"
                 rows="3"
-                :placeholder="`Step ${index + 1}`"
+                :placeholder="`Schritt ${index + 1}`"
                 class="form-textarea instruction-block__textarea"
-                aria-label="Step instruction"
+                aria-label="Zubereitungsschritt"
               />
               <button
                 type="button"
                 class="btn-icon btn-icon--remove"
-                title="Remove step"
+                title="Schritt entfernen"
                 @click="removeStep(index)"
               >
                 <svg viewBox="0 0 24 24" fill="none">
@@ -596,69 +961,52 @@
             </div>
             <div class="instruction-block__edit-actions">
               <button type="button" class="btn btn--secondary btn--small" @click="closeStepEdit(index)">
-                Done
+                Fertig
               </button>
             </div>
           </div>
         </div>
 
         <button type="button" class="btn btn--secondary btn--block" @click="addStep">
-          + Add Step
+          + Schritt hinzufügen
         </button>
 
         <div class="form-section">
-          <h4 class="form-section__title">Tips & Notes</h4>
+          <h4 class="form-section__title">Tipps & Notizen</h4>
           <textarea
             v-model="form.tips_notes"
             rows="3"
-            placeholder="Optional tips, notes, or alternatives (one per line)"
+            placeholder="Optionale Tipps, Notizen oder Varianten"
             class="form-textarea"
-            aria-label="Tips and notes"
+            aria-label="Tipps und Notizen"
           />
         </div>
       </div>
 
-      <!-- Navigation -->
+      <!-- Section navigation -->
       <div class="form-actions">
         <button
           v-if="currentStep > 0"
           type="button"
-          class="btn btn--secondary"
+          class="btn btn--secondary form-actions__back"
           @click="prevStep"
         >
-          Back
+          Zurück
         </button>
-        <div style="flex: 1"></div>
-        <button
-          v-if="editingId"
-          type="button"
-          class="btn btn--ghost"
-          @click="emit('cancel')"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          class="btn btn--primary"
-        >
-          {{ editingId ? 'Save Changes' : 'Create Recipe' }}
-        </button>
-        <button
-          v-if="currentStep === 1"
-          type="button"
-          class="btn btn--secondary"
-          @click="handleSubmit({ estimateNutrition: true })"
-        >
-          Estimate nutrition
-        </button>
-        <button
-          v-if="currentStep < steps.length - 1"
-          type="button"
-          class="btn btn--secondary"
-          @click="nextStep"
-        >
-          Next section
-        </button>
+        <div class="form-actions__spacer" aria-hidden="true" />
+        <div class="form-actions__primary">
+          <button type="submit" class="btn btn--primary">
+            {{ editingId ? 'Speichern' : 'Rezept anlegen' }}
+          </button>
+          <button
+            v-if="currentStep < steps.length - 1"
+            type="button"
+            class="btn btn--secondary"
+            @click="nextStep"
+          >
+            Weiter
+          </button>
+        </div>
       </div>
     </form>
   </div>
@@ -677,10 +1025,18 @@ import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
 import { INGREDIENT_CATEGORY_OPTIONS, getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 import { getRecipeFormPreviewUrl } from '../utils/recipeDisplayImage'
+import { formatUrlDomain } from '../utils/formatUrlDomain'
+import { isWebsiteSourceType } from '../utils/recipeSourceLabel'
 import CropPerspectiveModal from './CropPerspectiveModal.vue'
 import TagInput from './ui/TagInput.vue'
 import type { CropNaturalPoint } from './CropPerspectiveModal.vue'
 import { rotateImageFile90 } from '../utils/imageRotate'
+import {
+  perServingNutrition,
+  recipeHasNutrition,
+  recipeHasPrepOrCookTimes,
+} from '../utils/recipeEstimateNeeds'
+import type { RecipeHealthScoreResponse } from '../api/recipes'
 
 interface IngredientRow {
   amount: string
@@ -692,6 +1048,15 @@ interface IngredientRow {
   original_text?: string | null
   /** Form uses empty string when unset */
   additional_info?: string | null
+  /** Stable editor-only id for section grouping UI (not sent to API). */
+  section_client_id?: string | null
+  /** Stable editor-only id for list keys (not sent to API). */
+  client_id?: string
+}
+
+interface EmptyEditorGroup {
+  id: string
+  heading: string
 }
 
 const props = defineProps<{
@@ -700,6 +1065,13 @@ const props = defineProps<{
     source_id?: number | null
     source_type?: string | null
     source_url?: string | null
+    original_url?: string | null
+    source_domain?: string | null
+    source_name?: string | null
+    source_subtitle?: string | null
+    source_author?: string | null
+    source_year?: number | null
+    source_image_path?: string | null
     import_method?: string | null
     extract_confidence?: number | null
     extract_missing_fields?: string[] | null
@@ -707,6 +1079,7 @@ const props = defineProps<{
     nutrition_protein?: number | null
     nutrition_carbs?: number | null
     nutrition_fat?: number | null
+    health_score?: RecipeHealthScoreResponse | null
     prep_time_min?: number | null
     cook_time_min?: number | null
     prep_time_source?: 'original' | 'estimated' | null
@@ -719,6 +1092,9 @@ const props = defineProps<{
   editingId?: number | null
   editingStatus?: 'draft' | 'confirmed' | null
   timeEstimateLoading?: boolean
+  nutritionEstimateLoading?: boolean
+  healthEstimateLoading?: boolean
+  estimateHints?: { nutrition: string; health: string; times: string }
   tagGenerateLoading?: boolean
 }>()
 
@@ -727,29 +1103,114 @@ const emit = defineEmits<{
     payload: RecipeFormPayload,
     imageFile: File | string | null,
     cropPoints?: Array<{ x: number; y: number }>,
-    options?: { estimateNutrition?: boolean; processImageLater?: boolean }
+    options?: { processImageLater?: boolean }
   ]
   confirm: []
   cancel: []
   estimateTimes: []
+  estimateNutrition: []
+  estimateHealth: []
   generateTags: []
 }>()
 
 const currentStep = ref(0)
-const sourceType = ref<'none' | 'book'>('none')
 const selectedSourceId = ref<number | null>(null)
-const lockedUrlSourceId = ref<number | null>(null)
-const sourceUrl = ref('')
+/** Per-recipe page URL; persisted as recipes.original_url. */
+const originalPageUrl = ref('')
+const importMethod = ref<'manual' | 'url' | 'image'>('manual')
 const bookSources = ref<RecipeSource[]>([])
+const showBookPicker = ref(false)
+const showUrlEdit = ref(false)
+const showOriginalLines = ref(false)
+const showFullOcrText = ref(false)
+const showOriginalSteps = ref(false)
 
-const showUrlSourceField = computed(() => {
-  const init = props.initial
-  return !!(
-    lockedUrlSourceId.value ||
-    init?.source_type === 'url' ||
-    init?.import_method === 'url'
-  )
+const cookbookSources = computed(() => bookSources.value.filter((s) => s.type === 'book'))
+
+function sourceTypeForId(id: number | null): 'book' | 'url' | null {
+  if (id == null) return null
+  const fromList = bookSources.value.find((s) => s.id === id)
+  if (fromList) {
+    if (fromList.type === 'book') return 'book'
+    if (isWebsiteSourceType(fromList.type)) return 'url'
+  }
+  if (props.initial?.source_id === id) {
+    const t = (props.initial.source_type ?? '').toLowerCase()
+    if (t === 'book') return 'book'
+    if (isWebsiteSourceType(t)) return 'url'
+  }
+  return null
+}
+
+const primarySourceType = computed(() => sourceTypeForId(selectedSourceId.value))
+const isPrimaryWebsite = computed(() => primarySourceType.value === 'url')
+const isPrimaryBook = computed(() => primarySourceType.value === 'book')
+const hasOriginalUrl = computed(() => !!originalPageUrl.value.trim())
+const originalLinkHref = computed(() => originalPageUrl.value.trim())
+const originalLinkDomain = computed(() =>
+  originalPageUrl.value.trim() ? formatUrlDomain(originalPageUrl.value.trim()) : ''
+)
+const websiteDisplayDomain = computed(() => {
+  if (originalPageUrl.value.trim()) return formatUrlDomain(originalPageUrl.value.trim())
+  return props.initial?.source_domain?.trim() || formatUrlDomain(props.initial?.source_url ?? '') || 'Website'
 })
+const websiteLinkHref = computed(
+  () => originalPageUrl.value.trim() || props.initial?.source_url?.trim() || '#'
+)
+
+const sourceUiCase = computed<'website' | 'book' | 'original-only' | 'manual'>(() => {
+  if (isPrimaryWebsite.value) return 'website'
+  if (isPrimaryBook.value) return 'book'
+  if (hasOriginalUrl.value) return 'original-only'
+  return 'manual'
+})
+
+const pickerBookSelected = computed(
+  () => selectedSourceId.value != null && sourceTypeForId(selectedSourceId.value) === 'book'
+)
+
+const primaryBookTitle = computed(() => {
+  if (!isPrimaryBook.value || selectedSourceId.value == null) return ''
+  const fromList = bookSources.value.find((s) => s.id === selectedSourceId.value)
+  if (fromList?.name?.trim()) return fromList.name.trim()
+  return props.initial?.source_name?.trim() || 'Kochbuch'
+})
+
+const primaryBookSubtitle = computed(() => {
+  if (!isPrimaryBook.value || selectedSourceId.value == null) return ''
+  const fromList = bookSources.value.find((s) => s.id === selectedSourceId.value)
+  return fromList?.subtitle?.trim() || props.initial?.source_subtitle?.trim() || ''
+})
+
+const primaryBookCover = computed(() => {
+  if (!isPrimaryBook.value || selectedSourceId.value == null) return ''
+  const fromList = bookSources.value.find((s) => s.id === selectedSourceId.value)
+  return fromList?.image_path || props.initial?.source_image_path || ''
+})
+
+const primaryBookMetaLine = computed(() => {
+  if (!isPrimaryBook.value || selectedSourceId.value == null) return ''
+  const fromList = bookSources.value.find((s) => s.id === selectedSourceId.value)
+  const author = fromList?.author?.trim() || props.initial?.source_author?.trim() || ''
+  const year = fromList?.year ?? props.initial?.source_year ?? null
+  if (author && year != null) return `${author} · ${year}`
+  if (author) return author
+  if (year != null) return String(year)
+  return ''
+})
+
+function openBookPicker() {
+  showBookPicker.value = true
+}
+
+function closeBookPicker() {
+  showBookPicker.value = false
+}
+
+function selectBookFromPicker(id: number) {
+  selectedSourceId.value = id
+  showBookPicker.value = false
+}
 
 // Image upload
 const imageInputRef = ref<HTMLInputElement | null>(null)
@@ -824,7 +1285,7 @@ async function applyCropExisting(points: CropPoint[] | null) {
   const n = points?.length ?? 0
   if (!pending && n !== 4) return
   if (pending && n !== 0 && n !== 4) {
-    cropError.value = 'Use four corner points, or reset points to finalize the full image without perspective correction.'
+    cropError.value = 'Vier Eckpunkte setzen oder Punkte zurücksetzen für Vollbild ohne Perspektivkorrektur.'
     return
   }
   const body: { points?: CropPoint[] } = {}
@@ -843,7 +1304,7 @@ async function applyCropExisting(points: CropPoint[] | null) {
     if (payload.url) currentImageUrl.value = payload.url
     existingCropNaturalPoints.value = null
   } catch (e) {
-    cropError.value = e instanceof Error ? e.message : 'Cropping failed'
+    cropError.value = e instanceof Error ? e.message : 'Zuschneiden fehlgeschlagen'
   } finally {
     cropping.value = false
   }
@@ -855,9 +1316,9 @@ function getNewImageCropPoints(): CropPoint[] | undefined {
 }
 
 const steps = [
-  { id: 'basics', label: 'Basics' },
-  { id: 'ingredients', label: 'Ingredients' },
-  { id: 'instructions', label: 'Instructions' },
+  { id: 'basics', label: 'Grundlagen' },
+  { id: 'ingredients', label: 'Zutaten' },
+  { id: 'instructions', label: 'Zubereitung' },
 ]
 
 function sectionStatus(idx: number): string {
@@ -896,8 +1357,84 @@ const hasExtractionFeedback = computed(() => {
 const extractConfidence = computed(() => props.initial?.extract_confidence ?? null)
 const extractMissingFields = computed(() => props.initial?.extract_missing_fields ?? null)
 
-/** URL-imported recipes: hide OCR "original line" fields in the form. */
-const hideIngredientOriginalLine = computed(() => (props.initial?.import_method ?? 'manual') === 'url')
+const extractionSummary = computed(() => {
+  if (props.editingStatus !== 'draft') return []
+  const lines: string[] = []
+  lines.push(form.title.trim() ? 'Titel erkannt' : 'Titel fehlt')
+  const hasImage = !!(currentImageUrl.value && currentImageUrl.value !== '__DELETE__') || !!imagePreview.value
+  lines.push(hasImage ? 'Titelbild vorhanden' : 'Titelbild fehlt')
+  const ingCount = form.ingredients.filter((i) => (i.name || '').trim()).length
+  lines.push(`${ingCount} Zutat${ingCount === 1 ? '' : 'en'} erkannt`)
+  const stepCount = form.recipe_steps.filter((s) => s.instruction.trim()).length
+  lines.push(`${stepCount} Zubereitungsschritt${stepCount === 1 ? '' : 'e'} erkannt`)
+  if (sourceUiCase.value !== 'manual') {
+    lines.push('Quelle erkannt')
+  } else if (hasOriginalUrl.value) {
+    lines.push('Quelle erkannt')
+  } else {
+    lines.push('Quelle fehlt')
+  }
+  lines.push(recipeHasNutrition(props.initial) ? 'Nährwerte berechnet' : 'Nährwerte fehlen')
+  lines.push('Status: Prüfen')
+  return lines
+})
+
+const estimateHints = computed(() => props.estimateHints ?? { nutrition: '', health: '', times: '' })
+
+const hasNutrition = computed(() => recipeHasNutrition(props.initial))
+const nutritionPerServing = computed(() =>
+  perServingNutrition(
+    {
+      nutrition_kcal: props.initial?.nutrition_kcal,
+      nutrition_protein: props.initial?.nutrition_protein,
+      nutrition_carbs: props.initial?.nutrition_carbs,
+      nutrition_fat: props.initial?.nutrition_fat,
+      parsed_recipe: props.initial?.parsed_recipe,
+      servings: form.servings,
+    },
+    form.servings
+  )
+)
+
+const hasHealthScore = computed(() => {
+  const score = props.initial?.health_score?.estimate?.healthScore
+  return score != null && !Number.isNaN(Number(score))
+})
+const healthScoreValue = computed(() => props.initial?.health_score?.estimate?.healthScore ?? null)
+const healthScoreSummary = computed(() => props.initial?.health_score?.estimate?.summary?.trim() ?? '')
+
+const hasPrepOrCookTimes = computed(() =>
+  recipeHasPrepOrCookTimes({
+    prep_time_min: form.prep_time,
+    cook_time_min: form.cook_time,
+  })
+)
+
+const hasAnyOriginalText = computed(() =>
+  form.ingredients.some((i) => (i.original_text || '').trim())
+)
+
+const fullOriginalText = computed(() => {
+  const pr = props.initial?.parsed_recipe
+  if (!pr) return ''
+  const parts: string[] = []
+  if (pr.title?.trim()) parts.push(pr.title.trim())
+  if (pr.introText?.trim()) parts.push(pr.introText.trim())
+  for (const section of pr.ingredientsSections ?? []) {
+    if (section.heading?.trim()) parts.push(`\n${section.heading.trim()}`)
+    for (const item of section.items ?? []) {
+      const line = (item as { originalText?: string }).originalText?.trim()
+      if (line) parts.push(line)
+    }
+  }
+  return parts.join('\n').trim()
+})
+
+const parsedStepsOriginalText = computed(() => {
+  const pr = props.initial?.parsed_recipe
+  if (!pr?.steps?.length) return ''
+  return pr.steps.map((s, i) => `${i + 1}. ${s?.text?.trim() ?? ''}`).join('\n')
+})
 
 /** Flat indices whose original-line editor is expanded (default: collapsed when text exists). */
 const expandedOriginalLineIndices = ref<Set<number>>(new Set())
@@ -946,7 +1483,7 @@ function ingredientLineMain(ing: IngredientRow): string {
   const name = (ing.name || '').trim()
   const parts = [amount, unit, name].filter(Boolean)
   const hasMeta = !!(ing.category || (ing.additional_info || '').trim())
-  if (parts.length === 0 && !hasMeta) return 'Empty ingredient — click to edit'
+  if (parts.length === 0 && !hasMeta) return 'Leere Zutat — tippen zum Bearbeiten'
   return parts.join(' ').trim() || name || '—'
 }
 
@@ -967,26 +1504,505 @@ function remapIndexSetAfterRemove(setRef: { value: Set<number> }, removedIndex: 
   setRef.value = next
 }
 
+const UNGROUPED_SECTION_ID = '__ungrouped__'
+
+/** Empty groups (no ingredients yet), keyed by stable client id. */
+const emptyEditorGroups = ref<EmptyEditorGroup[]>([])
+/** Display order of section client ids (ungrouped first when present). */
+const sectionOrderIds = ref<string[]>([])
+
+let editorClientIdSeq = 0
+function nextEditorClientId(prefix: string): string {
+  editorClientIdSeq += 1
+  return `${prefix}-${Date.now().toString(36)}-${editorClientIdSeq}`
+}
+
+function createIngredientRow(partial?: Partial<IngredientRow>): IngredientRow {
+  return {
+    amount: '',
+    unit: '',
+    name: '',
+    category: null,
+    additional_info: '',
+    section_heading: '',
+    section_id: null,
+    section_client_id: null,
+    client_id: nextEditorClientId('ing'),
+    ...partial,
+  }
+}
+
+function ingredientHasContent(ing: IngredientRow): boolean {
+  return !!(
+    (ing.name || '').trim() ||
+    (ing.original_text || '').trim() ||
+    (ing.amount || '').trim() ||
+    (ing.unit || '').trim() ||
+    (ing.additional_info || '').trim()
+  )
+}
+
+function isIngredientInSection(ing: IngredientRow): boolean {
+  return !!(ing.section_client_id || (ing.section_heading ?? '').trim())
+}
+
+function getIngredientSectionClientId(ing: IngredientRow): string | null {
+  if (!isIngredientInSection(ing)) return null
+  return ing.section_client_id ?? null
+}
+
+function ensureIngredientClientIds() {
+  for (const ing of form.ingredients) {
+    if (!ing.client_id) ing.client_id = nextEditorClientId('ing')
+  }
+}
+
+function assignSectionClientIdsOnLoad() {
+  let curId: string | null = null
+  let curSectionDbId: number | null | undefined = undefined
+  let curHeading: string | null = null
+
+  for (const ing of form.ingredients) {
+    const heading = (ing.section_heading ?? '').trim() || null
+    if (!heading) {
+      ing.section_client_id = null
+      curId = null
+      curSectionDbId = undefined
+      curHeading = null
+      continue
+    }
+
+    const dbId = ing.section_id ?? null
+    let newGroup = curId === null
+    if (!newGroup) {
+      if (dbId != null) {
+        newGroup = dbId !== curSectionDbId
+      } else if (curSectionDbId != null) {
+        newGroup = true
+      } else {
+        newGroup = heading !== curHeading
+      }
+    }
+
+    if (newGroup) {
+      curId = nextEditorClientId('sec')
+      curSectionDbId = dbId
+      curHeading = heading
+    }
+    ing.section_client_id = curId
+  }
+}
+
+function rebuildSectionOrderIds() {
+  const order: string[] = []
+  const seen = new Set<string>()
+  let hasUngrouped = false
+
+  for (const ing of form.ingredients) {
+    const sid = getIngredientSectionClientId(ing)
+    if (sid === null) {
+      hasUngrouped = true
+      continue
+    }
+    if (!seen.has(sid)) {
+      seen.add(sid)
+      order.push(sid)
+    }
+  }
+
+  for (const eg of emptyEditorGroups.value) {
+    if (!seen.has(eg.id)) {
+      seen.add(eg.id)
+      order.push(eg.id)
+    }
+  }
+
+  if (hasUngrouped) order.unshift(UNGROUPED_SECTION_ID)
+  sectionOrderIds.value = order
+}
+
+function sectionHeadingForClientId(sectionId: string): string {
+  const empty = emptyEditorGroups.value.find((g) => g.id === sectionId)
+  if (empty) return empty.heading
+  const first = form.ingredients.find((i) => i.section_client_id === sectionId)
+  return first?.section_heading ?? ''
+}
+
+function ingredientGroupSelectValue(ing: IngredientRow): string {
+  return ing.section_client_id ?? ''
+}
+
 const ingredientsBySection = computed(() => {
-  const groups = new Map<string, { heading: string; items: { ing: IngredientRow; flatIndex: number }[] }>()
-  const defaultKey = '\0'
+  const groups = new Map<
+    string,
+    { id: string; heading: string; items: { ing: IngredientRow; flatIndex: number }[] }
+  >()
+
   form.ingredients.forEach((ing, flatIndex) => {
-    const h = ing.section_heading?.trim() ?? ''
-    const key = h || defaultKey
-    if (!groups.has(key)) groups.set(key, { heading: h, items: [] })
-    groups.get(key)!.items.push({ ing, flatIndex })
+    const sid = getIngredientSectionClientId(ing)
+    const id = sid ?? UNGROUPED_SECTION_ID
+    if (!groups.has(id)) {
+      groups.set(id, {
+        id,
+        heading: id === UNGROUPED_SECTION_ID ? '' : sectionHeadingForClientId(id),
+        items: [],
+      })
+    }
+    groups.get(id)!.items.push({ ing, flatIndex })
   })
-  return Array.from(groups.entries()).map(([k, v]) => ({ key: k, heading: v.heading, items: v.items }))
+
+  for (const eg of emptyEditorGroups.value) {
+    if (!groups.has(eg.id)) {
+      groups.set(eg.id, { id: eg.id, heading: eg.heading, items: [] })
+    }
+  }
+
+  const order =
+    sectionOrderIds.value.length > 0
+      ? sectionOrderIds.value
+      : [...groups.keys()].sort((a, b) => {
+          if (a === UNGROUPED_SECTION_ID) return -1
+          if (b === UNGROUPED_SECTION_ID) return 1
+          return 0
+        })
+
+  return order
+    .filter((id) => groups.has(id))
+    .map((id) => {
+      const g = groups.get(id)!
+      if (id !== UNGROUPED_SECTION_ID) {
+        g.heading = sectionHeadingForClientId(id)
+      }
+      return g
+    })
 })
 
-function updateSectionHeading(key: string, value: string) {
-  const defaultKey = '\0'
-  const normalizedKey = key === defaultKey ? '' : (key ?? '')
-  const heading = value.trim() || null
+const ingredientGroupOptions = computed(() =>
+  ingredientsBySection.value
+    .filter((g) => g.id !== UNGROUPED_SECTION_ID)
+    .map((g) => ({
+      id: g.id,
+      label: (g.heading || '').trim() || 'Neue Gruppe',
+    }))
+)
+
+function canDeleteIngredientGroup(group: { id: string; items: { ing: IngredientRow }[] }): boolean {
+  if (group.id === UNGROUPED_SECTION_ID) return false
+  return !group.items.some(({ ing }) => ingredientHasContent(ing))
+}
+
+function sectionHeadingExists(heading: string, exceptId?: string): boolean {
+  const h = heading.trim()
+  if (!h) return false
+  if (emptyEditorGroups.value.some((g) => g.id !== exceptId && g.heading.trim() === h)) return true
+  return form.ingredients.some(
+    (i) => i.section_client_id !== exceptId && (i.section_heading ?? '').trim() === h
+  )
+}
+
+function addIngredientGroup() {
+  const base = 'Neue Gruppe'
+  let heading = base
+  let n = 1
+  while (sectionHeadingExists(heading)) {
+    n += 1
+    heading = `${base} ${n}`
+  }
+  const id = nextEditorClientId('sec')
+  emptyEditorGroups.value = [...emptyEditorGroups.value, { id, heading }]
+  rebuildSectionOrderIds()
+}
+
+function remapIndexSetAfterMove(setRef: { value: Set<number> }, from: number, to: number) {
+  const next = new Set<number>()
+  for (const i of setRef.value) {
+    if (from < to) {
+      if (i === from) next.add(to)
+      else if (i > from && i <= to) next.add(i - 1)
+      else next.add(i)
+    } else if (from > to) {
+      if (i === from) next.add(to)
+      else if (i >= to && i < from) next.add(i + 1)
+      else next.add(i)
+    } else {
+      next.add(i)
+    }
+  }
+  setRef.value = next
+}
+
+function getFlatIndicesInSection(sectionId: string | null): number[] {
+  const indices: number[] = []
+  form.ingredients.forEach((ing, i) => {
+    const sid = getIngredientSectionClientId(ing)
+    if (sid === sectionId) indices.push(i)
+  })
+  return indices
+}
+
+function findInsertIndexForSection(sectionId: string | null): number {
+  if (sectionId === null) {
+    let last = -1
+    for (let i = 0; i < form.ingredients.length; i++) {
+      if (getIngredientSectionClientId(form.ingredients[i]) === null) last = i
+    }
+    return last + 1
+  }
+
+  let lastInSection = -1
+  for (let i = 0; i < form.ingredients.length; i++) {
+    if (form.ingredients[i].section_client_id === sectionId) lastInSection = i
+  }
+  if (lastInSection >= 0) return lastInSection + 1
+
+  const order = sectionOrderIds.value
+  const idxInOrder = order.indexOf(sectionId)
+  let insertAt = 0
+  for (let o = 0; o < idxInOrder; o++) {
+    const prevId = order[o]
+    if (prevId === UNGROUPED_SECTION_ID) continue
+    for (let i = form.ingredients.length - 1; i >= 0; i--) {
+      if (form.ingredients[i].section_client_id === prevId) {
+        insertAt = Math.max(insertAt, i + 1)
+      }
+    }
+  }
+  return insertAt
+}
+
+function spliceIngredientToIndex(fromIndex: number, toIndex: number) {
+  if (fromIndex === toIndex) return
+  const [ing] = form.ingredients.splice(fromIndex, 1)
+  const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex
+  form.ingredients.splice(insertAt, 0, ing)
+  remapIndexSetAfterMove(expandedOriginalLineIndices, fromIndex, insertAt)
+  remapIndexSetAfterMove(editingIngredientIndices, fromIndex, insertAt)
+}
+
+function moveIngredientToGroup(flatIndex: number, targetSectionId: string) {
+  const ing = form.ingredients[flatIndex]
+  if (!ing) return
+
+  if (!targetSectionId) {
+    ing.section_client_id = null
+    ing.section_heading = null
+    ing.section_id = null
+    const insertAt = findInsertIndexForSection(null)
+    spliceIngredientToIndex(flatIndex, insertAt)
+    rebuildSectionOrderIds()
+    return
+  }
+
+  const heading = sectionHeadingForClientId(targetSectionId)
+  ing.section_client_id = targetSectionId
+  ing.section_heading = heading || null
+  ing.section_id = null
+  emptyEditorGroups.value = emptyEditorGroups.value.filter((g) => g.id !== targetSectionId)
+
+  const insertAt = findInsertIndexForSection(targetSectionId)
+  spliceIngredientToIndex(flatIndex, insertAt)
+  rebuildSectionOrderIds()
+}
+
+function canMoveIngredientInSection(flatIndex: number, delta: -1 | 1): boolean {
+  const ing = form.ingredients[flatIndex]
+  if (!ing) return false
+  const indices = getFlatIndicesInSection(getIngredientSectionClientId(ing))
+  const pos = indices.indexOf(flatIndex)
+  if (pos < 0) return false
+  const target = pos + delta
+  return target >= 0 && target < indices.length
+}
+
+function moveIngredientInSection(flatIndex: number, delta: -1 | 1) {
+  const ing = form.ingredients[flatIndex]
+  if (!ing) return
+  const indices = getFlatIndicesInSection(getIngredientSectionClientId(ing))
+  const pos = indices.indexOf(flatIndex)
+  const targetPos = pos + delta
+  if (pos < 0 || targetPos < 0 || targetPos >= indices.length) return
+  spliceIngredientToIndex(flatIndex, indices[targetPos]!)
+}
+
+const desktopIngredientDrag = ref(false)
+const ingredientDragSectionId = ref<string | null>(null)
+const ingredientDragFromClientId = ref<string | null>(null)
+const ingredientDropOverClientId = ref<string | null>(null)
+const ingredientDropPosition = ref<'before' | 'after'>('before')
+
+let desktopIngredientDragMq: MediaQueryList | null = null
+
+function updateDesktopIngredientDrag() {
+  desktopIngredientDrag.value = window.matchMedia('(min-width: 1100px)').matches
+}
+
+function clearIngredientDragState() {
+  ingredientDragSectionId.value = null
+  ingredientDragFromClientId.value = null
+  ingredientDropOverClientId.value = null
+}
+
+function findFlatIndexByClientId(clientId: string | undefined): number {
+  if (!clientId) return -1
+  return form.ingredients.findIndex((i) => i.client_id === clientId)
+}
+
+function onIngredientDragStart(
+  e: DragEvent,
+  sectionId: string,
+  item: { ing: IngredientRow; flatIndex: number }
+) {
+  if (!desktopIngredientDrag.value || !item.ing.client_id || !e.dataTransfer) return
+  ingredientDragSectionId.value = sectionId
+  ingredientDragFromClientId.value = item.ing.client_id
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', item.ing.client_id)
+}
+
+function onIngredientDragEnd() {
+  clearIngredientDragState()
+}
+
+type IngredientDropTarget = { clientId: string; position: 'before' | 'after' }
+
+function resolveIngredientDropTarget(
+  listEl: HTMLElement,
+  sectionId: string,
+  clientY: number
+): IngredientDropTarget | null {
+  if (!ingredientDragFromClientId.value || ingredientDragSectionId.value !== sectionId) {
+    return null
+  }
+  const fromId = ingredientDragFromClientId.value
+  const cards = Array.from(listEl.querySelectorAll<HTMLElement>('[data-ingredient-client-id]'))
+
+  for (const card of cards) {
+    const id = card.dataset.ingredientClientId
+    if (!id || id === fromId) continue
+    const rect = card.getBoundingClientRect()
+    if (clientY < rect.top + rect.height / 2) {
+      return { clientId: id, position: 'before' }
+    }
+  }
+
+  for (let i = cards.length - 1; i >= 0; i--) {
+    const id = cards[i]?.dataset.ingredientClientId
+    if (id && id !== fromId) {
+      return { clientId: id, position: 'after' }
+    }
+  }
+  return null
+}
+
+function applyIngredientDropTarget(target: IngredientDropTarget) {
+  const fromId = ingredientDragFromClientId.value
+  if (!fromId) return
+  const fromIndex = findFlatIndexByClientId(fromId)
+  const anchorIndex = findFlatIndexByClientId(target.clientId)
+  if (fromIndex < 0 || anchorIndex < 0) return
+
+  const toIndex = target.position === 'after' ? anchorIndex + 1 : anchorIndex
+  spliceIngredientToIndex(fromIndex, toIndex)
+}
+
+function showIngredientDropLineBefore(item: { ing: IngredientRow }): boolean {
+  return (
+    !!item.ing.client_id &&
+    ingredientDropOverClientId.value === item.ing.client_id &&
+    ingredientDropPosition.value === 'before'
+  )
+}
+
+function showIngredientDropLineAfterLast(group: { items: { ing: IngredientRow }[] }): boolean {
+  const last = group.items[group.items.length - 1]
+  if (!last?.ing.client_id) return false
+  return (
+    ingredientDropOverClientId.value === last.ing.client_id &&
+    ingredientDropPosition.value === 'after'
+  )
+}
+
+function onIngredientSectionDragOver(e: DragEvent, sectionId: string) {
+  if (!ingredientDragFromClientId.value || ingredientDragSectionId.value !== sectionId) return
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  const listEl = e.currentTarget as HTMLElement | null
+  if (!listEl) return
+  const target = resolveIngredientDropTarget(listEl, sectionId, e.clientY)
+  if (target) {
+    ingredientDropOverClientId.value = target.clientId
+    ingredientDropPosition.value = target.position
+  } else {
+    ingredientDropOverClientId.value = null
+  }
+}
+
+function onIngredientSectionDragLeave(e: DragEvent) {
+  const related = e.relatedTarget as Node | null
+  const current = e.currentTarget as HTMLElement | null
+  if (related && current?.contains(related)) return
+  ingredientDropOverClientId.value = null
+}
+
+function onIngredientSectionDrop(e: DragEvent, sectionId: string) {
+  const listEl = e.currentTarget as HTMLElement | null
+  if (!listEl) {
+    clearIngredientDragState()
+    return
+  }
+  const target = resolveIngredientDropTarget(listEl, sectionId, e.clientY)
+  if (target) {
+    applyIngredientDropTarget(target)
+  }
+  clearIngredientDragState()
+}
+
+function deleteIngredientGroup(sectionId: string) {
+  if (sectionId === UNGROUPED_SECTION_ID) return
+  emptyEditorGroups.value = emptyEditorGroups.value.filter((g) => g.id !== sectionId)
+
+  const indicesToRemove: number[] = []
+  form.ingredients.forEach((ing, i) => {
+    if (ing.section_client_id !== sectionId) return
+    if (ingredientHasContent(ing)) {
+      ing.section_heading = null
+      ing.section_client_id = null
+      ing.section_id = null
+    } else {
+      indicesToRemove.push(i)
+    }
+  })
+
+  for (let r = indicesToRemove.length - 1; r >= 0; r--) {
+    const idx = indicesToRemove[r]!
+    form.ingredients.splice(idx, 1)
+    remapIndexSetAfterRemove(expandedOriginalLineIndices, idx)
+    remapIndexSetAfterRemove(editingIngredientIndices, idx)
+  }
+
+  sectionOrderIds.value = sectionOrderIds.value.filter((id) => id !== sectionId)
+
+  if (form.ingredients.length === 0) {
+    form.ingredients.push(createIngredientRow())
+  }
+  rebuildSectionOrderIds()
+}
+
+function unlinkBookSource() {
+  selectedSourceId.value = null
+  form.source_page = ''
+  showBookPicker.value = false
+}
+
+function updateSectionHeading(sectionId: string, value: string) {
+  if (sectionId === UNGROUPED_SECTION_ID) return
+  const empty = emptyEditorGroups.value.find((g) => g.id === sectionId)
+  if (empty) {
+    empty.heading = value
+  }
   form.ingredients.forEach((ing) => {
-    const currentKey = (ing.section_heading?.trim() ?? '')
-    if ((currentKey || '') === normalizedKey) {
-      ing.section_heading = heading
+    if (ing.section_client_id === sectionId) {
+      ing.section_heading = value
+      ing.section_id = null
     }
   })
 }
@@ -1002,34 +2018,17 @@ function truncateText(text: string, maxLen: number): string {
   return `${t.slice(0, maxLen)}…`
 }
 
-function isOriginalLineExpanded(flatIndex: number): boolean {
-  return expandedOriginalLineIndices.value.has(flatIndex)
-}
-
-function toggleOriginalLineExpanded(flatIndex: number) {
-  const next = new Set(expandedOriginalLineIndices.value)
-  if (next.has(flatIndex)) next.delete(flatIndex)
-  else next.add(flatIndex)
-  expandedOriginalLineIndices.value = next
-}
-
-function collapseOriginalLine(flatIndex: number) {
-  const next = new Set(expandedOriginalLineIndices.value)
-  next.delete(flatIndex)
-  expandedOriginalLineIndices.value = next
-}
-
 function addIngredient() {
   const last = form.ingredients[form.ingredients.length - 1]
-  form.ingredients.push({
-    amount: '',
-    unit: '',
-    name: '',
-    category: last?.category ?? null,
-    additional_info: '',
-    section_heading: last?.section_heading ?? '',
-    section_id: last?.section_id ?? null,
-  })
+  form.ingredients.push(
+    createIngredientRow({
+      category: last?.category ?? null,
+      additional_info: '',
+      section_heading: last?.section_heading ?? '',
+      section_id: last?.section_id ?? null,
+      section_client_id: last?.section_client_id ?? null,
+    })
+  )
   const newIdx = form.ingredients.length - 1
   openIngredientEdit(newIdx)
 }
@@ -1070,6 +2069,15 @@ function assignFromInitial() {
   expandedOriginalLineIndices.value = new Set()
   editingIngredientIndices.value = new Set()
   editingStepIndices.value = new Set()
+  emptyEditorGroups.value = []
+  sectionOrderIds.value = []
+  editorClientIdSeq = 0
+  showBookPicker.value = false
+  showUrlEdit.value = false
+  showOriginalLines.value = props.editingStatus === 'draft'
+  showFullOcrText.value = false
+  showOriginalSteps.value = false
+  importMethod.value = 'manual'
   if (props.initial) {
     form.title = props.initial.title ?? ''
     form.subtitle = props.initial.subtitle ?? ''
@@ -1090,39 +2098,41 @@ function assignFromInitial() {
     imagePreview.value = null
     imageFile.value = null
     deferImageProcessing.value = false
-    form.ingredients = (props.initial.ingredients ?? []).map((ing) => ({
-      amount: ing.amount != null ? String(ing.amount) : '',
-      unit: ing.unit ?? '',
-      name: ing.name ?? '',
-      category: (ing as IngredientRow).category ?? null,
-      section_id: (ing as IngredientRow & { section_id?: number }).section_id ?? null,
-      section_heading: (ing as IngredientRow).section_heading ?? null,
-      original_text: ing.original_text ?? (ing as any).originalText ?? null,
-      additional_info:
-        (ing.additional_info ?? (ing as { additionalInfo?: string | null }).additionalInfo ?? '') ?? '',
-    }))
+    form.ingredients = (props.initial.ingredients ?? []).map((ing) =>
+      createIngredientRow({
+        amount: ing.amount != null ? String(ing.amount) : '',
+        unit: ing.unit ?? '',
+        name: ing.name ?? '',
+        category: (ing as IngredientRow).category ?? null,
+        section_id: (ing as IngredientRow & { section_id?: number }).section_id ?? null,
+        section_heading: (ing as IngredientRow).section_heading ?? null,
+        original_text: ing.original_text ?? (ing as any).originalText ?? null,
+        additional_info:
+          (ing.additional_info ?? (ing as { additionalInfo?: string | null }).additionalInfo ?? '') ?? '',
+      })
+    )
     if (form.ingredients.length === 0) {
-      form.ingredients = [{ amount: '', unit: '', name: '', category: null, additional_info: '', section_heading: '', section_id: null }]
+      form.ingredients = [createIngredientRow()]
     }
+    ensureIngredientClientIds()
+    assignSectionClientIdsOnLoad()
+    rebuildSectionOrderIds()
     form.recipe_steps = (props.initial.recipe_steps ?? []).map((s) => ({
       instruction: s.instruction ?? '',
     }))
     if (form.recipe_steps.length === 0) form.recipe_steps = [{ instruction: '' }]
-    if (props.initial.source_type === 'url' || props.initial.import_method === 'url') {
-      sourceType.value = 'none'
-      selectedSourceId.value = null
-      lockedUrlSourceId.value = props.initial.source_id ?? null
-      sourceUrl.value = props.initial.source_url ?? ''
-    } else if (props.initial.source_id != null) {
-      sourceType.value = 'book'
-      selectedSourceId.value = props.initial.source_id
-      lockedUrlSourceId.value = null
-      sourceUrl.value = ''
+    const method = props.initial.import_method ?? 'manual'
+    importMethod.value =
+      method === 'url' || method === 'image' || method === 'manual' ? method : 'manual'
+
+    originalPageUrl.value = props.initial.original_url?.trim() ?? ''
+
+    const srcId = props.initial.source_id ?? null
+    const srcType = (props.initial.source_type ?? '').toLowerCase()
+    if (srcId != null && (srcType === 'book' || isWebsiteSourceType(srcType))) {
+      selectedSourceId.value = srcId
     } else {
-      sourceType.value = 'none'
       selectedSourceId.value = null
-      lockedUrlSourceId.value = null
-      sourceUrl.value = ''
     }
   } else {
     form.title = ''
@@ -1135,12 +2145,12 @@ function assignFromInitial() {
     form.would_cook_again = null
     form.tags = []
     form.source_page = ''
-    form.ingredients = [{ amount: '', unit: '', name: '', category: null, additional_info: '', section_heading: '', section_id: null }]
+    form.ingredients = [createIngredientRow()]
+    ensureIngredientClientIds()
+    rebuildSectionOrderIds()
     form.recipe_steps = [{ instruction: '' }]
-    sourceType.value = 'none'
     selectedSourceId.value = null
-    lockedUrlSourceId.value = null
-    sourceUrl.value = ''
+    originalPageUrl.value = ''
     currentImageUrl.value = null
     imagePreview.value = null
     imageFile.value = null
@@ -1182,15 +2192,45 @@ function removeImage() {
 }
 
 watch(
-  () => [props.initial, props.editingId],
-  () => {
+  () => props.editingId,
+  (editingId, prevEditingId) => {
     assignFromInitial()
-    currentStep.value = 0
+    if (prevEditingId === undefined || editingId !== prevEditingId) {
+      currentStep.value = 0
+    }
   },
   { immediate: true }
 )
 
+watch(
+  () => props.editingStatus,
+  (status) => {
+    if (status === 'draft' || status === 'confirmed') {
+      showOriginalLines.value = status === 'draft'
+    }
+  }
+)
+
+watch(
+  () => props.initial,
+  () => {
+    if (props.editingId == null) return
+    const step = currentStep.value
+    const expanded = expandedOriginalLineIndices.value
+    const editingIng = editingIngredientIndices.value
+    const editingSt = editingStepIndices.value
+    assignFromInitial()
+    currentStep.value = step
+    expandedOriginalLineIndices.value = expanded
+    editingIngredientIndices.value = editingIng
+    editingStepIndices.value = editingSt
+  }
+)
+
 onMounted(async () => {
+  updateDesktopIngredientDrag()
+  desktopIngredientDragMq = window.matchMedia('(min-width: 1100px)')
+  desktopIngredientDragMq.addEventListener('change', updateDesktopIngredientDrag)
   try {
     const all = await listSources()
     bookSources.value = all.filter((s) => s.type === 'book')
@@ -1206,6 +2246,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  desktopIngredientDragMq?.removeEventListener('change', updateDesktopIngredientDrag)
   closeCropModal()
   if (imagePreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagePreview.value)
 })
@@ -1245,7 +2286,13 @@ function onSubmitForm() {
   handleSubmit()
 }
 
-function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater?: boolean }) {
+function triggerSave() {
+  handleSubmit()
+}
+
+defineExpose({ triggerSave })
+
+function handleSubmit(options?: { processImageLater?: boolean }) {
   const ingredients: IngredientInput[] = form.ingredients
     .filter((ing) => ing.name.trim() !== '')
     .map((ing, i) => ({
@@ -1253,11 +2300,11 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
       unit: ing.unit.trim() || null,
       name: ing.name.trim(),
       position: i,
-      section_id: ing.section_id != null ? ing.section_id : null,
+      section_id: null,
       original_text: ing.original_text ?? null,
       category: ing.category?.trim() || null,
       additional_info: ing.additional_info?.trim() || null,
-      section_heading: ing.section_heading?.trim() || null,
+      section_heading: (ing.section_heading ?? '').trim() || null,
     }))
   const recipe_steps: RecipeStepInput[] = form.recipe_steps
     .filter((s) => s.instruction.trim() !== '')
@@ -1287,14 +2334,9 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
     description: form.description.trim() || null,
     servings: form.servings && form.servings > 0 ? form.servings : null,
     would_cook_again: form.would_cook_again ?? null,
-    source_id:
-      sourceType.value === 'book' && selectedSourceId.value != null
-        ? selectedSourceId.value
-        : lockedUrlSourceId.value,
-    source_page: sourceType.value === 'book' ? (form.source_page.trim() || null) : null,
-    ...(showUrlSourceField.value
-      ? { source_url: sourceUrl.value.trim() || null }
-      : {}),
+    source_id: selectedSourceId.value,
+    source_page: isPrimaryBook.value ? (form.source_page.trim() || null) : null,
+    original_url: originalPageUrl.value.trim() || null,
     prep_time_min: prepMeta.min,
     cook_time_min: cookMeta.min,
     prep_time_source: prepMeta.source,
@@ -1327,21 +2369,583 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
 }
 
 .editor-review-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
-  background: var(--color-warning-soft);
-  border: 1px solid color-mix(in srgb, var(--color-warning) 22%, transparent);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
-.editor-review-banner p {
+.editor-review-banner__content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+.editor-review-banner__badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.editor-review-banner__body {
   flex: 1;
+  min-width: min(100%, 14rem);
+}
+
+.editor-review-banner__text {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.editor-review-summary-details {
+  margin-top: var(--spacing-sm);
+}
+
+.editor-review-summary-details summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.editor-review-summary {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.editor-review-banner__action {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+@media (max-width: 767px) {
+  .editor-review-banner__action {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+.source-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.source-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.source-block__kind {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.source-block__kind--secondary {
+  margin-top: var(--spacing-xs);
+}
+
+.source-block__action {
+  align-self: flex-start;
+}
+
+.source-block__inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.source-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.source-link-row__link {
+  color: var(--color-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.source-link-row__link:hover {
+  text-decoration: underline;
+}
+
+.source-link-row__edit {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.source-link-row__edit svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.source-link-row__edit:hover {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+
+.source-page-field {
+  max-width: 8rem;
+  margin-top: 0.15rem;
+}
+
+.source-original-link {
+  margin-top: var(--spacing-xs);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.source-book-card {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.source-book-card__cover {
+  width: 48px;
+  height: 64px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.source-book-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.source-book-card__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.source-book-card__title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.source-book-card__subtitle,
+.source-book-card__line {
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.source-url-edit {
+  margin-top: var(--spacing-xs);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.source-book-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.extraction-details {
+  margin-top: var(--spacing-md);
+}
+
+.extraction-details__summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.ingredients-list-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+}
+
+.ingredients-list-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ingredients-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.ingredients-icon-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.ingredients-icon-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+}
+
+.ingredients-icon-btn--active {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.ingredients-icon-btn--done {
+  color: var(--color-success);
+}
+
+.ingredients-icon-btn--done:hover {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.ingredients-icon-btn--subtle {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.ingredients-ocr-link {
+  padding: 0.2rem 0.45rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ingredients-ocr-link:hover {
+  color: var(--color-primary);
+}
+
+.instructions-step__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.ingredients-step__layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.ingredients-step__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.ingredients-ocr-mobile {
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.ingredients-ocr-aside {
+  display: none;
+}
+
+.ingredients-ocr-aside__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.ingredients-ocr-aside__title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.ingredients-ocr-aside__body {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+.original-text-panel {
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface-subtle);
+}
+
+.original-text-panel__body {
+  margin: 0;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  color: var(--color-text-muted);
+  max-height: 200px;
+  overflow: auto;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
+.ingredients-ocr-mobile .original-text-panel__body {
+  max-height: min(40vh, 280px);
+}
+
+@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) {
+  .form-step--ingredients--ocr-open .ingredients-step__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) min(18rem, 36%);
+    align-items: start;
+    gap: var(--spacing-md);
+  }
+
+  .form-step--ingredients--ocr-open .ingredients-ocr-aside {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    max-height: min(70vh, 520px);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+  }
+
+  .form-step--ingredients--ocr-open .ingredients-ocr-aside .original-text-panel__body {
+    max-height: min(60vh, 460px);
+  }
+
+  .form-step--ingredients--ocr-open .ingredients-ocr-mobile {
+    display: none;
+  }
+}
+
+.ingredient-section__delete {
+  margin-left: auto;
+}
+
+.ingredients-step__bottom-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.ingredient-card__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.ingredient-card__drag-handle {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.ingredient-card__drag-handle svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.ingredient-card__drag-handle:hover {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+}
+
+.ingredient-card__drag-handle:active {
+  cursor: grabbing;
+}
+
+.ingredient-card__drag-handle--edit {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+
+.ingredient-card__reorder--touch {
+  display: flex;
+  gap: 0.2rem;
+  justify-content: flex-end;
+}
+
+.ingredient-card__move-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.ingredient-card__move-btn svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.ingredient-card__move-btn:hover:not(:disabled) {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+  border-color: var(--color-border);
+}
+
+.ingredient-card__move-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ingredient-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0.25rem;
+}
+
+.ingredient-drop-line {
+  flex-shrink: 0;
+  height: 1px;
+  margin: 2px 0;
+  border-radius: 1px;
+  background: var(--color-primary);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.ingredient-card--dragging {
+  opacity: 0.45;
+}
+
+@media (min-width: 1100px) {
+  .ingredient-card__drag-handle {
+    display: inline-flex;
+  }
+
+  .ingredient-card__reorder--touch {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .ingredient-card__reorder--touch:focus-within {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    display: flex;
+  }
+
+  .ingredient-card__edit-row--main {
+    grid-template-columns: 2rem 72px 88px minmax(0, 1fr) auto auto;
+  }
+
+  .ingredient-card__aside {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+  }
+}
+
+.ingredient-card__group-select {
+  max-width: 6.5rem;
+  font-size: 0.68rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   color: var(--color-text-muted);
 }
 
@@ -1879,82 +3483,99 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
   gap: var(--spacing-md);
 }
 
-.ingredients-step__hint {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  line-height: 1.45;
-}
-
-.ingredients-step__hint code {
-  font-size: 0.75em;
-  padding: 0.1em 0.25em;
-  border-radius: 3px;
-  background: var(--color-bg-muted);
-}
-
 .ingredient-section {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: 0;
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.ingredient-section__heading-block {
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-muted);
-  border: 1px solid var(--color-border);
+.ingredient-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
-.ingredient-section__heading-block-label {
-  display: block;
-  font-size: 0.7rem;
+.ingredient-section__heading-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) 0 var(--spacing-sm);
+}
+
+.ingredient-section__heading-input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.2rem 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.ingredient-section__heading-input:focus {
+  outline: none;
+  border-bottom-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.ingredient-section__ungrouped-header {
+  padding: var(--spacing-xs) 0 var(--spacing-sm);
+}
+
+.ingredient-section__ungrouped-title {
+  margin: 0;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-muted);
-  margin-bottom: var(--spacing-xs);
 }
 
-.ingredient-section__heading-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--color-input-border);
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: 0.9rem;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-}
-
-.ingredient-section__heading-preview {
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ingredient-card {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated, var(--color-bg));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  gap: 0;
+  padding: 0.35rem 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .ingredient-card--editing {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.12);
+  padding: 0.4rem 0 0.5rem;
+  margin: 0 -0.15rem;
+  padding-left: 0.35rem;
+  border-left: 2px solid var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
 .ingredient-card__view {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-sm);
+  gap: 0.3rem;
   min-width: 0;
 }
 
@@ -1962,92 +3583,84 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
   flex: 1;
   min-width: 0;
   text-align: left;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
-  background: var(--color-bg-muted);
+  padding: 0.15rem 0.25rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .ingredient-card__summary:hover {
-  background: var(--color-bg);
-  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
 }
 
 .ingredient-card__summary:focus {
   outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
 .ingredient-card__summary-main {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 500;
   color: var(--color-text);
-  line-height: 1.45;
+  line-height: 1.4;
   word-break: break-word;
 }
 
 .ingredient-card__summary-sub {
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .ingredient-card__summary-original {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
   font-style: italic;
   line-height: 1.4;
+  word-break: break-word;
 }
 
-.ingredient-card__summary-original-label {
-  font-weight: 600;
-  font-style: normal;
-  margin-right: 0.35rem;
-}
-
-.ingredient-card__edit-footer {
-  padding-top: var(--spacing-xs);
-  margin-top: var(--spacing-xs);
-  border-top: 1px dashed var(--color-border);
-}
-
-.ingredient-card__primary {
-  display: grid;
-  grid-template-columns: 72px 88px minmax(0, 1fr) 40px;
-  gap: var(--spacing-sm);
-  align-items: center;
-}
-
-.ingredient-card__secondary {
-  display: grid;
-  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
-  gap: var(--spacing-md);
-  align-items: end;
-  padding-top: var(--spacing-xs);
-  border-top: 1px dashed var(--color-border);
-}
-
-.ingredient-card__field {
+.ingredient-card__edit {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
   min-width: 0;
 }
 
-.ingredient-card__field--grow {
-  flex: 1;
+.ingredient-card__edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.ingredient-card__field-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-text-muted);
+.ingredient-card__edit-row--main {
+  display: grid;
+  grid-template-columns: auto 3.25rem 3.5rem minmax(0, 1fr) auto auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.ingredient-card__edit-row--meta {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr);
+  gap: 0.35rem;
+}
+
+.ingredient-card__edit-row--original {
+  gap: 0.35rem;
+}
+
+.ingredient-card__edit-row--original .ingredient-card__text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ingredient-card__select--compact {
+  font-size: 0.8rem;
 }
 
 .ingredient-card__select,
@@ -2073,46 +3686,6 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
   font-style: normal;
   color: var(--color-text);
   background: var(--color-input-bg);
-}
-
-.ingredient-card__original-wrap {
-  padding-top: var(--spacing-xs);
-  border-top: 1px dashed var(--color-border);
-}
-
-.ingredient-card__original-collapsed {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-size: 0.85rem;
-}
-
-.ingredient-card__original-preview {
-  flex: 1;
-  min-width: 0;
-  color: var(--color-text-muted);
-  font-style: italic;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ingredient-card__original-editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.ingredient-card__original-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-.ingredient-card__original-row .ingredient-card__text-input {
-  flex: 1;
-  min-width: 0;
 }
 
 .ingredient-card__link-btn {
@@ -2342,24 +3915,112 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
   align-items: end;
 }
 
-.form-row--prep-cook-estimate--three {
+.form-row--prep-cook-estimate--with-refresh {
   grid-template-columns: 1fr 1fr auto;
 }
 
-.form-field--estimate-after-times {
+.form-field--estimate-refresh {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  align-items: flex-end;
   gap: var(--spacing-xs);
-  min-width: 5.5rem;
+  min-width: 2.5rem;
 }
 
 .form-field__label-spacer {
   min-height: 1.25rem;
 }
 
-.form-field--estimate-btn {
-  white-space: nowrap;
+.form-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.form-section__head .form-section__title {
+  margin: 0;
+}
+
+.editor-estimate-refresh {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-soft);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editor-estimate-refresh:hover:not(:disabled) {
+  color: var(--color-accent);
+  background: var(--color-surface-subtle);
+}
+
+.editor-estimate-refresh:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.editor-estimate-hint {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 0.8rem;
+  color: var(--color-error);
+  line-height: 1.4;
+}
+
+.editor-estimate-retry {
+  margin-left: 0.35rem;
+  vertical-align: baseline;
+}
+
+.editor-nutrition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--spacing-sm) var(--spacing-md);
+}
+
+.editor-nutrition-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.editor-nutrition-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.editor-nutrition-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.editor-health-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+}
+
+.editor-health-score {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--color-success);
+}
+
+.editor-health-score-max {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.editor-health-summary__text {
+  flex: 1 1 100%;
+  margin: 0.25rem 0 0;
 }
 
 .btn-icon {
@@ -2466,9 +4127,42 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
 /* Actions */
 .form-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--spacing-sm);
   padding-top: var(--spacing-lg);
   border-top: 1px solid var(--color-border);
+}
+
+.form-actions__spacer {
+  flex: 1;
+  min-width: 0.5rem;
+}
+
+.form-actions__primary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-left: auto;
+}
+
+.form-actions__extra {
+  order: 1;
+}
+
+@media (max-width: 480px) {
+  .form-actions__back {
+    flex: 1 1 auto;
+  }
+
+  .form-actions__primary {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .form-actions__primary .btn {
+    flex: 1;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2480,13 +4174,25 @@ function handleSubmit(options?: { estimateNutrition?: boolean; processImageLater
     font-size: 0.75rem;
   }
 
-  .ingredient-card__primary {
-    grid-template-columns: 56px 72px minmax(0, 1fr) 36px;
-    gap: var(--spacing-xs);
+  .ingredient-card__edit-row--main {
+    grid-template-columns: auto 2.75rem 2.75rem minmax(0, 1fr) auto auto;
+    gap: 0.25rem;
   }
 
-  .ingredient-card__secondary {
+  .ingredient-card__edit-row--meta {
     grid-template-columns: 1fr;
+  }
+
+  .ingredient-card__aside {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.2rem;
+  }
+
+  .ingredient-card__group-select {
+    max-width: 5.5rem;
   }
 
   .instruction-row {

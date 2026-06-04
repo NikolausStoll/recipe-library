@@ -17,31 +17,22 @@
         <p class="add-option-card__desc">{{ opt.description }}</p>
       </button>
     </div>
-
-    <RecipeImportOverlay v-if="showImageImport" @done="onImportDone" @close="showImageImport = false" />
-    <RecipeUrlImportOverlay v-if="showUrlImport" @done="onImportDone" @close="showUrlImport = false" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import RecipeImportOverlay from '../components/RecipeImportOverlayUnified.vue'
-import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
-import type { Recipe } from '../api/recipes'
 
 const router = useRouter()
 const route = useRoute()
-
-const showImageImport = ref(false)
-const showUrlImport = ref(false)
 
 const isMobile = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
 
 onMounted(() => {
   const mode = route.query.mode
-  if (mode === 'image') showImageImport.value = true
-  if (mode === 'url') showUrlImport.value = true
+  if (mode === 'image') router.replace({ name: 'add-image', query: { mode: 'upload' } })
+  if (mode === 'url') router.replace({ name: 'add-url' })
   if (mode === 'manual') goManual()
 })
 
@@ -57,25 +48,19 @@ const allOptions: AddOption[] = [
     id: 'photo',
     title: 'Foto aufnehmen',
     description: 'Rezept aus Kochbuch, Zeitschrift oder Notiz erfassen.',
-    action: () => {
-      showImageImport.value = true
-    },
+    action: () => router.push({ name: 'add-image', query: { mode: 'camera' } }),
   },
   {
     id: 'upload',
     title: 'Bild hochladen',
     description: 'Fotos verwenden, die bereits aufgenommen wurden.',
-    action: () => {
-      showImageImport.value = true
-    },
+    action: () => router.push({ name: 'add-image', query: { mode: 'upload' } }),
   },
   {
     id: 'url',
     title: 'Website einfügen',
     description: 'Von einer Rezept-URL importieren.',
-    action: () => {
-      showUrlImport.value = true
-    },
+    action: () => router.push({ name: 'add-url' }),
   },
   {
     id: 'manual',
@@ -91,13 +76,7 @@ const orderedOptions = computed(() => {
 })
 
 function goManual() {
-  router.push({ name: 'recipes', params: { id: 'new' } })
-}
-
-function onImportDone(recipe: Recipe) {
-  showImageImport.value = false
-  showUrlImport.value = false
-  router.push({ name: 'recipes', params: { id: String(recipe.id) }, query: { review: '1' } })
+  router.push({ name: 'recipe-edit', params: { id: 'new' } })
 }
 </script>
 

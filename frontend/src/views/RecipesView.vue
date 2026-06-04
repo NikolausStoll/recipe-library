@@ -259,7 +259,7 @@
             v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
             type="button"
             class="recipe-detail-pending-hero"
-            @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
+            @click.stop="navigateToEdit(viewingRecipe.id)"
           >
             <span class="recipe-detail-pending-hero__text">Bild noch nicht verarbeitet — zum Zuschneiden und Optimieren bitte bearbeiten</span>
           </button>
@@ -618,7 +618,7 @@
               v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
               type="button"
               class="recipe-detail-pending-hero"
-              @click.stop="startEdit(viewingRecipe.id); closeDetailView()"
+              @click.stop="navigateToEdit(viewingRecipe.id)"
             >
             <span class="recipe-detail-pending-hero__text">Bild noch nicht verarbeitet — zum Zuschneiden und Optimieren bitte bearbeiten</span>
             </button>
@@ -690,49 +690,6 @@
       </div>
     </div>
 
-    <!-- Edit Overlay -->
-    <Teleport to="body">
-      <div v-if="showRecipeForm" class="app-modal-overlay recipe-edit-overlay" @click.self="closeEdit">
-      <div class="recipe-edit-panel">
-        <div class="recipe-edit-header">
-          <h2>{{ editingId ? 'Edit Recipe' : 'New Recipe' }}</h2>
-          <div class="recipe-edit-header-actions">
-            <button
-              v-if="editingId"
-              type="button"
-              class="btn btn--danger btn--small"
-              @click="onDeleteFromEdit"
-            >
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M3 6H5H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Delete
-            </button>
-            <button type="button" class="close-btn" @click="closeEdit">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="recipe-edit-body">
-          <RecipeFormMultiStep
-            :initial="formInitial"
-            :editing-id="editingId"
-            :editing-status="editingStatus"
-            :time-estimate-loading="timeEstimateLoading"
-            :tag-generate-loading="tagGenerateLoading"
-            @submit="onFormSubmit"
-            @confirm="onConfirmRecipe"
-            @cancel="closeEdit"
-            @estimate-times="onFormEstimateTimes"
-            @generate-tags="onFormGenerateTags"
-          />
-        </div>
-      </div>
-      </div>
-    </Teleport>
   </div>
 
   <div
@@ -749,16 +706,6 @@
     </div>
   </div>
 
-  <RecipeImportOverlay
-    v-if="showImportOverlay"
-    @done="onImportDone"
-    @close="showImportOverlay = false"
-  />
-  <RecipeUrlImportOverlay
-    v-if="showUrlImportOverlay"
-    @done="onImportDone"
-    @close="showUrlImportOverlay = false"
-  />
 </template>
 
 <script setup lang="ts">
@@ -766,14 +713,10 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
 import type { IFuseOptions } from 'fuse.js'
-import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
-import RecipeImportOverlay from '../components/RecipeImportOverlayUnified.vue'
-import RecipeUrlImportOverlay from '../components/RecipeUrlImportOverlay.vue'
 import {
   listRecipesWithIngredients,
   listRecipesWithIngredientsFiltered,
   getRecipe,
-  createRecipe,
   updateRecipe,
   deleteRecipe,
   estimateRecipeNutrition,
@@ -782,14 +725,11 @@ import {
   getRecipeHistory,
   setRecipeFavorite,
   estimateRecipeTimes,
-  postGenerateRecipeTags,
 } from '../api/recipes'
 import { getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
 import type {
   Recipe,
   RecipeListItemWithIngredients,
-  RecipeFormPayload,
-  ParsedRecipeFromOcr,
   RecipeHealthScoreResponse,
   RecipeTimeEstimateSuccess,
   RecipeTimeSource,
@@ -828,24 +768,6 @@ const isDetailRoute = computed(() => {
 const recipes = ref<RecipeListItemWithIngredients[]>([])
 const loading = ref(true)
 const error = ref('')
-const editingId = ref<number | null>(null)
-type RecipeFormInitial = Partial<RecipeFormPayload> & {
-  source_type?: string | null
-  parsed_recipe?: ParsedRecipeFromOcr | null
-  import_method?: string | null
-  extract_confidence?: number | null
-  extract_missing_fields?: string[] | null
-  nutrition_kcal?: number | null
-  nutrition_protein?: number | null
-  nutrition_carbs?: number | null
-  nutrition_fat?: number | null
-  image_path?: string | null
-  image_urls_json?: string | null
-  image_processing_pending?: boolean
-}
-
-const formInitial = ref<RecipeFormInitial | null>(null)
-const editingStatus = ref<'draft' | 'confirmed' | null>(null)
 const searchQuery = ref('')
 const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
 const activeFilter = ref(
@@ -971,11 +893,8 @@ const cookingIngredientSections = computed(() => {
 
   return sections
 })
-const showImportOverlay = ref(false)
-const showUrlImportOverlay = ref(false)
 const showAddMenu = ref(false)
 const addMenuAnchorRef = ref<HTMLElement | null>(null)
-const showRecipeForm = ref(false)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
 const coverOverlay = ref<{ visible: boolean; x: number; y: number; src?: string | null; title?: string | null }>({
@@ -992,7 +911,6 @@ const healthScoreResult = ref<RecipeHealthScoreResponse | null>(null)
 const healthScoreError = ref('')
 
 const timeEstimateLoading = ref(false)
-const tagGenerateLoading = ref(false)
 const timeEstimateError = ref('')
 
 const detailMenuOpen = ref(false)
@@ -1058,9 +976,6 @@ async function setWouldCookAgain(value: 'yes' | 'maybe' | 'no') {
     if (viewingRecipe.value?.id === recipeId) {
       ;(viewingRecipe.value as any).would_cook_again = updated?.would_cook_again ?? value
     }
-    if (editingId.value === recipeId && formInitial.value) {
-      ;(formInitial.value as any).would_cook_again = updated?.would_cook_again ?? value
-    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '„Würdest du das wieder kochen?“ konnte nicht aktualisiert werden'
   }
@@ -1106,110 +1021,6 @@ function rebuildFuse() {
     return
   }
   fuseInstance = new Fuse(recipes.value, fuseOptions)
-}
-
-function buildFormInitialFromImportedRecipe(recipe: Recipe): RecipeFormInitial {
-  const pr = recipe.parsed_recipe
-  type Ing = {
-    amount: string
-    unit: string
-    name: string
-    category?: string | null
-    section_id?: number | null
-    section_heading?: string | null
-    original_text?: string | null
-    additional_info?: string | null
-  }
-  const ingredients: Ing[] = []
-  if (recipe.ingredients?.length) {
-    for (const ing of recipe.ingredients) {
-      ingredients.push({
-        amount: ing.amount != null ? String(ing.amount) : '',
-        unit: ing.unit ?? '',
-        name: ing.name ?? ing.ingredient ?? '',
-        category: ing.category ?? null,
-        section_id: ing.section_id ?? null,
-        section_heading: ing.section_heading ?? null,
-        original_text: ing.original_text ?? null,
-        additional_info: ing.additional_info ?? (ing as { additionalInfo?: string | null }).additionalInfo ?? null,
-      })
-    }
-  } else if (pr?.ingredientsSections?.length) {
-    for (const section of pr.ingredientsSections) {
-      for (const item of section.items ?? []) {
-        ingredients.push({
-          amount: item.amount != null ? String(item.amount) : '',
-          unit: (item as any).unit ?? '',
-          name: (item as any).ingredient ?? (item as any).originalText ?? '',
-          category: (item as any).category ?? null,
-          section_heading: section.heading ?? null,
-          original_text: (item as any).originalText ?? null,
-          additional_info: (item as any).additionalInfo ?? null,
-        })
-      }
-    }
-  }
-  if (ingredients.length === 0) ingredients.push({ amount: '', unit: '', name: '', additional_info: '' })
-
-  const recipe_steps = (pr?.steps ?? []).map((s) => ({ instruction: s?.text?.trim() ?? '' }))
-  if (recipe_steps.length === 0) recipe_steps.push({ instruction: '' })
-
-  return {
-    title: recipe.title ?? '',
-    subtitle: recipe.subtitle ?? '',
-    description: pr?.introText ?? recipe.description ?? '',
-    servings: pr?.servings?.value ?? recipe.servings ?? null,
-    source_id: recipe.source_id ?? null,
-    source_type: recipe.source_type ?? null,
-    source_url: recipe.source_url ?? null,
-    source_page: recipe.source_page ?? '',
-    ingredients,
-    recipe_steps,
-    parsed_recipe: pr ?? null,
-    extract_confidence: recipe.extract_confidence ?? null,
-    extract_missing_fields: recipe.extract_missing_fields ?? null,
-    nutrition_kcal: recipe.nutrition_kcal ?? pr?.nutritionTotal?.kcal ?? null,
-    nutrition_protein: recipe.nutrition_protein ?? pr?.nutritionTotal?.protein ?? null,
-    nutrition_carbs: recipe.nutrition_carbs ?? pr?.nutritionTotal?.carbs ?? null,
-    nutrition_fat: recipe.nutrition_fat ?? pr?.nutritionTotal?.fat ?? null,
-    tips: recipe.tips ?? pr?.tips ?? [],
-    import_method: recipe.import_method ?? 'manual',
-    prep_time_min: recipe.prep_time_min ?? null,
-    cook_time_min: recipe.cook_time_min ?? null,
-    prep_time_source: recipe.prep_time_source ?? null,
-    cook_time_source: recipe.cook_time_source ?? null,
-    prep_time_confidence: recipe.prep_time_confidence ?? null,
-    cook_time_confidence: recipe.cook_time_confidence ?? null,
-    tags: recipe.tags ?? [],
-    image_path: recipe.image_path ?? null,
-    image_urls_json: recipe.image_urls_json ?? null,
-    image_processing_pending: recipe.image_processing_pending ?? false,
-  }
-}
-
-function onImportDone(recipe: Recipe) {
-  showImportOverlay.value = false
-  showUrlImportOverlay.value = false
-  editingId.value = recipe.id
-  editingStatus.value = 'draft'
-  formInitial.value = buildFormInitialFromImportedRecipe(recipe)
-  showRecipeForm.value = true
-  loadList()
-  const rid = recipe.id
-  void postGenerateRecipeTags(rid)
-    .then(() => getRecipe(rid))
-    .then((r) => {
-      if (editingId.value === rid) {
-        formInitial.value = buildFormInitialFromImportedRecipe(r)
-      }
-      if (viewingRecipe.value?.id === rid) {
-        viewingRecipe.value = r
-      }
-      return loadList()
-    })
-    .catch(() => {
-      /* optional AI tagging */
-    })
 }
 
 const nutritionPerServing = computed(() => {
@@ -1563,26 +1374,9 @@ function hasRecipeUrlSource(recipe: Recipe | RecipeListItemWithIngredients | nul
   return isRecipeWebsiteSource(recipe) && !!getRecipeOriginalPageUrl(recipe)
 }
 
-function mergeTimesIntoFormInitial(recipe: Recipe) {
-  if (!formInitial.value) return
-  formInitial.value = {
-    ...formInitial.value,
-    prep_time_min: recipe.prep_time_min ?? null,
-    cook_time_min: recipe.cook_time_min ?? null,
-    prep_time_source: recipe.prep_time_source ?? null,
-    cook_time_source: recipe.cook_time_source ?? null,
-    prep_time_confidence: recipe.prep_time_confidence ?? null,
-    cook_time_confidence: recipe.cook_time_confidence ?? null,
-    tags: recipe.tags ?? [],
-  }
-}
-
 function applyEstimateResultToUi(recipeId: number, res: RecipeTimeEstimateSuccess) {
   if (viewingRecipe.value?.id === recipeId) {
     viewingRecipe.value = res.recipe
-  }
-  if (editingId.value === recipeId) {
-    mergeTimesIntoFormInitial(res.recipe)
   }
   void loadList()
 }
@@ -1628,7 +1422,7 @@ async function runEstimateTimesFlow(recipeId: number) {
       applyEstimateResultToUi(recipeId, res)
     }
   } catch (e) {
-    timeEstimateError.value = e instanceof Error ? e.message : 'Time estimate failed'
+    timeEstimateError.value = e instanceof Error ? e.message : 'Zeitschätzung fehlgeschlagen'
   } finally {
     timeEstimateLoading.value = false
   }
@@ -1638,28 +1432,6 @@ function runEstimateTimesForDetail() {
   const id = viewingRecipe.value?.id
   if (id == null) return
   void runEstimateTimesFlow(id)
-}
-
-async function onFormEstimateTimes() {
-  const id = editingId.value
-  if (id == null) return
-  await runEstimateTimesFlow(id)
-}
-
-async function onFormGenerateTags() {
-  const id = editingId.value
-  if (id == null || tagGenerateLoading.value) return
-  tagGenerateLoading.value = true
-  error.value = ''
-  try {
-    const res = await postGenerateRecipeTags(id)
-    mergeTimesIntoFormInitial(res.recipe)
-    await loadList()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Tag generation failed'
-  } finally {
-    tagGenerateLoading.value = false
-  }
 }
 
 function clearDetailState() {
@@ -1740,78 +1512,22 @@ async function onVisibilityChangeForCookingWakeLock() {
   await releaseCookingWakeLock()
 }
 
-function editFromDetail() {
-  if (viewingRecipe.value) {
-    const id = viewingRecipe.value.id
-    closeDetailView()
-    startEdit(id)
-  }
-}
-
-function startEdit(id: number) {
-  editingId.value = id
-  showRecipeForm.value = true
-  getRecipe(id).then((recipe) => {
-    editingStatus.value = (recipe.status === 'draft' || recipe.status === 'confirmed') ? recipe.status : 'draft'
-    formInitial.value = {
-      title: recipe.title,
-      subtitle: recipe.subtitle ?? '',
-      description: recipe.description ?? '',
-      servings: recipe.servings ?? null,
-      source_id: recipe.source_id ?? null,
-      source_type: recipe.source_type ?? null,
-      source_url: recipe.source_url ?? null,
-      source_page: recipe.source_page ?? '',
-      image_path: recipe.image_path ?? null,
-      image_processing_pending: recipe.image_processing_pending ?? false,
-      would_cook_again: recipe.would_cook_again ?? null,
-      ingredients: recipe.ingredients.map((ing) => ({
-        amount: ing.amount != null ? String(ing.amount) : '',
-        unit: ing.unit ?? '',
-        name: ing.name ?? ing.ingredient ?? '',
-        category: ing.category ?? null,
-        section_id: ing.section_id ?? null,
-        section_heading: ing.section_heading ?? null,
-        original_text: ing.original_text ?? null,
-        additional_info: ing.additional_info ?? (ing as any).additionalInfo ?? null,
-      })),
-      recipe_steps: recipe.recipe_steps.map((s) => ({ instruction: s.instruction ?? '' })),
-      parsed_recipe: recipe.parsed_recipe ?? null,
-      extract_confidence: recipe.extract_confidence ?? null,
-      extract_missing_fields: recipe.extract_missing_fields ?? null,
-      nutrition_kcal: recipe.nutrition_kcal ?? null,
-      nutrition_protein: recipe.nutrition_protein ?? null,
-      nutrition_carbs: recipe.nutrition_carbs ?? null,
-      nutrition_fat: recipe.nutrition_fat ?? null,
-      tips: recipe.tips ?? [],
-      import_method: recipe.import_method ?? 'manual',
-      prep_time_min: recipe.prep_time_min ?? null,
-      cook_time_min: recipe.cook_time_min ?? null,
-      prep_time_source: recipe.prep_time_source ?? null,
-      cook_time_source: recipe.cook_time_source ?? null,
-      prep_time_confidence: recipe.prep_time_confidence ?? null,
-      cook_time_confidence: recipe.cook_time_confidence ?? null,
-      tags: recipe.tags ?? [],
-      image_urls_json: recipe.image_urls_json ?? null,
-    }
-    showRecipeForm.value = true
-  }).catch((e) => {
-    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht geladen werden'
+function navigateToEdit(id: number) {
+  const from =
+    isDetailRoute.value && viewingRecipe.value?.id === id
+      ? route.fullPath
+      : `${listPath.value}/${id}`
+  router.push({
+    name: 'recipe-edit',
+    params: { id: String(id) },
+    query: { from },
   })
 }
 
-function closeEdit() {
-  editingId.value = null
-  formInitial.value = null
-  editingStatus.value = null
-  showRecipeForm.value = false
-}
-
-function openManualForm() {
-  editingId.value = null
-  formInitial.value = null
-  editingStatus.value = null
-  showRecipeForm.value = true
+function editFromDetail() {
+  if (viewingRecipe.value) {
+    navigateToEdit(viewingRecipe.value.id)
+  }
 }
 
 function toggleAddMenu() {
@@ -1824,9 +1540,9 @@ function closeAddMenu() {
 
 function onAddMenuChoice(kind: 'image' | 'url' | 'manual') {
   closeAddMenu()
-  if (kind === 'image') showImportOverlay.value = true
-  else if (kind === 'url') showUrlImportOverlay.value = true
-  else openManualForm()
+  if (kind === 'image') router.push({ name: 'add-image', query: { mode: 'upload' } })
+  else if (kind === 'url') router.push({ name: 'add-url' })
+  else router.push({ name: 'recipe-edit', params: { id: 'new' } })
 }
 
 function onDocumentClickForAddMenu(event: MouseEvent) {
@@ -1834,94 +1550,6 @@ function onDocumentClickForAddMenu(event: MouseEvent) {
   const anchor = addMenuAnchorRef.value
   if (anchor && !anchor.contains(event.target as Node)) {
     closeAddMenu()
-  }
-}
-
-async function onFormSubmit(
-  payload: RecipeFormPayload,
-  imageFile: File | string | null,
-  cropPoints?: Array<{ x: number; y: number }>,
-  options?: { estimateNutrition?: boolean; processImageLater?: boolean }
-) {
-  error.value = ''
-  try {
-    let recipeId: number
-    if (editingId.value != null) {
-      await updateRecipe(editingId.value, payload)
-      recipeId = editingId.value
-    } else {
-      const newRecipe = await createRecipe(payload)
-      recipeId = newRecipe.id
-    }
-
-    // Handle image upload or deletion
-    if (imageFile && recipeId) {
-      if (imageFile === 'DELETE') {
-        await updateRecipe(recipeId, { image_path: null })
-      } else if (imageFile instanceof File) {
-        const formData = new FormData()
-        formData.append('image', imageFile)
-        if (options?.processImageLater) {
-          formData.append('processImageLater', '1')
-        } else if (cropPoints && cropPoints.length === 4) {
-          formData.append('points', JSON.stringify(cropPoints))
-        }
-        const response = await fetch(`/api/recipes/${recipeId}/image`, {
-          method: 'POST',
-          body: formData,
-        })
-        if (!response.ok) {
-          throw new Error('Bild konnte nicht hochgeladen werden')
-        }
-      }
-    }
-
-    // Keep the edit overlay open after saving.
-    // We refresh data so the form reflects what was persisted.
-    if (recipeId) {
-      // Refresh form data without closing overlay
-      startEdit(recipeId)
-      if (viewingRecipe.value?.id === recipeId) {
-        try {
-          viewingRecipe.value = await getRecipe(recipeId)
-        } catch {
-          /* list refresh below still runs */
-        }
-      }
-    }
-
-    if (options?.estimateNutrition && recipeId) {
-      await runNutritionEstimate(recipeId, { refreshList: true })
-    } else {
-      await loadList()
-    }
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht gespeichert werden'
-  }
-}
-
-async function onConfirmRecipe() {
-  if (editingId.value == null) return
-  error.value = ''
-  try {
-    await updateRecipe(editingId.value, { status: 'confirmed' })
-    editingStatus.value = 'confirmed'
-    await loadList()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht bestätigt werden'
-  }
-}
-
-async function onDeleteFromEdit() {
-  if (!editingId.value) return
-  if (!confirm('Dieses Rezept löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return
-  error.value = ''
-  try {
-    await deleteRecipe(editingId.value)
-    closeEdit()
-    await loadList()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Rezept konnte nicht gelöscht werden'
   }
 }
 
@@ -1933,7 +1561,7 @@ watch(
       return
     }
     if (raw === 'new') {
-      openManualForm()
+      router.replace({ name: 'recipe-edit', params: { id: 'new' }, query: route.query })
       return
     }
     const id = Number(raw)
@@ -1944,7 +1572,11 @@ watch(
     if (viewingRecipe.value?.id === id) return
     await loadRecipeDetail(id)
     if (route.query.review === '1') {
-      startEdit(id)
+      router.replace({
+        name: 'recipe-edit',
+        params: { id: String(id) },
+        query: { from: `${listPath.value}/${id}` },
+      })
     }
   },
   { immediate: true },
@@ -1972,17 +1604,9 @@ watch(
     await loadList()
     // Avoid showing stale detail/edit state from the previous listing filter.
     clearDetailState()
-    editingId.value = null
-    formInitial.value = null
-    editingStatus.value = null
-    showRecipeForm.value = false
     displayServings.value = 1
   }
 )
-
-watch(showRecipeForm, (open) => {
-  document.body.classList.toggle('app-modal-open', open)
-})
 
 watch(
   isCookingMode,
@@ -2003,7 +1627,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClickForAddMenu)
   document.removeEventListener('click', onDocumentClickForDetailMenu)
   document.removeEventListener('visibilitychange', onVisibilityChangeForCookingWakeLock)
-  document.body.classList.remove('app-modal-open')
   releaseCookingWakeLock()
 })
 </script>
@@ -3858,92 +3481,6 @@ onBeforeUnmount(() => {
   color: var(--color-text);
 }
 
-/* Edit Overlay */
-.recipe-edit-overlay {
-  padding: var(--spacing-lg);
-  backdrop-filter: blur(4px);
-}
-
-.recipe-edit-panel {
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-  max-width: 900px;
-  width: 100%;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.recipe-edit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-lg) var(--spacing-xl);
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.recipe-edit-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.recipe-edit-header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-.btn--danger {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-  border: 1px solid var(--color-delete-border);
-}
-
-.btn--danger:hover {
-  background: var(--color-error);
-  color: white;
-}
-
-.btn--small {
-  padding: var(--spacing-xs) var(--spacing-md);
-  font-size: 0.875rem;
-}
-
-.close-btn {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.close-btn:hover {
-  background: var(--color-bg-muted);
-  color: var(--color-text);
-}
-
-.close-btn svg {
-  width: 24px;
-  height: 24px;
-  stroke-width: 2;
-}
-
-.recipe-edit-body {
-  overflow-y: auto;
-  flex: 1;
-  padding: var(--spacing-xl);
-}
-
 /* Would Cook Again prompt */
 .would-cook-again-overlay {
   position: fixed;
@@ -4008,13 +3545,6 @@ onBeforeUnmount(() => {
     font-size: 1.0625rem;
   }
 
-  .recipe-edit-panel {
-    max-height: 95vh;
-  }
-
-  .recipe-edit-body {
-    padding: var(--spacing-md);
-  }
 }
 
 @media (max-width: 480px) {

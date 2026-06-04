@@ -19,8 +19,8 @@
         v-model="filter"
         type="search"
         class="field-input tag-input__filter"
-        placeholder="Search tags…"
-        aria-label="Search tags to add"
+        :placeholder="placeholder"
+        :aria-label="ariaLabel"
       />
       <div class="chip-row tag-input__suggestions">
         <button
@@ -34,7 +34,7 @@
           {{ formatLabel(opt) }}
         </button>
       </div>
-      <p v-if="!filteredOptions.length && filter.trim()" class="meta-text tag-input__empty">No matching tags</p>
+      <p v-if="!filteredOptions.length && filter.trim()" class="meta-text tag-input__empty">Keine passenden Tags</p>
     </div>
   </div>
 </template>
@@ -42,11 +42,19 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 
-const props = defineProps<{
-  modelValue: string[]
-  options: string[]
-  formatLabel?: (tag: string) => string
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: string[]
+    options: string[]
+    formatLabel?: (tag: string) => string
+    placeholder?: string
+    ariaLabel?: string
+  }>(),
+  {
+    placeholder: 'Tags suchen…',
+    ariaLabel: 'Tags zum Hinzufügen suchen',
+  },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
