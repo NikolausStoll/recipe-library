@@ -145,7 +145,6 @@
             v-model="form.title"
             type="text"
             required
-            placeholder="z. B. Omas Apfelkuchen"
             class="form-input"
           />
         </div>
@@ -156,7 +155,6 @@
             id="recipe-subtitle"
             v-model="form.subtitle"
             type="text"
-            placeholder="Kurzer Untertitel (optional)"
             class="form-input"
           />
         </div>
@@ -167,7 +165,6 @@
             id="recipe-description"
             v-model="form.description"
             rows="3"
-            placeholder="Kurze Einleitung oder Geschichte zum Rezept"
             class="form-textarea"
           />
         </div>
@@ -181,7 +178,6 @@
               type="number"
               min="1"
               step="1"
-              placeholder="4"
               class="form-input"
             />
           </div>
@@ -197,7 +193,6 @@
               v-model.number="form.prep_time"
               type="number"
               min="0"
-              placeholder="15"
               class="form-input"
             />
           </div>
@@ -208,7 +203,6 @@
               v-model.number="form.cook_time"
               type="number"
               min="0"
-              placeholder="30"
               class="form-input"
             />
           </div>
@@ -242,7 +236,7 @@
           <div class="form-field">
             <label for="would-cook-again">Würdest du es wieder kochen?</label>
             <select id="would-cook-again" v-model="form.would_cook_again" class="form-input">
-              <option :value="null">— Nicht gesetzt —</option>
+              <option :value="null">Nicht gesetzt</option>
               <option value="yes">Ja</option>
               <option value="maybe">Vielleicht</option>
               <option value="no">Nein</option>
@@ -252,7 +246,12 @@
 
         <div class="form-section document-section">
           <h4 class="form-section__title">Tags</h4>
-          <TagInput v-model="form.tags" :options="allAllowedTags" :format-label="formatTagLabel" />
+          <TagInput
+            v-model="form.tags"
+            :options="allAllowedTags"
+            :format-label="formatTagLabel"
+            placeholder="Tags suchen..."
+          />
           <div v-if="editingId != null" class="form-field">
             <button
               type="button"
@@ -364,7 +363,6 @@
                 id="source-page-inline"
                 v-model="form.source_page"
                 type="text"
-                placeholder="z. B. 42"
                 class="form-input form-input--small"
               />
             </div>
@@ -440,7 +438,6 @@
               v-model="originalPageUrl"
               type="url"
               inputmode="url"
-              placeholder="https://example.com/rezept"
               class="form-input"
             />
             <button type="button" class="btn btn--ghost btn--tiny" @click="showUrlEdit = false">Fertig</button>
@@ -472,7 +469,6 @@
                 id="source-page"
                 v-model="form.source_page"
                 type="text"
-                placeholder="z. B. 42"
                 class="form-input form-input--small"
               />
             </div>
@@ -526,7 +522,6 @@
               type="text"
               class="ingredient-section__heading-input"
               :value="group.heading ?? ''"
-              placeholder="Gruppenname"
               aria-label="Gruppenname"
               @input="updateSectionHeading(group.id, ($event.target as HTMLInputElement).value)"
             />
@@ -587,12 +582,17 @@
                 class="ingredient-card__summary"
                 role="button"
                 tabindex="0"
-                :aria-label="'Zutat bearbeiten: ' + ingredientLineMain(item.ing)"
+                :aria-label="ingredientSummaryAriaLabel(item.ing)"
                 @click="openIngredientEdit(item.flatIndex)"
                 @keydown.enter.prevent="openIngredientEdit(item.flatIndex)"
                 @keydown.space.prevent="openIngredientEdit(item.flatIndex)"
               >
-                <div class="ingredient-card__summary-main">{{ ingredientLineMain(item.ing) }}</div>
+                <div class="ingredient-card__summary-main">
+                  {{ ingredientLineMain(item.ing) }}<span
+                    v-if="ingredientLineAdditional(item.ing)"
+                    class="ingredient-card__summary-sub ingredient-card__summary-sub--inline"
+                  > · {{ ingredientLineAdditional(item.ing) }}</span>
+                </div>
                 <div v-if="ingredientLineSub(item.ing)" class="ingredient-card__summary-sub">{{ ingredientLineSub(item.ing) }}</div>
                 <div
                   v-if="showOriginalLines && (item.ing.original_text || '').trim()"
@@ -759,7 +759,6 @@
                     v-model="item.ing.original_text"
                     type="text"
                     class="ingredient-card__text-input ingredient-card__text-input--original"
-                    placeholder="Originalzeile"
                     aria-label="Originalzeile"
                   />
                   <button
@@ -914,7 +913,6 @@
                   <textarea
                     v-model="step.instruction"
                     rows="2"
-                    :placeholder="`Schritt ${index + 1}`"
                     class="instruction-card__textarea"
                     aria-label="Zubereitungsschritt"
                   />
@@ -957,7 +955,6 @@
           <textarea
             v-model="form.tips_notes"
             rows="3"
-            placeholder="Optionale Tipps, Notizen oder Varianten"
             class="form-textarea"
             aria-label="Tipps und Notizen"
           />
@@ -1435,12 +1432,22 @@ function ingredientLineMain(ing: IngredientRow): string {
   return parts.join(' ').trim() || name || '—'
 }
 
+function ingredientLineAdditional(ing: IngredientRow): string {
+  return (ing.additional_info || '').trim()
+}
+
 function ingredientLineSub(ing: IngredientRow): string {
-  const bits: string[] = []
-  if (ing.category) bits.push(getIngredientCategoryLabelDe(ing.category))
-  const add = (ing.additional_info || '').trim()
-  if (add) bits.push(add)
-  return bits.join(' · ')
+  if (!ing.category) return ''
+  return getIngredientCategoryLabelDe(ing.category)
+}
+
+function ingredientSummaryAriaLabel(ing: IngredientRow): string {
+  const parts = [ingredientLineMain(ing)]
+  const add = ingredientLineAdditional(ing)
+  if (add) parts.push(add)
+  const sub = ingredientLineSub(ing)
+  if (sub) parts.push(sub)
+  return `Zutat bearbeiten: ${parts.join(' · ')}`
 }
 
 function remapIndexSetAfterRemove(setRef: { value: Set<number> }, removedIndex: number) {
@@ -3550,6 +3557,11 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   font-size: 0.78rem;
   color: var(--color-text-muted);
   line-height: 1.35;
+}
+
+.ingredient-card__summary-sub--inline {
+  margin-top: 0;
+  font-weight: 400;
 }
 
 .ingredient-card__summary-original {

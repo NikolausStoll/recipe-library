@@ -1346,7 +1346,9 @@ function jumpDetailSection(tab: DetailTabId, elementId: string) {
 
 function openOriginalFromMenu() {
   detailMenuOpen.value = false
-  const url = getRecipeOriginalPageUrl(viewingRecipe.value ?? {})
+  const recipe = viewingRecipe.value
+  if (!recipe) return
+  const url = getRecipeOriginalPageUrl(recipe)
   if (url) window.open(url, '_blank', 'noopener,noreferrer')
 }
 
