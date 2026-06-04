@@ -1,36 +1,40 @@
 <template>
   <div class="recipe-form-multi">
-    <div v-if="editingStatus === 'draft'" class="editor-review-banner" role="region" aria-label="Rezept prüfen">
-      <div class="editor-review-banner__content">
-        <span class="editor-review-banner__badge">Prüfen</span>
-        <div class="editor-review-banner__body">
-          <p class="editor-review-banner__text">
-            KI hat dieses Rezept aus Bildern oder einer Website extrahiert. Bitte Zutaten und Zubereitung prüfen, bevor du danach kochst.
-          </p>
-          <details v-if="extractionSummary.length" class="editor-review-summary-details">
-            <summary>Erkanntes Rezept</summary>
-            <ul class="editor-review-summary">
-              <li v-for="(line, i) in extractionSummary" :key="i">{{ line }}</li>
-            </ul>
-          </details>
-        </div>
-        <button type="button" class="btn btn--secondary btn--small editor-review-banner__action" @click="emit('confirm')">
+    <div v-if="editingStatus === 'draft'" class="editor-review-notice" role="region" aria-label="Rezept prüfen">
+      <div class="editor-review-notice__row">
+        <p class="editor-review-notice__text">
+          Automatisch erkannt · Bitte Zutaten und Zubereitung prüfen.
+        </p>
+        <button
+          type="button"
+          class="btn btn--secondary recipe-detail-action recipe-detail-action--secondary editor-review-notice__action"
+          @click="emit('confirm')"
+        >
           Als geprüft markieren
         </button>
       </div>
     </div>
 
-    <nav class="editor-sections" aria-label="Rezeptbereiche">
+    <nav class="editor-sections" role="tablist" aria-label="Rezeptbereiche">
       <button
         v-for="(step, idx) in steps"
         :key="step.id"
         type="button"
-        class="editor-sections__item"
-        :class="{ 'editor-sections__item--active': idx === currentStep }"
+        role="tab"
+        class="editor-sections__tab"
+        :class="{ 'editor-sections__tab--active': idx === currentStep }"
+        :aria-selected="idx === currentStep"
         @click="goToStep(idx)"
       >
         <span class="editor-sections__label">{{ step.label }}</span>
-        <span class="editor-sections__status meta-text">{{ sectionStatus(idx) }}</span>
+        <span
+          v-if="sectionNavAttention(idx) === 'prüfen'"
+          class="editor-sections__hint editor-sections__hint--review"
+        >Prüfen</span>
+        <span
+          v-else-if="sectionNavAttention(idx) === 'fehlt'"
+          class="editor-sections__hint editor-sections__hint--missing"
+        >Fehlt</span>
       </button>
     </nav>
 
@@ -39,7 +43,7 @@
       <!-- Step 1: Basic Info -->
       <div v-if="currentStep === 0" class="form-step">
         <!-- Recipe Image Upload -->
-        <div class="form-section form-section--image">
+        <div class="form-section form-section--image document-section">
           <h4 class="form-section__title">Rezeptbild</h4>
           <div class="image-upload">
             <div v-if="(currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview" class="image-upload__preview">
@@ -246,7 +250,7 @@
           </div>
         </div>
 
-        <div class="form-section">
+        <div class="form-section document-section">
           <h4 class="form-section__title">Tags</h4>
           <TagInput v-model="form.tags" :options="allAllowedTags" :format-label="formatTagLabel" />
           <div v-if="editingId != null" class="form-field">
@@ -263,7 +267,7 @@
 
         <div
           v-if="editingId != null && (hasHealthScore || estimateHints.health)"
-          class="form-section editor-health-section"
+          class="form-section document-section editor-health-section"
         >
           <div class="form-section__head">
             <h4 class="form-section__title">Gesundheitscheck</h4>
@@ -298,7 +302,7 @@
         </div>
 
         <!-- Source -->
-        <div class="form-section source-section">
+        <div class="form-section document-section source-section">
           <h4 class="form-section__title">Quelle</h4>
 
           <!-- Case A: primary website source -->
@@ -476,25 +480,6 @@
           </div>
         </div>
 
-        <!-- AI Extraction Info -->
-        <details v-if="hasExtractionFeedback" class="extraction-details">
-          <summary class="extraction-details__summary">Details zur Extraktion</summary>
-          <div class="review-card review-card--info">
-            <div class="review-card__header">
-              <h4>KI-Extraktion</h4>
-            </div>
-            <dl class="review-list">
-              <div v-if="extractConfidence != null">
-                <dt>Sicherheit:</dt>
-                <dd>{{ Math.round(extractConfidence * 100) }}%</dd>
-              </div>
-              <div v-if="extractMissingFields?.length">
-                <dt>Fehlt:</dt>
-                <dd>{{ extractMissingFields.join(', ') }}</dd>
-              </div>
-            </dl>
-          </div>
-        </details>
       </div>
 
       <!-- Step 2: Ingredients -->
@@ -517,10 +502,7 @@
                   :aria-label="showOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
                   @click="showOriginalLines = !showOriginalLines"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M6 7h12M6 12h8M6 17h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                    <path d="M4 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.35" />
-                  </svg>
+                  <OriginalLanguageIcon />
                 </button>
               </div>
             </div>
@@ -887,91 +869,120 @@
 
       <!-- Step 3: Instructions -->
       <div v-if="currentStep === 2" class="form-step form-step--instructions">
-        <div class="instructions-step__toolbar">
-          <p class="instructions-step__hint">
-            Zubereitungsschritte werden zur Prüfung als Liste angezeigt. Tippe einen Schritt an, um ihn zu bearbeiten.
-          </p>
-          <button
-            v-if="fullOriginalText"
-            type="button"
-            class="btn btn--ghost btn--small"
-            @click="showOriginalSteps = !showOriginalSteps"
-          >
-            {{ showOriginalSteps ? 'Original ausblenden' : 'Original anzeigen' }}
-          </button>
-        </div>
-        <details v-if="showOriginalSteps && fullOriginalText" class="original-text-panel">
-          <summary>Original-Zubereitung</summary>
-          <pre class="original-text-panel__body">{{ parsedStepsOriginalText }}</pre>
-        </details>
-        <div
-          v-for="(step, index) in form.recipe_steps"
-          :key="index"
-          class="instruction-block"
-          :class="{ 'instruction-block--editing': isStepEditing(index) }"
-        >
-          <div v-if="!isStepEditing(index)" class="instruction-block__view">
-            <div class="instruction-number">{{ index + 1 }}</div>
-            <div
-              class="instruction-block__summary"
-              role="button"
-              tabindex="0"
-              :aria-label="'Schritt ' + (index + 1) + ' bearbeiten'"
-              @click="openStepEdit(index)"
-              @keydown.enter.prevent="openStepEdit(index)"
-              @keydown.space.prevent="openStepEdit(index)"
-            >
-              {{
-                (step.instruction || '').trim()
-                  ? step.instruction
-                  : 'Leerer Schritt — tippen zum Bearbeiten'
-              }}
+        <div class="instructions-step__main">
+          <div class="ingredients-list-header">
+            <div class="ingredients-list-header__actions">
+              <button
+                v-if="hasAnyStepOriginalText"
+                type="button"
+                class="ingredients-icon-btn"
+                :class="{ 'ingredients-icon-btn--active': showOriginalStepLines }"
+                :aria-pressed="showOriginalStepLines"
+                :title="showOriginalStepLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                :aria-label="showOriginalStepLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                @click="showOriginalStepLines = !showOriginalStepLines"
+              >
+                <OriginalLanguageIcon />
+              </button>
             </div>
-            <button
-              type="button"
-              class="btn-icon btn-icon--remove"
-              title="Schritt entfernen"
-              @click.stop="removeStep(index)"
+          </div>
+
+          <div class="instructions-step__list">
+            <div
+              v-for="(step, index) in form.recipe_steps"
+              :key="index"
+              class="instruction-card"
+              :class="{ 'instruction-card--editing': isStepEditing(index) }"
             >
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <div v-if="!isStepEditing(index)" class="instruction-card__view">
+                <span class="instruction-card__num" aria-hidden="true">{{ index + 1 }}</span>
+                <div
+                  class="instruction-card__summary"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="'Schritt ' + (index + 1) + ' bearbeiten'"
+                  @click="openStepEdit(index)"
+                  @keydown.enter.prevent="openStepEdit(index)"
+                  @keydown.space.prevent="openStepEdit(index)"
+                >
+                  <div class="instruction-card__summary-main">
+                    {{
+                      (step.instruction || '').trim()
+                        ? step.instruction
+                        : 'Leerer Schritt — tippen zum Bearbeiten'
+                    }}
+                  </div>
+                  <div
+                    v-if="showOriginalStepLines && parsedStepOriginalText(index)"
+                    class="instruction-card__summary-original"
+                  >
+                    {{ parsedStepOriginalText(index) }}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="ingredients-icon-btn ingredients-icon-btn--subtle"
+                  title="Schritt entfernen"
+                  aria-label="Schritt entfernen"
+                  @click.stop="removeStep(index)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
+              <div v-else class="instruction-card__edit">
+                <div class="instruction-card__edit-row instruction-card__edit-row--main">
+                  <span class="instruction-card__num" aria-hidden="true">{{ index + 1 }}</span>
+                  <textarea
+                    v-model="step.instruction"
+                    rows="2"
+                    :placeholder="`Schritt ${index + 1}`"
+                    class="instruction-card__textarea"
+                    aria-label="Zubereitungsschritt"
+                  />
+                  <button
+                    type="button"
+                    class="ingredients-icon-btn ingredients-icon-btn--done"
+                    aria-label="Fertig"
+                    title="Fertig"
+                    @click="closeStepEdit(index)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M6 12l4 4 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="ingredients-icon-btn ingredients-icon-btn--subtle"
+                    title="Schritt entfernen"
+                    aria-label="Schritt entfernen"
+                    @click="removeStep(index)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                  </button>
+                </div>
+                <div
+                  v-if="showOriginalStepLines && parsedStepOriginalText(index)"
+                  class="instruction-card__edit-original"
+                >
+                  <span class="instruction-card__edit-original-label">Original</span>
+                  <span class="instruction-card__edit-original-text">{{ parsedStepOriginalText(index) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ingredients-step__bottom-actions">
+            <button type="button" class="btn btn--secondary btn--block" @click="addStep">
+              + Schritt hinzufügen
             </button>
           </div>
-          <div v-else class="instruction-block__edit">
-            <div class="instruction-row">
-              <div class="instruction-number">{{ index + 1 }}</div>
-              <textarea
-                v-model="step.instruction"
-                rows="3"
-                :placeholder="`Schritt ${index + 1}`"
-                class="form-textarea instruction-block__textarea"
-                aria-label="Zubereitungsschritt"
-              />
-              <button
-                type="button"
-                class="btn-icon btn-icon--remove"
-                title="Schritt entfernen"
-                @click="removeStep(index)"
-              >
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </div>
-            <div class="instruction-block__edit-actions">
-              <button type="button" class="btn btn--secondary btn--small" @click="closeStepEdit(index)">
-                Fertig
-              </button>
-            </div>
-          </div>
         </div>
 
-        <button type="button" class="btn btn--secondary btn--block" @click="addStep">
-          + Schritt hinzufügen
-        </button>
-
-        <div class="form-section">
+        <div class="form-section document-section">
           <h4 class="form-section__title">Tipps & Notizen</h4>
           <textarea
             v-model="form.tips_notes"
@@ -988,20 +999,20 @@
         <button
           v-if="currentStep > 0"
           type="button"
-          class="btn btn--secondary form-actions__back"
+          class="btn btn--secondary recipe-detail-action recipe-detail-action--secondary form-actions__back"
           @click="prevStep"
         >
           Zurück
         </button>
         <div class="form-actions__spacer" aria-hidden="true" />
         <div class="form-actions__primary">
-          <button type="submit" class="btn btn--primary">
+          <button type="submit" class="btn btn--primary recipe-detail-action recipe-detail-action--primary">
             {{ editingId ? 'Speichern' : 'Rezept anlegen' }}
           </button>
           <button
             v-if="currentStep < steps.length - 1"
             type="button"
-            class="btn btn--secondary"
+            class="btn btn--secondary recipe-detail-action recipe-detail-action--secondary"
             @click="nextStep"
           >
             Weiter
@@ -1014,6 +1025,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import OriginalLanguageIcon from './icons/OriginalLanguageIcon.vue'
 import type {
   RecipeFormPayload,
   IngredientInput,
@@ -1123,7 +1135,7 @@ const showBookPicker = ref(false)
 const showUrlEdit = ref(false)
 const showOriginalLines = ref(false)
 const showFullOcrText = ref(false)
-const showOriginalSteps = ref(false)
+const showOriginalStepLines = ref(false)
 
 const cookbookSources = computed(() => bookSources.value.filter((s) => s.type === 'book'))
 
@@ -1321,11 +1333,13 @@ const steps = [
   { id: 'instructions', label: 'Zubereitung' },
 ]
 
-function sectionStatus(idx: number): string {
-  if (idx === 0) return form.title.trim() ? 'Vollständig' : 'Fehlt'
-  if (idx === 1) return form.ingredients.some((i) => (i.name || '').trim()) ? 'Vollständig' : 'Prüfen'
-  if (idx === 2) return form.recipe_steps.some((s) => s.instruction.trim()) ? 'Vollständig' : 'Prüfen'
-  return ''
+/** Subtle nav hint for draft/unreviewed recipes only; null when nothing to show. */
+function sectionNavAttention(idx: number): 'prüfen' | 'fehlt' | null {
+  if (props.editingStatus === 'confirmed') return null
+  if (idx === 0) return form.title.trim() ? null : 'fehlt'
+  if (idx === 1) return form.ingredients.some((i) => (i.name || '').trim()) ? null : 'prüfen'
+  if (idx === 2) return form.recipe_steps.some((s) => s.instruction.trim()) ? null : 'prüfen'
+  return null
 }
 
 const form = reactive({
@@ -1349,35 +1363,6 @@ function formatTagLabel(t: string) {
 }
 
 const tagGenerateLoading = computed(() => props.tagGenerateLoading === true)
-
-const hasExtractionFeedback = computed(() => {
-  const i = props.initial
-  return (i?.extract_confidence != null && !Number.isNaN(i.extract_confidence)) || (i?.extract_missing_fields?.length ?? 0) > 0
-})
-const extractConfidence = computed(() => props.initial?.extract_confidence ?? null)
-const extractMissingFields = computed(() => props.initial?.extract_missing_fields ?? null)
-
-const extractionSummary = computed(() => {
-  if (props.editingStatus !== 'draft') return []
-  const lines: string[] = []
-  lines.push(form.title.trim() ? 'Titel erkannt' : 'Titel fehlt')
-  const hasImage = !!(currentImageUrl.value && currentImageUrl.value !== '__DELETE__') || !!imagePreview.value
-  lines.push(hasImage ? 'Titelbild vorhanden' : 'Titelbild fehlt')
-  const ingCount = form.ingredients.filter((i) => (i.name || '').trim()).length
-  lines.push(`${ingCount} Zutat${ingCount === 1 ? '' : 'en'} erkannt`)
-  const stepCount = form.recipe_steps.filter((s) => s.instruction.trim()).length
-  lines.push(`${stepCount} Zubereitungsschritt${stepCount === 1 ? '' : 'e'} erkannt`)
-  if (sourceUiCase.value !== 'manual') {
-    lines.push('Quelle erkannt')
-  } else if (hasOriginalUrl.value) {
-    lines.push('Quelle erkannt')
-  } else {
-    lines.push('Quelle fehlt')
-  }
-  lines.push(recipeHasNutrition(props.initial) ? 'Nährwerte berechnet' : 'Nährwerte fehlen')
-  lines.push('Status: Prüfen')
-  return lines
-})
 
 const estimateHints = computed(() => props.estimateHints ?? { nutrition: '', health: '', times: '' })
 
@@ -1435,6 +1420,16 @@ const parsedStepsOriginalText = computed(() => {
   if (!pr?.steps?.length) return ''
   return pr.steps.map((s, i) => `${i + 1}. ${s?.text?.trim() ?? ''}`).join('\n')
 })
+
+const hasAnyStepOriginalText = computed(() => {
+  const list = props.initial?.parsed_recipe?.steps ?? []
+  return list.some((s) => (s?.text ?? '').trim())
+})
+
+function parsedStepOriginalText(index: number): string {
+  const text = props.initial?.parsed_recipe?.steps?.[index]?.text
+  return (text ?? '').trim()
+}
 
 /** Flat indices whose original-line editor is expanded (default: collapsed when text exists). */
 const expandedOriginalLineIndices = ref<Set<number>>(new Set())
@@ -2076,7 +2071,7 @@ function assignFromInitial() {
   showUrlEdit.value = false
   showOriginalLines.value = props.editingStatus === 'draft'
   showFullOcrText.value = false
-  showOriginalSteps.value = false
+  showOriginalStepLines.value = props.editingStatus === 'draft'
   importMethod.value = 'manual'
   if (props.initial) {
     form.title = props.initial.title ?? ''
@@ -2207,6 +2202,7 @@ watch(
   (status) => {
     if (status === 'draft' || status === 'confirmed') {
       showOriginalLines.value = status === 'draft'
+      showOriginalStepLines.value = status === 'draft'
     }
   }
 )
@@ -2365,78 +2361,52 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
 .recipe-form-multi {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-sm);
 }
 
-.editor-review-banner {
-  margin-bottom: var(--spacing-lg);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: var(--color-bg-muted);
+.editor-review-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: var(--spacing-xs);
+  padding: 0.5rem 0.6rem;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-subtle) 55%, transparent);
 }
 
-.editor-review-banner__content {
+.editor-review-notice__row {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-}
-
-.editor-review-banner__badge {
-  display: inline-flex;
   align-items: center;
-  flex-shrink: 0;
-  padding: 0.2rem 0.55rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
+  gap: var(--spacing-sm);
+  min-width: 0;
 }
 
-.editor-review-banner__body {
-  flex: 1;
-  min-width: min(100%, 14rem);
-}
-
-.editor-review-banner__text {
+.editor-review-notice__text {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
-  font-size: 0.92rem;
-  color: var(--color-text);
-  line-height: 1.5;
-}
-
-.editor-review-summary-details {
-  margin-top: var(--spacing-sm);
-}
-
-.editor-review-summary-details summary {
-  cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   color: var(--color-text-muted);
-  user-select: none;
 }
 
-.editor-review-summary {
-  margin: 0.35rem 0 0;
-  padding-left: 1.1rem;
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
-  line-height: 1.45;
-}
-
-.editor-review-banner__action {
-  flex-shrink: 0;
+.editor-review-notice__action {
+  flex: 0 0 auto;
   margin-left: auto;
 }
 
 @media (max-width: 767px) {
-  .editor-review-banner__action {
+  .editor-review-notice__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .editor-review-notice__action {
     width: 100%;
     margin-left: 0;
+    justify-content: center;
   }
 }
 
@@ -2594,17 +2564,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   border-top: 1px solid var(--color-border);
 }
 
-.extraction-details {
-  margin-top: var(--spacing-md);
-}
-
-.extraction-details__summary {
-  cursor: pointer;
-  font-size: 0.88rem;
-  color: var(--color-text-muted);
-  user-select: none;
-}
-
 .ingredients-list-header {
   display: flex;
   justify-content: flex-end;
@@ -2680,15 +2639,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   color: var(--color-primary);
 }
 
-.instructions-step__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
-}
-
 .ingredients-step__layout {
   display: flex;
   flex-direction: column;
@@ -2703,7 +2653,13 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   min-width: 0;
 }
 
+.ingredients-list-header + .ingredient-section .ingredient-section__heading-row,
+.ingredients-list-header + .ingredient-section .ingredient-section__ungrouped-header {
+  padding-top: 0;
+}
+
 .ingredients-ocr-mobile {
+  margin-top: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
   padding: var(--spacing-xs) 0;
   border-top: 1px solid var(--color-border);
@@ -2951,45 +2907,78 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
 
 .editor-sections {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: var(--spacing-lg);
-  padding: var(--spacing-sm);
-  background: var(--color-surface-subtle);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: var(--spacing-md);
+  max-width: 100%;
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
 }
 
-.editor-sections__item {
-  display: flex;
+.editor-sections::-webkit-scrollbar {
+  display: none;
+}
+
+.editor-sections__tab {
+  flex-shrink: 0;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 12px;
+  gap: 0.35rem;
+  padding: 0 0 8px;
+  margin-bottom: -1px;
   border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
+  border-bottom: 2px solid transparent;
+  background: none;
   font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.editor-sections__tab:hover {
   color: var(--color-text);
 }
 
-.editor-sections__item:hover {
-  background: var(--color-surface);
-}
-
-.editor-sections__item--active {
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-}
-
-.editor-sections__label {
+.editor-sections__tab--active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
   font-weight: 560;
 }
 
-.editor-sections__status {
-  font-size: 0.8rem;
+.editor-sections__label {
+  font-weight: inherit;
+}
+
+.editor-sections__hint {
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  padding: 0.12rem 0.32rem;
+  border-radius: var(--radius-sm);
+}
+
+.editor-sections__hint--review {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 22%, transparent);
+}
+
+.editor-sections__hint--missing {
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
 }
 
 /* Progress Steps (legacy) */
@@ -3162,15 +3151,13 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   gap: var(--spacing-md);
 }
 
-/* Sections */
-.form-section {
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
-}
-
-.form-section--image {
+/* Sections — major breaks use shared .document-section gradient (components.css) */
+.form-section.document-section {
   padding-top: 0;
   border-top: none;
+}
+
+.form-section--image.document-section {
   margin-bottom: var(--spacing-lg);
 }
 
@@ -3716,70 +3703,204 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   font-size: 0.85rem;
 }
 
-/* Instructions: view vs edit */
+/* Instructions: compact review list (aligned with ingredients editor) */
 .form-step--instructions {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
+  min-width: 0;
 }
 
-.instructions-step__hint {
-  margin: 0;
-  font-size: 0.8rem;
+.instructions-step__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.ingredients-list-header + .instructions-step__list > .instruction-card:first-child,
+.ingredients-list-header + .instructions-full-original + .instructions-step__list > .instruction-card:first-child {
+  padding-top: 0;
+}
+
+.instructions-full-original {
+  margin: 0 0 var(--spacing-xs);
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.instructions-full-original__summary {
+  cursor: pointer;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
-  line-height: 1.45;
+  user-select: none;
+  list-style: none;
 }
 
-.instruction-block {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-elevated, var(--color-bg));
+.instructions-full-original__summary::-webkit-details-marker {
+  display: none;
 }
 
-.instruction-block--editing {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.1);
+.instructions-full-original__summary::before {
+  content: '▸ ';
 }
 
-.instruction-block__view {
+.instructions-full-original[open] .instructions-full-original__summary::before {
+  content: '▾ ';
+}
+
+.instructions-full-original__body {
+  margin-top: var(--spacing-xs);
+  max-height: 10rem;
+  overflow: auto;
+  font-size: 0.75rem;
+}
+
+.instructions-step__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.instruction-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.35rem 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+}
+
+.instruction-card:last-child {
+  border-bottom: none;
+}
+
+.instruction-card--editing {
+  padding: 0.4rem 0 0.5rem;
+  margin: 0 -0.15rem;
+  padding-left: 0.35rem;
+  border-left: 2px solid var(--color-primary);
+  border-bottom-color: transparent;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.instruction-card__view {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.instruction-block__summary {
+.instruction-card__num {
+  flex-shrink: 0;
+  width: 1.35rem;
+  padding-top: 0.275rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+  color: var(--color-text-muted);
+}
+
+.instruction-card__summary {
   flex: 1;
   min-width: 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: var(--color-text);
-  padding: var(--spacing-xs) 0;
-  cursor: pointer;
   text-align: left;
+  padding: 0.15rem 0.25rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.instruction-card__summary:hover {
+  background: var(--color-surface-subtle);
+}
+
+.instruction-card__summary:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.instruction-card__summary-main {
+  font-size: 0.92rem;
+  color: var(--color-text);
+  line-height: 1.45;
   word-break: break-word;
   white-space: pre-wrap;
 }
 
-.instruction-block__summary:hover {
-  color: var(--color-primary);
+.instruction-card__summary-original {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
-.instruction-block__summary:focus {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+.instruction-card__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.instruction-block__edit {
-  padding: var(--spacing-md);
+.instruction-card__edit-row--main {
+  display: grid;
+  grid-template-columns: 1.35rem minmax(0, 1fr) auto auto;
+  gap: 0.35rem;
+  align-items: flex-start;
 }
 
-.instruction-block__edit-actions {
-  margin-top: var(--spacing-sm);
+.instruction-card__textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  resize: vertical;
+  background: var(--color-input-bg);
+  color: var(--color-text);
 }
 
-.instruction-block__textarea {
-  min-height: 5rem;
+.instruction-card__textarea:focus {
+  outline: none;
+  border-color: var(--color-input-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.instruction-card__edit-original {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0 0.25rem 0 1.7rem;
+  min-width: 0;
+}
+
+.instruction-card__edit-original-label {
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-soft, var(--color-text-muted));
+}
+
+.instruction-card__edit-original-text {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .ingredient-input {
@@ -3825,66 +3946,7 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   color: var(--color-delete-fg);
 }
 
-/* Instructions */
-.instruction-row {
-  display: grid;
-  grid-template-columns: 40px 1fr 40px;
-  gap: var(--spacing-sm);
-  align-items: flex-start;
-}
-
-.instruction-number {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  background: var(--color-primary);
-  color: white;
-  font-weight: 600;
-  font-size: 0.875rem;
-  flex-shrink: 0;
-  margin-top: var(--spacing-sm);
-}
-
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border: none;
-  border-radius: var(--radius-md);
-  font: inherit;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-
-.btn--primary {
-  background: var(--color-btn-primary-bg);
-  color: var(--color-btn-primary-fg);
-}
-
-.btn--primary:hover {
-  background: var(--color-btn-primary-hover);
-  transform: translateY(-1px);
-}
-
-.btn--secondary {
-  background: var(--color-btn-secondary-bg);
-  color: var(--color-btn-secondary-fg);
-  border: 1px solid var(--color-btn-secondary-border);
-}
-
-.btn--secondary:hover {
-  background: var(--color-btn-secondary-hover);
-}
-
+/* Buttons — base .btn / .btn--primary / .btn--secondary live in styles/components.css */
 .btn--success {
   background: var(--color-btn-confirm-bg);
   color: white;
@@ -4055,60 +4117,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   gap: var(--spacing-lg);
 }
 
-.review-card {
-  padding: var(--spacing-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-elevated);
-}
-
-.review-card--info {
-  background: rgba(0, 78, 137, 0.05);
-  border-color: rgba(0, 78, 137, 0.2);
-}
-
-.review-card__header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
-}
-
-.review-card__header svg {
-  width: 20px;
-  height: 20px;
-  color: var(--color-primary);
-}
-
-.review-card__header h4 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.review-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.review-list div {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: var(--spacing-md);
-}
-
-.review-list dt {
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-.review-list dd {
-  margin: 0;
-  color: var(--color-text);
-}
-
 .review-ingredient-list,
 .review-steps-list {
   margin: 0;
@@ -4150,18 +4158,36 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   order: 1;
 }
 
-@media (max-width: 480px) {
-  .form-actions__back {
-    flex: 1 1 auto;
+@media (max-width: 767px) {
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+
+  .form-actions__spacer {
+    display: none;
   }
 
   .form-actions__primary {
+    order: 1;
     width: 100%;
     margin-left: 0;
+    flex-direction: column;
+    gap: var(--spacing-sm);
   }
 
   .form-actions__primary .btn {
-    flex: 1;
+    width: 100%;
+    flex: none;
+    justify-content: center;
+  }
+
+  .form-actions__back {
+    order: 2;
+    width: 100%;
+    flex: none;
+    margin-left: 0;
   }
 }
 
@@ -4195,8 +4221,8 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
     max-width: 5.5rem;
   }
 
-  .instruction-row {
-    grid-template-columns: 32px 1fr 40px;
+  .instruction-card__edit-row--main {
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
   }
 
   .form-row {

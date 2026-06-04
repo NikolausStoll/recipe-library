@@ -1,44 +1,91 @@
 <template>
   <div class="recipe-edit-page">
     <header class="recipe-edit-page__header">
-      <button type="button" class="btn btn--ghost btn--small recipe-edit-page__back" @click="goBackToRecipe">
-        {{ isNewRecipe ? 'Zurück' : 'Zurück zum Rezept' }}
-      </button>
-      <div class="recipe-edit-page__title-block">
-        <h1 class="recipe-edit-page__title">{{ pageTitle }}</h1>
-        <span
-          v-if="editingStatus === 'draft'"
-          class="status-chip-review recipe-edit-page__badge"
-        >Prüfen</span>
-        <span
-          v-else-if="editingStatus === 'confirmed' && editingId != null"
-          class="status-chip-reviewed recipe-edit-page__badge"
-        >Geprüft</span>
-      </div>
-      <div class="recipe-edit-page__header-actions">
+      <div class="recipe-detail-nav recipe-edit-page__nav">
         <button
-          v-if="editingStatus === 'draft' && editingId != null"
           type="button"
-          class="btn btn--secondary btn--small recipe-edit-page__confirm"
-          @click="onConfirmRecipe"
+          class="recipe-detail-nav__btn recipe-detail-nav__btn--back"
+          :aria-label="isNewRecipe ? 'Zurück' : 'Zurück zum Rezept'"
+          @click="goBackToRecipe"
         >
-          Als geprüft markieren
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="recipe-detail-nav__back-label">{{ isNewRecipe ? 'Zurück' : 'Zurück zum Rezept' }}</span>
         </button>
-        <details v-if="editingId != null" class="recipe-edit-page__more">
-          <summary class="recipe-edit-page__more-trigger">Mehr</summary>
-          <div class="recipe-edit-page__more-menu" role="menu">
+        <div class="recipe-edit-page__title-row">
+          <h1 class="recipe-edit-page__title">{{ pageTitle }}</h1>
+          <span
+            v-if="editingStatus === 'draft'"
+            class="status-chip-review recipe-edit-page__badge"
+          >Prüfen</span>
+          <span
+            v-else-if="editingStatus === 'confirmed' && editingId != null"
+            class="status-chip-reviewed recipe-edit-page__badge"
+          >Geprüft</span>
+        </div>
+        <div v-if="editingId != null" class="recipe-detail-nav__menu-wrap">
+          <button
+            type="button"
+            class="recipe-detail-nav__btn"
+            aria-label="Mehr Aktionen"
+            aria-haspopup="true"
+            :aria-expanded="editMenuOpen"
+            @click.stop="editMenuOpen = !editMenuOpen"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="6" r="1.5" fill="currentColor"/>
+              <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+              <circle cx="12" cy="18" r="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+          <div v-if="editMenuOpen" class="recipe-detail-nav__menu" role="menu" @click.stop>
+            <button
+              v-if="showExtractionDetailsAction"
+              type="button"
+              role="menuitem"
+              @click="openExtractionDetailsFromMenu"
+            >
+              Extraktionsdetails anzeigen
+            </button>
             <button
               type="button"
               role="menuitem"
-              class="recipe-edit-page__more-item recipe-edit-page__more-item--danger"
-              @click="onDelete"
+              class="recipe-detail-nav__menu-danger"
+              @click="onDeleteFromMenu"
             >
-              Löschen
+              Rezept löschen
             </button>
           </div>
-        </details>
+        </div>
       </div>
     </header>
+
+    <div
+      v-if="extractionDetailsOpen"
+      class="extraction-details-overlay"
+      role="presentation"
+      @click.self="closeExtractionDetails"
+    >
+      <div
+        class="extraction-details-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="extraction-details-title"
+      >
+        <h2 id="extraction-details-title" class="extraction-details-dialog__title">Extraktionsdetails</h2>
+        <dl v-if="extractionDetailRows.length" class="extraction-details-dialog__list">
+          <div v-for="(row, i) in extractionDetailRows" :key="i" class="extraction-details-dialog__row">
+            <dt>{{ row.label }}</dt>
+            <dd>{{ row.value }}</dd>
+          </div>
+        </dl>
+        <p v-else class="extraction-details-dialog__empty meta-text">Keine Extraktionsmetadaten vorhanden.</p>
+        <div class="extraction-details-dialog__actions">
+          <button type="button" class="btn btn--secondary" @click="closeExtractionDetails">Schließen</button>
+        </div>
+      </div>
+    </div>
 
     <p v-if="error" class="recipe-edit-page__error" role="alert">{{ error }}</p>
     <p v-if="loading" class="recipe-edit-page__loading meta-text">Rezept wird geladen…</p>
@@ -66,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecipeFormMultiStep from '../components/RecipeFormMultiStep.vue'
 import {
@@ -84,6 +131,10 @@ import {
   buildFormInitialFromRecipe,
   type RecipeFormInitial,
 } from '../utils/recipeFormInitial'
+import {
+  buildExtractionDetailRows,
+  hasRecipeExtractionDetails,
+} from '../utils/recipeExtractionDetails'
 import {
   recipeNeedsNutritionEstimate,
   recipeNeedsHealthScoreEstimate,
@@ -112,6 +163,17 @@ const estimateHints = ref<{ nutrition: string; health: string; times: string }>(
 })
 
 const pageTitle = computed(() => (isNewRecipe.value ? 'Neues Rezept' : 'Rezept bearbeiten'))
+const editMenuOpen = ref(false)
+const extractionDetailsOpen = ref(false)
+
+const showExtractionDetailsAction = computed(() =>
+  hasRecipeExtractionDetails(formInitial.value)
+)
+
+const extractionDetailRows = computed(() => {
+  if (!formInitial.value) return []
+  return buildExtractionDetailRows(formInitial.value)
+})
 
 function parseRecipeId(): number | null {
   if (isNewRecipe.value) return null
@@ -409,6 +471,43 @@ async function onDelete() {
   }
 }
 
+function onDeleteFromMenu() {
+  editMenuOpen.value = false
+  void onDelete()
+}
+
+function openExtractionDetailsFromMenu() {
+  editMenuOpen.value = false
+  extractionDetailsOpen.value = true
+}
+
+function closeExtractionDetails() {
+  extractionDetailsOpen.value = false
+}
+
+function onDocumentKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && extractionDetailsOpen.value) {
+    closeExtractionDetails()
+  }
+}
+
+function onDocumentClickForEditMenu(event: MouseEvent) {
+  if (!editMenuOpen.value) return
+  const target = event.target as HTMLElement
+  if (target.closest('.recipe-detail-nav__menu-wrap')) return
+  editMenuOpen.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClickForEditMenu)
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClickForEditMenu)
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
+
 function initFromRoute() {
   if (isNewRecipe.value) {
     loading.value = false
@@ -438,128 +537,51 @@ watch(() => route.params.id, initFromRoute, { immediate: true })
 }
 
 .recipe-edit-page__header {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--spacing-sm) var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-md);
-  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--spacing-xs);
 }
 
-.recipe-edit-page__back {
-  grid-column: 1;
-  justify-self: start;
+.recipe-edit-page__nav.recipe-detail-nav {
+  flex-wrap: wrap;
+  margin-bottom: 0;
 }
 
-.recipe-edit-page__title-block {
-  grid-column: 1 / -1;
+.recipe-edit-page__nav .recipe-detail-nav__btn--back {
+  margin-right: 0;
+}
+
+.recipe-edit-page__title-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs) var(--spacing-sm);
+  flex: 1 1 auto;
   min-width: 0;
+  order: 3;
+  width: 100%;
 }
 
-@media (min-width: 640px) {
-  .recipe-edit-page__title-block {
-    grid-column: 2;
+@media (min-width: 768px) {
+  .recipe-edit-page__title-row {
+    order: 0;
+    width: auto;
+  }
+
+  .recipe-edit-page__title {
+    font-size: 1.25rem;
   }
 }
 
 .recipe-edit-page__title {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.25;
 }
 
-.recipe-edit-page__header-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--spacing-sm);
-}
-
-@media (min-width: 640px) {
-  .recipe-edit-page__header-actions {
-    grid-column: 3;
-    grid-row: 1;
-  }
-}
-
-.recipe-edit-page__confirm {
-  white-space: nowrap;
-}
-
-.recipe-edit-page__more {
-  position: relative;
-}
-
-.recipe-edit-page__more-trigger {
-  list-style: none;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated, var(--color-bg));
-}
-
-.recipe-edit-page__more-trigger::-webkit-details-marker {
-  display: none;
-}
-
-.recipe-edit-page__more-trigger:hover {
-  color: var(--color-text);
-  border-color: var(--color-text-muted);
-}
-
-.recipe-edit-page__more[open] .recipe-edit-page__more-trigger {
-  border-color: var(--color-primary);
-}
-
-.recipe-edit-page__more-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: var(--z-dropdown, 20);
-  min-width: 10rem;
-  padding: var(--spacing-xs);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-
-.recipe-edit-page__more-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
-  color: var(--color-text);
-}
-
-.recipe-edit-page__more-item:hover {
-  background: var(--color-bg-muted);
-}
-
-.recipe-edit-page__more-item--danger {
-  color: var(--color-error);
-}
-
-.recipe-edit-page__more-item--danger:hover {
-  background: rgba(220, 38, 38, 0.08);
+.recipe-edit-page__badge {
+  flex-shrink: 0;
 }
 
 .recipe-edit-page__error {
@@ -598,5 +620,85 @@ watch(() => route.params.id, initFromRoute, { immediate: true })
     color-mix(in srgb, var(--color-bg) 92%, transparent)
   );
   border-top: 1px solid var(--color-border);
+}
+
+.extraction-details-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background: var(--color-bg-overlay);
+}
+
+.extraction-details-dialog {
+  width: min(100%, 26rem);
+  max-height: min(85vh, 32rem);
+  overflow: auto;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.extraction-details-dialog__title {
+  margin: 0 0 var(--spacing-md);
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.extraction-details-dialog__list {
+  margin: 0 0 var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.extraction-details-dialog__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 38%) 1fr;
+  gap: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.extraction-details-dialog__row dt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.extraction-details-dialog__row dd {
+  margin: 0;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.extraction-details-dialog__empty {
+  margin: 0 0 var(--spacing-md);
+}
+
+.extraction-details-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 767px) {
+  .extraction-details-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .extraction-details-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 85vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: none;
+  }
 }
 </style>

@@ -8,8 +8,11 @@ export type RecipeFormInitial = Partial<RecipeFormPayload> & {
   source_image_path?: string | null
   parsed_recipe?: ParsedRecipeFromOcr | null
   import_method?: string | null
+  extract_status?: string | null
   extract_confidence?: number | null
+  extract_warnings?: string[] | null
   extract_missing_fields?: string[] | null
+  created_at?: string | null
   nutrition_kcal?: number | null
   nutrition_protein?: number | null
   nutrition_carbs?: number | null
@@ -58,8 +61,11 @@ export function buildFormInitialFromRecipe(recipe: Recipe): RecipeFormInitial {
     })),
     recipe_steps: recipe.recipe_steps.map((s) => ({ instruction: s.instruction ?? '' })),
     parsed_recipe: recipe.parsed_recipe ?? null,
+    extract_status: recipe.extract_status ?? null,
     extract_confidence: recipe.extract_confidence ?? null,
+    extract_warnings: recipe.extract_warnings ?? null,
     extract_missing_fields: recipe.extract_missing_fields ?? null,
+    created_at: recipe.created_at ?? null,
     nutrition_kcal: recipe.nutrition_kcal ?? null,
     nutrition_protein: recipe.nutrition_protein ?? null,
     nutrition_carbs: recipe.nutrition_carbs ?? null,
@@ -139,8 +145,11 @@ export function buildFormInitialFromImportedRecipe(recipe: Recipe): RecipeFormIn
     ingredients,
     recipe_steps,
     parsed_recipe: pr ?? null,
+    extract_status: recipe.extract_status ?? null,
     extract_confidence: recipe.extract_confidence ?? null,
+    extract_warnings: recipe.extract_warnings ?? null,
     extract_missing_fields: recipe.extract_missing_fields ?? null,
+    created_at: recipe.created_at ?? null,
     nutrition_kcal: recipe.nutrition_kcal ?? pr?.nutritionTotal?.kcal ?? null,
     nutrition_protein: recipe.nutrition_protein ?? pr?.nutritionTotal?.protein ?? null,
     nutrition_carbs: recipe.nutrition_carbs ?? pr?.nutritionTotal?.carbs ?? null,
