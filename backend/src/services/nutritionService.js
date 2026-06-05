@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { getDb } from '../db/index.js'
 import { getRecipeById } from './recipeService.js'
+import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
 
 const NUTRITION_PROMPT = `Estimate nutrition for the full recipe and return JSON only.
 
@@ -86,7 +87,7 @@ export async function estimateRecipeNutrition(id) {
 
   const response = await client.chat.completions.create({
     model,
-    temperature: TEMPERATURE,
+    ...buildOpenAiChatTemperature(model, TEMPERATURE),
     messages: [
       { role: 'system', content: NUTRITION_PROMPT },
       { role: 'user', content: JSON.stringify(payload) },

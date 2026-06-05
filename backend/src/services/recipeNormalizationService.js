@@ -6,17 +6,15 @@
 import OpenAI from 'openai'
 import { RECIPE_JSON_SCHEMA } from './extractRecipeService.js'
 import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
-import {
-  rawRecipeContainsCup,
-  formatCupGramReferencesForPrompt,
-} from './cupGramReferenceService.js'
+import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+// Cup-to-gram conversion moved to cupConversionService (post-normalization stage).
+// TODO: Remove the "Cup conversion:" prompt block below once normalization prompt is updated.
 
 const PRIMARY_MODEL = process.env.OPENAI_NORMALIZE_MODEL_PRIMARY || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_NORMALIZE_TEMPERATURE) || 0.2))
 
 /** User-requested instructions; schema uses `amount` / `amountMax` (not amountMin). */
-function buildNormalizationPrompt({ includeCupReferences = false } = {}) {
-  const cupSection = includeCupReferences ? formatCupGramReferencesForPrompt() : ''
+function buildNormalizationPrompt() {
   return `
 You transform scraped recipe data into structured recipe JSON following the provided JSON schema.
 
@@ -74,7 +72,7 @@ Times:
 Ingredient fields follow the provided JSON schema.
 
 Ingredient parsing:
-- amountMax equals amount for single values.
+- For single amounts, amountMax must equal amount. Do not use null for amountMax unless amount itself is null.
 - unit is German or null.
 - ingredient is a clean German name.
 - additionalInfo contains translated preparation notes, alternatives, or modifiers.
@@ -91,45 +89,52 @@ Categorization:
 - If uncertain, use "other".
 
 Units:
-- Translate tsp → TL, tbsp → EL, cup → Tasse if not converted.
-- Do not keep English units.
-- Do not convert tbsp/tsp/EL/TL to ml.
+- Translate tsp → TL.
+- Translate tbsp → EL.
+- Keep cup/cups as unit "cup".
+- Do not translate cup/cups to "Tasse".
+- Do not convert cup/cups to grams or milliliters.
+- Never convert tbsp/tsp/EL/TL to grams or ml.
+- tablespoon/tbsp always becomes unit: "EL" with the same amount.
+- teaspoon/tsp always becomes unit: "TL" with the same amount.
+- Do not convert small spoon amounts like tahini, dijon, salt, garlic powder, oil, vinegar, spices, or similar into grams/ml.
 - Count-based whole ingredients usually keep their count and unit = null.
 - Do not use generic units like "piece" or "Stück".
 - Use specific culinary count units when they are part of the source and meaningful in German:
   - clove/cloves garlic → Zehe/Zehen Knoblauch
   - pinch/pinches salt/spices → Prise/Prisen
+  - dash/dashes spices/seasoning → Prise/Prisen, if appropriate
   - sprig/sprigs herbs → Zweig/Zweige
   - handful/handfuls → Handvoll
   - bunch/bunches herbs/greens → Bund
   - slice/slices → Scheibe/Scheiben
+- Use "Handvoll" only when the source explicitly says handful/handfuls.
 - Do not convert these specific culinary count units to grams.
 - Do not estimate piece-to-gram conversions for vegetables, fruit, eggs, onions, garlic cloves, herb sprigs, pinches, handfuls, or similar count-based ingredients.
 
-Cup conversion:
-- Liquids in cups → ml, usually 1 cup ≈ 240 ml.
-- Solid ingredients in cups → grams when plausible.
-- Never convert solid ingredients to ml.
-- Never use 240 g per cup as a generic fallback for solids.
-- Never treat cup volume and gram weight as 1:1.
-- Use reasonable gram approximations for common solid ingredients, preferring curated references when available.
-- If conversion is highly uncertain or strongly preparation-dependent, keep unit as "Tasse".
-
-${cupSection}
+Cup handling:
+- This normalization step must not convert cup-based ingredients.
+- Keep cup amounts as cup.
+- Keep cup ranges as cup ranges.
+- Do not estimate grams or ml for cup ingredients in this step.
+- Cup conversion is handled by a separate pipeline step after normalization.
 
 Examples:
-- "1/2 red onion" → amount: 0.5, unit: null, ingredient: "rote Zwiebel"
-- "2 carrots" → amount: 2, unit: null, ingredient: "Karotten"
-- "3 eggs" → amount: 3, unit: null, ingredient: "Eier"
-- "2 cloves garlic" → amount: 2, unit: "Zehen", ingredient: "Knoblauch"
-- "1 pinch salt" → amount: 1, unit: "Prise", ingredient: "Salz"
-- "12 sprigs thyme" → amount: 12, unit: "Zweige", ingredient: "Thymian"
-- "1 handful spinach" → amount: 1, unit: "Handvoll", ingredient: "Spinat"
-- "1 cup milk" → about 240 ml
-- "1 cup jasmine rice" → plausible grams, not 1 g, not generic 240 g
-- "1 cup carrots and peas" → plausible grams, not ml
-- "1 tbsp oil" → 1 EL
-- "1 tsp salt" → 1 TL
+- "1/2 red onion" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "rote Zwiebel"
+- "2 carrots" → amount: 2, amountMax: 2, unit: null, ingredient: "Karotten"
+- "3 eggs" → amount: 3, amountMax: 3, unit: null, ingredient: "Eier"
+- "2 cloves garlic" → amount: 2, amountMax: 2, unit: "Zehen", ingredient: "Knoblauch"
+- "1 pinch salt" → amount: 1, amountMax: 1, unit: "Prise", ingredient: "Salz"
+- "dash of pepper" → amount: 1, amountMax: 1, unit: "Prise", ingredient: "Pfeffer"
+- "12 sprigs thyme" → amount: 12, amountMax: 12, unit: "Zweige", ingredient: "Thymian"
+- "1 handful spinach" → amount: 1, amountMax: 1, unit: "Handvoll", ingredient: "Spinat"
+- "1 cup milk" → amount: 1, amountMax: 1, unit: "cup", ingredient: "Milch"
+- "1/4 cup olive oil" → amount: 0.25, amountMax: 0.25, unit: "cup", ingredient: "Olivenöl"
+- "3 cups tortellini (cooked)" → amount: 3, amountMax: 3, unit: "cup", ingredient: "Tortellini", additionalInfo: "gekocht"
+- "1-2 cups sweet potato (roasted)" → amount: 1, amountMax: 2, unit: "cup", ingredient: "Süßkartoffel", additionalInfo: "geröstet"
+- "1 tbsp tahini" → amount: 1, amountMax: 1, unit: "EL", ingredient: "Tahini"; do not convert to grams
+- "1 tsp dijon" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Dijon-Senf"; do not convert to grams
+- "1 tsp salt" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Salz"; do not convert to grams
 
 Steps:
 - Translate to natural German recipe language for home cooks.
@@ -162,12 +167,11 @@ async function callLLM(rawRecipe, model) {
   /** Serialized input JSON sent to the model (stored in ai_token_usage.request_json). */
   const userPayload = JSON.stringify(payloadForModel, null, 0)
 
-  const includeCupReferences = rawRecipeContainsCup(rawRecipe)
-  const systemPrompt = buildNormalizationPrompt({ includeCupReferences })
+  const systemPrompt = buildNormalizationPrompt()
 
   const response = await client.chat.completions.create({
     model,
-    temperature: TEMPERATURE,
+    ...buildOpenAiChatTemperature(model, TEMPERATURE),
     messages: [
       { role: 'system', content: systemPrompt },
       {

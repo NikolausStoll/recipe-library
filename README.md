@@ -175,8 +175,7 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 - **`GET /api/health`** – Server health status
 
 ### Admin
-- **`GET /api/admin/extract-usage`** – All `ai_token_usage` rows with joined recipe title, token counts, `response_json`, optional **`request_json`** (input JSON sent to the model where applicable: e.g. URL normalization, health score payload, time-estimate input, recipe tags), `model`, `usage_kind`, plus estimated **`cost_usd`** / **`cost_cents`** (US cents) from built-in pricing for `gpt-4o-mini` and `gpt-4.1-mini` only; other models return `cost_cents: null`. Used by **Admin → AI token usage** in the web UI.
-- **`GET/POST /api/admin/cup-gram-references`**, **`PUT/DELETE /api/admin/cup-gram-references/:id`** – Admin-maintained cup→gram reference rows (`ingredient`, `cups`, `grams`, optional `note`). When a URL-scraped raw recipe contains `cup` in ingredient lines, these references are appended to the LLM normalization prompt (in addition to the built-in good/bad examples). Managed under **More → Admin · Cup → Gramm**.
+- **`GET /api/admin/extract-usage`** – All `ai_token_usage` rows with joined recipe title, token counts, `response_json`, optional **`request_json`** (input JSON sent to the model where applicable: e.g. URL normalization, health score payload, time-estimate input, recipe tags), `model`, `usage_kind`, plus estimated **`cost_usd`** / **`cost_cents`** (US cents) from built-in pricing in `extractUsagePricing.js` (GPT-4.1, GPT-4o, GPT-5 families); unknown models return `cost_cents: null`. Used by **Admin → AI token usage** in the web UI.
 
 ### Recipes
 

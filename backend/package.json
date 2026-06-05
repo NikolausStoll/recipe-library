@@ -6,6 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "test": "node --test src/**/*.test.js",
     "evaluate-vision": "node scripts/evaluate-vision-quality.js"
   },
   "dependencies": {

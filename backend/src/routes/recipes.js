@@ -19,6 +19,10 @@ import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { findOrCreateUrlSource } from '../services/sourceService.js'
 import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
 import {
+  applyPostNormalizationStages,
+  finalizeImportedRecipe,
+} from '../services/recipeImportPipelineService.js'
+import {
   estimateRecipePrepCookTimes,
   normalizeEstimatePayload,
   buildTimeEstimateInput,
@@ -393,11 +397,14 @@ router.post('/extract-from-url', async (req, res) => {
     try {
       const { recipe: structured, usage: normalize_usage, model: normalize_model } =
         await normalizeRecipeWithLLM(result.recipe)
+      const { envelope: finalStructured, cupAttempt } = await applyPostNormalizationStages(structured)
       return res.json({
         ...result,
-        structured,
+        structured: finalStructured,
         normalize_model,
         normalize_usage: normalize_usage ?? null,
+        cup_conversion_usage: cupAttempt?.usage ?? null,
+        cup_conversion_model: cupAttempt?.model ?? null,
       })
     } catch (normErr) {
       console.error('normalize-from-url failed:', normErr)
@@ -469,7 +476,7 @@ router.post('/import-from-url', async (req, res) => {
       }
     }
 
-    const updated = recipeService.setRecipeParsedRecipe(createdId, structured, { updateTitle: true })
+    const { recipe: updated } = await finalizeImportedRecipe(createdId, structured, { updateTitle: true })
     res.status(201).json({
       recipe: updated,
       scrape: {
@@ -821,11 +828,11 @@ router.post('/:id/extract-from-images', (req, res, next) => {
       sizeFmt(totalBytes)
     )
     const { recipe: parsedRecipe, usage } = await extractRecipeFromImages(buffers)
-    const updated = recipeService.setRecipeParsedRecipe(id, parsedRecipe, { updateTitle: true })
     const visionModel = process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini'
     if (usage || parsedRecipe) {
       logAiTokenUsage(id, usage, parsedRecipe, { model: visionModel, usage_kind: 'recipe_image_extract' })
     }
+    const { recipe: updated } = await finalizeImportedRecipe(id, parsedRecipe, { updateTitle: true })
     res.json({ recipe: updated, usage: usage || null })
   } catch (e) {
     console.error('Extract from images failed:', e)

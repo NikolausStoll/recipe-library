@@ -3,8 +3,8 @@
     <header class="admin-extract__header">
       <h1 class="admin-extract__title">AI token usage</h1>
       <p class="admin-extract__subtitle">
-        OpenAI token usage per request. Estimated cost uses GPT-4o mini ($0.15 / $0.60 per 1M) and GPT-4.1 mini ($0.40 /
-        $1.60 per 1M); amounts are in US cents (fractional when below 1¢).
+        OpenAI token usage per request. Estimated cost uses built-in per-model input/output rates (GPT-4.x, GPT-4o, GPT-5
+        families); amounts are in US cents (fractional when below 1¢). Unknown models show no estimate.
       </p>
     </header>
 
@@ -58,17 +58,25 @@
               <td>{{ r.usage_kind ?? '—' }}</td>
               <td class="mono nowrap">{{ r.created_at ?? '—' }}</td>
               <td>
-                <details v-if="r.request_json" class="admin-extract__json">
-                  <summary>JSON</summary>
-                  <pre>{{ prettyJson(r.request_json) }}</pre>
-                </details>
+                <button
+                  v-if="r.request_json"
+                  type="button"
+                  class="admin-extract__json-btn"
+                  @click="openJsonModal('Request', r.request_json, r.id)"
+                >
+                  JSON
+                </button>
                 <span v-else class="muted">—</span>
               </td>
               <td>
-                <details v-if="r.response_json" class="admin-extract__json">
-                  <summary>JSON</summary>
-                  <pre>{{ prettyJson(r.response_json) }}</pre>
-                </details>
+                <button
+                  v-if="r.response_json"
+                  type="button"
+                  class="admin-extract__json-btn"
+                  @click="openJsonModal('Response', r.response_json, r.id)"
+                >
+                  JSON
+                </button>
                 <span v-else class="muted">—</span>
               </td>
             </tr>
@@ -78,16 +86,45 @@
 
       <p v-else class="admin-extract__empty">No AI token usage rows yet.</p>
     </template>
+
+    <Teleport to="body">
+      <div
+        v-if="jsonModal"
+        class="app-modal-overlay admin-extract__json-overlay"
+        @click.self="closeJsonModal"
+      >
+        <div
+          class="admin-extract__json-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-extract-json-title"
+        >
+          <div class="admin-extract__json-header">
+            <h2 id="admin-extract-json-title" class="admin-extract__json-title">{{ jsonModal.title }}</h2>
+            <button type="button" class="admin-extract__json-close" aria-label="Close" @click="closeJsonModal">
+              ×
+            </button>
+          </div>
+          <div class="admin-extract__json-body">
+            <pre class="admin-extract__json-pre">{{ jsonModal.content }}</pre>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { listAdminExtractUsage, type ExtractUsageAdminRow } from '../api/admin'
+import { useBodyModalLock } from '../composables/useBodyModalLock'
 
 const rows = ref<ExtractUsageAdminRow[]>([])
 const loading = ref(true)
 const error = ref('')
+const jsonModal = ref<{ title: string; content: string } | null>(null)
+
+useBodyModalLock(computed(() => jsonModal.value != null))
 
 const totals = computed(() => {
   let prompt = 0
@@ -118,6 +155,30 @@ function prettyJson(raw: string): string {
     return raw
   }
 }
+
+function openJsonModal(kind: 'Request' | 'Response', raw: string, rowId: number) {
+  jsonModal.value = {
+    title: `${kind} JSON · row #${rowId}`,
+    content: prettyJson(raw),
+  }
+}
+
+function closeJsonModal() {
+  jsonModal.value = null
+}
+
+function onEscapeKey(e: KeyboardEvent) {
+  if (e.key === 'Escape' && jsonModal.value) closeJsonModal()
+}
+
+watch(jsonModal, (modal) => {
+  if (modal) window.addEventListener('keydown', onEscapeKey)
+  else window.removeEventListener('keydown', onEscapeKey)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onEscapeKey)
+})
 
 onMounted(async () => {
   loading.value = true
@@ -230,24 +291,102 @@ onMounted(async () => {
   color: var(--color-text-muted);
 }
 
-.admin-extract__json summary {
+.admin-extract__json-btn {
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
   color: var(--color-primary);
   font-weight: 600;
+  font-size: inherit;
+  font-family: inherit;
 }
 
-.admin-extract__json pre {
-  margin: 0.5rem 0 0 0;
-  max-height: 240px;
-  overflow: auto;
-  padding: 0.5rem;
+.admin-extract__json-btn:hover {
+  text-decoration: underline;
+}
+
+.admin-extract__json-overlay {
+  padding: 1.5rem;
+}
+
+.admin-extract__json-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(960px, 100%);
+  max-height: min(85vh, 900px);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.2));
+  overflow: hidden;
+}
+
+.admin-extract__json-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-muted);
-  border-radius: 4px;
-  font-size: 0.75rem;
-  line-height: 1.35;
+}
+
+.admin-extract__json-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.admin-extract__json-close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-extract__json-close:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+}
+
+.admin-extract__json-body {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.admin-extract__json-pre {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text);
 }
 
 .admin-extract__empty {
   color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .admin-extract__json-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .admin-extract__json-panel {
+    width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
 }
 </style>

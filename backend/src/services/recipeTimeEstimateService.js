@@ -3,6 +3,7 @@
  */
 
 import OpenAI from 'openai'
+import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_TIME_ESTIMATE_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_TIME_ESTIMATE_TEMPERATURE) || 0.2))
@@ -160,7 +161,7 @@ export async function estimateRecipePrepCookTimes(recipe) {
 
   const response = await client.chat.completions.create({
     model,
-    temperature: TEMPERATURE,
+    ...buildOpenAiChatTemperature(model, TEMPERATURE),
     messages: [
       { role: 'system', content: TIME_ESTIMATE_PROMPT },
       {

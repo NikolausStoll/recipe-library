@@ -77,12 +77,6 @@ const router = createRouter({
           component: () => import('../views/AdminExtractUsageView.vue'),
           meta: { title: 'Admin · KI-Tokennutzung' },
         },
-        {
-          path: 'admin/cup-gram-references',
-          name: 'admin-cup-gram-references',
-          component: () => import('../views/AdminCupGramReferencesView.vue'),
-          meta: { title: 'Admin · Cup → Gramm' },
-        },
       ],
     },
   ],

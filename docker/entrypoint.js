@@ -52,6 +52,9 @@ const OPTION_MAP = [
   ['OPENAI_TIME_ESTIMATE_TEMPERATURE', ['openai_time_estimate_temperature'], '0.2'],
   ['OPENAI_RECIPE_TAG_MODEL', ['openai_recipe_tag_model'], 'gpt-4o-mini'],
   ['OPENAI_RECIPE_TAG_TEMPERATURE', ['openai_recipe_tag_temperature'], '0.2'],
+  ['AI_CUP_CONVERSION_ENABLED', ['ai_cup_conversion_enabled'], 'true'],
+  ['AI_CUP_CONVERSION_MODEL', ['ai_cup_conversion_model'], 'gpt-4.1-mini'],
+  ['AI_CUP_CONVERSION_TEMPERATURE', ['ai_cup_conversion_temperature'], '0.1'],
 ]
 
 for (const [envName, keys, fallback] of OPTION_MAP) {

@@ -213,7 +213,7 @@ Recipe Library is a full-stack web application for managing and digitizing recip
 | **Database Layer** |
 | `db/index.js` | Database initialization | getDb, initDb | better-sqlite3 |
 | **Utils** |
-| `extractUsagePricing.js` | Token cost estimate | gpt-4o-mini / gpt-4.1-mini USD per 1M tokens | — |
+| `extractUsagePricing.js` | Token cost estimate | GPT-4.1, GPT-4o, GPT-5 families — USD per 1M input/output tokens | — |
 
 ## 4. Data Model (Core Entities)
 

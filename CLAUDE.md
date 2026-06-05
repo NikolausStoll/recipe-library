@@ -41,10 +41,12 @@ The app supports manual recipe entry, book source management, and AI-powered rec
 - **Services**:
   - `extractRecipeService.js` - OpenAI vision integration with structured JSON schema extraction
   - `recipeUrlExtractService.js` - Fetch recipe HTML, extract raw fields from JSON-LD Recipe + HTML fallbacks (no LLM); deduplicates `image_urls` that look like the same asset at different resolutions (keeps largest) before persisting to `image_urls_json`
-  - `recipeNormalizationService.js` - LLM normalization of scraped raw recipe (`normalizeRecipeWithLLM`); same JSON schema as vision extract; optional after `extract-from-url` when `normalize: true`
+  - `recipeNormalizationService.js` - LLM normalization of scraped raw recipe (`normalizeRecipeWithLLM`); same JSON schema as vision extract; optional after `extract-from-url` when `normalize: true`. Cup conversion instructions in the prompt are kept for backward compatibility and marked with TODO; they will be removed once `cupConversionService` prompt is tuned
+ - `cupConversionService.js` - Post-normalization cup conversion stage: detects cup-unit rows, builds minimal LLM request (`${sectionIndex}:${itemIndex}` ids), calls a separately configurable model, merges results back by id. Env: `AI_CUP_CONVERSION_ENABLED`, `AI_CUP_CONVERSION_MODEL`, `AI_CUP_CONVERSION_TEMPERATURE`
+ - `recipeImportPipelineService.js` - Orchestrates post-extract pipeline stages: `finalizeImportedRecipe(id, envelope)` runs cup conversion → `setRecipeParsedRecipe` → await tagging; `applyPostNormalizationStages` for preview paths (no DB). Failure in cup conversion or tagging adds a warning but does not break the import
   - `recipeHealthScoreService.js` - `estimateRecipeHealthScore(recipe)` / `estimateRecipeHealthScoreById(id)` — practical 0–100 health estimate from **already structured** recipe JSON (separate step; not wired into OCR/URL extract)
   - `recipeTimeEstimateService.js` - `estimateRecipePrepCookTimes(recipe)` — separate chat completion (`gpt-4o-mini` default) for prep/cook minutes + confidence; applied via `recipeService.applyRecipeTimeEstimate`
-  - `recipeTagGenerationService.js` - `generateRecipeTags(recipe)` — structured JSON-only tagging (`gpt-4o-mini` default); `recipeTagValidation.js` enforces controlled vocabulary + group rules; `recipeTagPersistence.js` stores rows in `recipe_tags`; not part of vision/URL extract (`usage_kind: recipe_tag`)
+  - `recipeTagGenerationService.js` - `generateRecipeTags(recipe)` — structured JSON-only tagging (`gpt-4o-mini` default); `recipeTagValidation.js` enforces controlled vocabulary + group rules; `recipeTagPersistence.js` stores rows in `recipe_tags`; tagging is now awaited inside `finalizeImportedRecipe` (not fire-and-forget in frontend) (`usage_kind: recipe_tag`)
   - `recipeHealthScorePersistence.js` - upsert/read `recipe_health_scores` (estimate fields only); model/tokens for health calls go to `ai_token_usage` via `logAiTokenUsage`
   - `recipeService.js` - Recipe CRUD operations
   - `sourceService.js` - Book source management
@@ -90,6 +92,9 @@ Located in project root `.env`:
 - `TEXT_IMAGE_MAX_DIMENSION` - Max dimension for OpenAI text images (default: 1400)
 - `RECIPE_URL_FETCH_TIMEOUT_MS`, `RECIPE_URL_MAX_BYTES`, `RECIPE_URL_USER_AGENT` - Optional tuning for `POST /api/recipes/extract-from-url`
 - `OPENAI_NORMALIZE_MODEL_PRIMARY`, `OPENAI_NORMALIZE_TEMPERATURE` - Optional URL normalization (`extract-from-url` + `normalize: true`)
+- `AI_CUP_CONVERSION_ENABLED` - Enable/disable cup conversion stage (default: `true`)
+- `AI_CUP_CONVERSION_MODEL` - Model for cup conversion (default: `OPENAI_NORMALIZE_MODEL_PRIMARY` or `gpt-4o-mini`)
+- `AI_CUP_CONVERSION_TEMPERATURE` - Temperature for cup conversion (default: `0.1`); omitted automatically for models listed in `openaiChatParams.js` (`NO_CUSTOM_TEMPERATURE_MODELS`, currently `gpt-5-nano` only)
 - `OPENAI_API_KEY` - **Required** for recipe extraction
 - `OPENAI_EXTRACT_MODEL` - Model for extraction (default: `gpt-4.1-mini`)
 - `OPENAI_EXTRACT_DETAIL` - Vision detail level (default: `high`)

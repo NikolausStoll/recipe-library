@@ -6,6 +6,7 @@
 
 import OpenAI from 'openai'
 import { getRecipeById } from './recipeService.js'
+import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_HEALTH_SCORE_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_HEALTH_SCORE_TEMPERATURE) || 0.2))
@@ -182,7 +183,7 @@ export async function estimateRecipeHealthScore(recipe) {
   try {
     const response = await client.chat.completions.create({
       model,
-      temperature: TEMPERATURE,
+      ...buildOpenAiChatTemperature(model, TEMPERATURE),
       messages: [
         { role: 'system', content: HEALTH_SCORE_PROMPT },
         {

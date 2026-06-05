@@ -10,7 +10,6 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecipeImageImport from '../components/RecipeImportOverlayUnified.vue'
-import { postGenerateRecipeTags } from '../api/recipes'
 import type { Recipe } from '../api/recipes'
 
 const route = useRoute()
@@ -27,7 +26,6 @@ function goBack() {
 }
 
 function onImportDone(recipe: Recipe) {
-  void postGenerateRecipeTags(recipe.id).catch(() => {})
   router.push({
     name: 'recipe-edit',
     params: { id: String(recipe.id) },

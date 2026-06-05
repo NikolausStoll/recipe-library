@@ -60,7 +60,6 @@ const navItems = [
   { to: '/sources', label: 'Quellen' },
   { to: '/favorites', label: 'Favoriten' },
   { to: '/admin/extract-usage', label: 'Admin · KI-Tokennutzung' },
-  { to: '/admin/cup-gram-references', label: 'Admin · Cup → Gramm' },
 ]
 </script>
 
