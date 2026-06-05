@@ -101,11 +101,11 @@ function inferPixelAreaFromUrl(urlString) {
       if (wi > 0 && hi > 0) return wi * hi
     }
 
-    const wxh = full.match(/(\d{1,5})x(\d{1,5})/gi)
+    const wxh = full.match(/(\d{1,5})[x×](\d{1,5})/gi)
     if (wxh && wxh.length) {
       let best = 0
       for (const m of wxh) {
-        const parts = m.toLowerCase().split('x')
+        const parts = m.toLowerCase().split(/[x×]/)
         if (parts.length === 2) {
           const wi = parseInt(parts[0], 10)
           const hi = parseInt(parts[1], 10)
@@ -113,6 +113,12 @@ function inferPixelAreaFromUrl(urlString) {
         }
       }
       if (best > 0) return best
+    }
+
+    const widthOnly = qp.get('width') || qp.get('maxwidth') || qp.get('max_width')
+    if (widthOnly) {
+      const wi = parseInt(widthOnly, 10)
+      if (wi > 0) return wi * wi
     }
 
     return 0
@@ -130,9 +136,12 @@ function imageUrlClusterKey(urlString) {
   try {
     const u = new URL(urlString)
     let path = u.pathname
-    path = path.replace(/-\d{1,5}x\d{1,5}(?=\.[^./]+$)/gi, '')
-    path = path.replace(/[_]\d{1,5}x\d{1,5}(?=\.[^./]+$)/gi, '')
-    path = path.replace(/\/?\d{1,5}x\d{1,5}\//g, '/')
+    path = path.replace(/-\d{1,5}[x×]\d{1,5}(?=\.[^./]+$)/gi, '')
+    path = path.replace(/[_]\d{1,5}[x×]\d{1,5}(?=\.[^./]+$)/gi, '')
+    path = path.replace(/-\d{1,5}w(?=\.[^./]+$)/gi, '')
+    path = path.replace(/-scaled(?=\.[^./]+$)/gi, '')
+    path = path.replace(/@\d{1,5}w(?=\.[^./]+$)/gi, '')
+    path = path.replace(/\/?\d{1,5}[x×]\d{1,5}\//g, '/')
     return `${u.hostname.toLowerCase()}${path}`
   } catch {
     return urlString
@@ -145,7 +154,7 @@ function imageUrlClusterKey(urlString) {
  * @param {string[]} urls
  * @returns {string[]}
  */
-function dedupeImageUrlsByBestResolution(urls) {
+function dedupeImageUrlsByBestResolution(urls, areaHints = null) {
   if (!Array.isArray(urls) || urls.length === 0) return []
 
   const valid = [...new Set(urls.filter((u) => typeof u === 'string' && u.trim()).map((u) => u.trim()))]
@@ -157,19 +166,25 @@ function dedupeImageUrlsByBestResolution(urls) {
   /** @type {Map<string, string>} */
   const bestByKey = new Map()
 
+  const areaFor = (url) => {
+    const hinted = areaHints?.get(url)
+    if (hinted && hinted > 0) return hinted
+    return inferPixelAreaFromUrl(url)
+  }
+
   for (const url of valid) {
     const key = imageUrlClusterKey(url)
     if (!seenOrder.has(key)) {
       seenOrder.add(key)
       order.push(key)
     }
-    const area = inferPixelAreaFromUrl(url)
+    const area = areaFor(url)
     const prev = bestByKey.get(key)
     if (!prev) {
       bestByKey.set(key, url)
       continue
     }
-    const prevArea = inferPixelAreaFromUrl(prev)
+    const prevArea = areaFor(prev)
     if (area > prevArea) {
       bestByKey.set(key, url)
     } else if (area === prevArea && url.length > prev.length) {
@@ -180,7 +195,7 @@ function dedupeImageUrlsByBestResolution(urls) {
   return order.map((k) => bestByKey.get(k))
 }
 
-function collectImageUrls(image, baseUrl) {
+function collectImageUrls(image, baseUrl, areaHints = null) {
   const out = []
   if (!image) return out
   if (typeof image === 'string') {
@@ -189,16 +204,62 @@ function collectImageUrls(image, baseUrl) {
     return out
   }
   if (Array.isArray(image)) {
-    for (const item of image) out.push(...collectImageUrls(item, baseUrl))
+    for (const item of image) out.push(...collectImageUrls(item, baseUrl, areaHints))
     return [...new Set(out)]
   }
   if (typeof image === 'object') {
-    if (image.url) out.push(...collectImageUrls(image.url, baseUrl))
+    let nodeArea = 0
+    const w = parseInt(image.width, 10)
+    const h = parseInt(image.height, 10)
+    if (w > 0 && h > 0) nodeArea = w * h
+    const urls = []
+    if (image.url) urls.push(...collectImageUrls(image.url, baseUrl, areaHints))
     if (Array.isArray(image['@graph'])) {
-      for (const g of image['@graph']) out.push(...collectImageUrls(g, baseUrl))
+      for (const g of image['@graph']) urls.push(...collectImageUrls(g, baseUrl, areaHints))
     }
+    if (areaHints && nodeArea > 0) {
+      for (const u of urls) {
+        const prev = areaHints.get(u) ?? 0
+        if (nodeArea > prev) areaHints.set(u, nodeArea)
+      }
+    }
+    return [...new Set([...out, ...urls])]
   }
   return [...new Set(out)]
+}
+
+/**
+ * Parse srcset attribute; returns absolute URLs (largest width descriptor preferred when tied).
+ * @param {string | undefined} srcset
+ * @param {string} baseUrl
+ * @returns {string[]}
+ */
+function parseSrcsetUrls(srcset, baseUrl) {
+  if (!srcset || typeof srcset !== 'string') return []
+  const entries = srcset
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const parsed = []
+  for (const entry of entries) {
+    const pieces = entry.split(/\s+/)
+    const href = pieces[0]
+    const u = resolveUrlMaybeRelative(href, baseUrl)
+    if (!u) continue
+    let width = 0
+    if (pieces[1]) {
+      const m = pieces[1].match(/^(\d+)(w|x)?$/i)
+      if (m) width = parseInt(m[1], 10)
+    }
+    parsed.push({ url: u, width })
+  }
+  parsed.sort((a, b) => b.width - a.width)
+  return [...new Set(parsed.map((p) => p.url))]
+}
+
+function pushResolvedImageUrl(raw, href, baseUrl) {
+  const u = resolveUrlMaybeRelative(href, baseUrl)
+  if (u) raw.image_urls.push(u)
 }
 
 function isRecipeType(t) {
@@ -369,7 +430,7 @@ function scoreJsonLdRecipe(node) {
   return s
 }
 
-function recipeNodeToRaw(node, pageUrl) {
+function recipeNodeToRaw(node, pageUrl, areaHints = null) {
   const raw = emptyRawRecipe()
   if (!node) return raw
   if (node.name) raw.title = String(node.name).replace(/\s+/g, ' ').trim() || null
@@ -385,11 +446,11 @@ function recipeNodeToRaw(node, pageUrl) {
   raw.total_time_min = isoDurationToMinutes(node.totalTime)
   raw.ingredient_lines = normalizeIngredientLines(node.recipeIngredient)
   raw.steps = normalizeInstructions(node.recipeInstructions, pageUrl)
-  raw.image_urls = collectImageUrls(node.image, pageUrl)
+  raw.image_urls = collectImageUrls(node.image, pageUrl, areaHints)
   return raw
 }
 
-function extractJsonLdRecipes(html, pageUrl, warnings) {
+function extractJsonLdRecipes(html, pageUrl, warnings, areaHints = null) {
   const $ = cheerio.load(html)
   const candidates = []
   $('script[type="application/ld+json"]').each((_, el) => {
@@ -406,7 +467,7 @@ function extractJsonLdRecipes(html, pageUrl, warnings) {
   if (!candidates.length) return { raw: emptyRawRecipe(), picked: null }
   candidates.sort((a, b) => scoreJsonLdRecipe(b) - scoreJsonLdRecipe(a))
   const picked = candidates[0]
-  return { raw: recipeNodeToRaw(picked, pageUrl), picked }
+  return { raw: recipeNodeToRaw(picked, pageUrl, areaHints), picked }
 }
 
 function textOneLine($, el) {
@@ -432,9 +493,26 @@ function extractHtmlHeuristics(html, pageUrl, warnings) {
     $('meta[property="og:description"]').attr('content')?.trim() ||
     null
 
-  const ogImage = $('meta[property="og:image"]').attr('content')
-  const u = resolveUrlMaybeRelative(ogImage, pageUrl)
-  if (u) raw.image_urls.push(u)
+  $('meta[property="og:image"], meta[property="og:image:secure_url"], meta[property="og:image:url"]').each(
+    (_, el) => {
+      pushResolvedImageUrl(raw, $(el).attr('content'), pageUrl)
+    }
+  )
+  $('meta[name="twitter:image"], meta[name="twitter:image:src"]').each((_, el) => {
+    pushResolvedImageUrl(raw, $(el).attr('content'), pageUrl)
+  })
+  $('link[rel="image_src"]').each((_, el) => {
+    pushResolvedImageUrl(raw, $(el).attr('href'), pageUrl)
+  })
+
+  const recipeImgSel =
+    '.wprm-recipe-image img, [itemtype*="Recipe"] img, .recipe-image img, article img[itemprop="image"]'
+  $(recipeImgSel).each((_, el) => {
+    pushResolvedImageUrl(raw, $(el).attr('src'), pageUrl)
+    pushResolvedImageUrl(raw, $(el).attr('data-src'), pageUrl)
+    const srcset = $(el).attr('srcset') || $(el).attr('data-srcset')
+    for (const u of parseSrcsetUrls(srcset, pageUrl)) raw.image_urls.push(u)
+  })
 
   // WordPress Recipe Maker
   $('.wprm-recipe-ingredient').each((_, el) => {
@@ -615,10 +693,11 @@ export async function extractRecipeFromUrl(urlString) {
     return { source: 'none', warnings, fetched_url: finalUrl, recipe: emptyRawRecipe() }
   }
 
-  const { raw: fromLd, picked } = extractJsonLdRecipes(html, finalUrl, warnings)
+  const areaHints = new Map()
+  const { raw: fromLd, picked } = extractJsonLdRecipes(html, finalUrl, warnings, areaHints)
   const fromHtml = extractHtmlHeuristics(html, finalUrl, warnings)
   const merged = mergePreferStructured(fromLd, fromHtml)
-  merged.image_urls = dedupeImageUrlsByBestResolution(merged.image_urls)
+  merged.image_urls = dedupeImageUrlsByBestResolution(merged.image_urls, areaHints)
 
   let source = determineSource(picked, fromLd, fromHtml, merged)
   if (!hasUsefulContent(merged)) {

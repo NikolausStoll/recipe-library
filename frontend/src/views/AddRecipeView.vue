@@ -81,20 +81,29 @@ function goManual() {
 </script>
 
 <style scoped>
+.add-recipe-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.add-recipe-view .page-header {
+  width: 100%;
+  max-width: 640px;
+  text-align: center;
+}
+
 .add-recipe-options {
   display: grid;
+  grid-template-columns: 1fr;
   gap: var(--spacing-md);
+  width: 100%;
   max-width: 520px;
 }
 
 @media (min-width: 768px) {
   .add-recipe-options {
     max-width: 640px;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .add-recipe-options .add-option-card:first-child {
-    grid-column: 1 / -1;
   }
 }
 </style>

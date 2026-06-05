@@ -15,7 +15,7 @@
         </header>
 
         <p class="crop-modal__hint">
-          Tippe die vier Ecken der Seite der Reihe nach an. Ziehe die Punkte, um den Ausschnitt anzupassen. Gespeichert wird erst mit „Fertig“.
+          {{ hint }}
         </p>
 
         <div class="crop-modal__editor">
@@ -32,10 +32,18 @@
         <p v-if="errorText" class="crop-modal__error">{{ errorText }}</p>
 
         <footer class="crop-modal__footer">
-          <button type="button" class="btn btn--secondary" @click="onReset">Punkte zurücksetzen</button>
-          <div class="crop-modal__footer-end">
+          <button type="button" class="crop-modal__reset" @click="onReset">Punkte zurücksetzen</button>
+          <button
+            v-if="showFullFrameAction"
+            type="button"
+            class="btn btn--secondary crop-modal__secondary-action"
+            @click="onFullFrame"
+          >
+            {{ fullFrameLabel }}
+          </button>
+          <div class="crop-modal__footer-actions">
             <button type="button" class="btn btn--secondary" @click="onCancel">Abbrechen</button>
-            <button type="button" class="btn btn--primary" @click="onDone">Fertig</button>
+            <button type="button" class="btn btn--primary" @click="onDone">{{ confirmLabel }}</button>
           </div>
         </footer>
       </div>
@@ -60,11 +68,20 @@ const props = withDefaults(
     title?: string
     /** Previously saved crop in original image pixels (re-opens markers on the image). */
     initialNaturalPoints?: CropNaturalPoint[] | null
+    confirmLabel?: string
+    hint?: string
+    /** Show explicit full-frame finalize (pending images). */
+    showFullFrameAction?: boolean
+    fullFrameLabel?: string
   }>(),
   {
     alt: 'Bildzuschnitt',
     title: 'Bild zuschneiden',
     initialNaturalPoints: null,
+    confirmLabel: 'Fertig',
+    hint: 'Tippe die vier Ecken der Seite der Reihe nach an. Ziehe die Punkte, um den Ausschnitt anzupassen. Gespeichert wird erst mit „Fertig“.',
+    showFullFrameAction: false,
+    fullFrameLabel: 'Ohne Zuschnitt übernehmen',
   },
 )
 
@@ -103,6 +120,11 @@ function onReset() {
 
 function onCancel() {
   emit('cancel')
+}
+
+function onFullFrame() {
+  errorText.value = ''
+  emit('confirm', null)
 }
 
 function onDone() {
@@ -192,21 +214,75 @@ function onDone() {
 
 .crop-modal__footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.85rem 1.1rem;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1.1rem 1rem;
   border-top: 1px solid var(--color-border);
-  flex-wrap: wrap;
 }
 
-.crop-modal__footer-end {
-  display: flex;
+.crop-modal__reset {
+  align-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.35rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.crop-modal__reset:hover {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+}
+
+.crop-modal__secondary-action {
+  width: 100%;
+}
+
+.crop-modal__footer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
-  margin-left: auto;
+}
+
+.crop-modal__footer-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  .crop-modal__footer {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .crop-modal__reset {
+    margin-right: auto;
+  }
+
+  .crop-modal__secondary-action {
+    width: auto;
+  }
+
+  .crop-modal__footer-actions {
+    display: flex;
+    width: auto;
+  }
+
+  .crop-modal__footer-actions .btn {
+    width: auto;
+  }
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0.5rem 0.95rem;
   border-radius: 6px;
   font: inherit;
@@ -224,5 +300,25 @@ function onDone() {
   background: var(--color-btn-secondary-bg);
   color: var(--color-btn-secondary-fg);
   border-color: var(--color-btn-secondary-border);
+}
+</style>
+
+<style>
+@media (max-width: 767px) {
+  .app-crop-modal-overlay.crop-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .app-crop-modal-overlay.crop-modal .crop-modal__panel {
+    max-width: none;
+    max-height: 92vh;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .app-crop-modal-overlay.crop-modal .crop-modal__hint {
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
 }
 </style>

@@ -418,6 +418,7 @@ async function onFormSubmit(
       })
     }
 
+    // Image file is uploaded only on save; pending state stays until crop-perspective finalizes it.
     if (imageFile && recipeId) {
       if (imageFile === 'DELETE') {
         await updateRecipe(recipeId, { image_path: null })

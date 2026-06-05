@@ -1,7 +1,7 @@
 name: "Recipe Library"
 slug: "recipe-library"
 description: "Personal recipe tracker frontend and backend"
-version: "0.12.0"
+version: "0.13.0"
 repository: "https://github.com/NikolausStoll/recipe-library"
 arch:
   - amd64
@@ -47,6 +47,9 @@ options:
   openai_time_estimate_temperature: 0.2
   openai_recipe_tag_model: "gpt-4o-mini"
   openai_recipe_tag_temperature: 0.2
+  ai_cup_conversion_enabled: true
+  ai_cup_conversion_model: "gpt-4.1-mini"
+  ai_cup_conversion_temperature: 0.1
 
 schema:
   port: int(1024,65535)
@@ -73,3 +76,6 @@ schema:
   openai_time_estimate_temperature: float(0,1)
   openai_recipe_tag_model: str
   openai_recipe_tag_temperature: float(0,1)
+  ai_cup_conversion_enabled: bool
+  ai_cup_conversion_model: str
+  ai_cup_conversion_temperature: float(0,1)

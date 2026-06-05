@@ -10,7 +10,7 @@
       <h1 class="page-header__title h2">Rezept von Website importieren</h1>
     </header>
 
-    <div class="import-page-content import-page-content--narrow">
+    <div class="import-page-content">
       <p class="import-page-intro">
         Füge einen Link zur Rezeptseite ein. Die Seite wird geladen, strukturierte Daten werden wenn möglich gelesen,
         und das Rezept wird per KI normalisiert. Danach kannst du alles prüfen und bearbeiten.
@@ -97,7 +97,15 @@ function dismissError() {
 </script>
 
 <style scoped>
+.import-url-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .import-page-header {
+  width: 100%;
+  max-width: 32rem;
   margin-bottom: var(--spacing-lg);
 }
 
@@ -130,9 +138,7 @@ function dismissError() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-
-.import-page-content--narrow {
+  width: 100%;
   max-width: 32rem;
 }
 

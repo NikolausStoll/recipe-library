@@ -88,6 +88,25 @@
             </div>
           </div>
 
+          <div v-if="photos.length && !busy && !mobileCameraStream" class="photos-add-more">
+            <button
+              v-if="initialMode !== 'camera'"
+              type="button"
+              class="btn btn--secondary btn--tiny"
+              @click="openFilePicker"
+            >
+              Weitere Bilder hinzufügen
+            </button>
+            <button
+              v-if="initialMode === 'camera'"
+              type="button"
+              class="btn btn--secondary btn--tiny"
+              @click="startMobileCamera"
+            >
+              Weiteres Foto aufnehmen
+            </button>
+          </div>
+
           <div v-if="photos.length" class="import-footer">
             <div
               v-if="busy"
@@ -483,7 +502,15 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.import-image-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .import-page-header {
+  width: 100%;
+  max-width: 56rem;
   margin-bottom: var(--spacing-lg);
 }
 
@@ -521,6 +548,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  width: 100%;
   max-width: 56rem;
 }
 
@@ -579,6 +607,13 @@ onBeforeUnmount(() => {
 .photos--importing {
   opacity: 0.92;
   pointer-events: none;
+}
+
+.photos-add-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .import-footer {

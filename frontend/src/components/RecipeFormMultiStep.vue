@@ -47,23 +47,20 @@
           <h4 class="form-section__title">Rezeptbild</h4>
           <div class="image-upload">
             <div v-if="(currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview" class="image-upload__preview">
-              <button
-                v-if="imageProcessingPending && currentImageUrl && currentImageUrl !== '__DELETE__' && !imagePreview"
-                type="button"
-                class="image-upload__preview-pending"
-                @click="openCropModal('existing')"
-              >
-                <span class="image-upload__pending-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="2" />
-                    <path d="M21 15L16 10L5 21" stroke="currentColor" stroke-width="2" />
-                  </svg>
-                </span>
-                <span class="image-upload__pending-text">Bild noch nicht verarbeitet — tippen zum Zuschneiden und Optimieren</span>
-              </button>
-              <template v-else>
-                <img :src="(imagePreview || currentImageUrl) ?? undefined" alt="Rezeptvorschau" class="image-upload__preview-img" />
+              <div class="image-upload__preview-media">
+                <img :src="previewImageSrc" alt="Rezeptvorschau" class="image-upload__preview-img" />
+                <button
+                  v-if="showPendingOverlay"
+                  type="button"
+                  class="image-upload__preview-pending-wrap"
+                  aria-label="Zuschneiden und Optimieren"
+                  @click="openCropModal(imageFile ? 'new' : 'existing')"
+                >
+                  <div class="image-upload__pending-overlay">
+                    <span class="image-upload__pending-label">Noch nicht verarbeitet</span>
+                    <span class="image-upload__pending-hint">Tippen zum Zuschneiden und Optimieren</span>
+                  </div>
+                </button>
                 <div class="image-upload__preview-icons">
                   <button
                     v-if="imageFile"
@@ -74,12 +71,16 @@
                   >
                     ↻
                   </button>
-                  <button type="button" class="icon-btn" title="Zuschneiden" @click="openCropModal(imageFile ? 'new' : 'existing')">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    title="Zuschneiden"
+                    @click="openCropModal(imageFile ? 'new' : 'existing')"
+                  >
                     ▢
                   </button>
                 </div>
-                <span v-if="hasCropSet" class="image-upload__crop-badge">Zuschnitt gesetzt</span>
-              </template>
+              </div>
               <button
                 type="button"
                 class="image-upload__remove"
@@ -106,25 +107,62 @@
               class="image-upload__input"
               @change="onImageSelected"
             />
+            <div v-if="mobileCameraStream" class="image-upload__camera">
+              <video ref="mobileVideoRef" class="image-upload__camera-video" autoplay playsinline muted />
+              <div class="image-upload__camera-actions">
+                <button type="button" class="btn btn--primary" @click="captureMobilePhoto">Aufnehmen</button>
+                <button type="button" class="btn btn--secondary" @click="stopMobileCamera">Schließen</button>
+              </div>
+            </div>
             <div class="image-upload__actions">
               <button
                 type="button"
                 class="btn btn--secondary"
-                @click="imageInputRef?.click()"
+                @click="openImageChangePicker"
               >
                 <svg viewBox="0 0 24 24" fill="none">
                   <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M17 8L12 3L7 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M12 3V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                {{ (currentImageUrl && currentImageUrl !== '__DELETE__') || imagePreview ? 'Bild ändern' : 'Bild hochladen' }}
+                Bild ändern
               </button>
             </div>
           </div>
-          <label v-if="imageFile && imagePreview" class="image-upload__defer">
-            <input v-model="deferImageProcessing" type="checkbox" />
-            <span>Original jetzt hochladen; Zuschnitt und Optimierung später (empfohlen für Handyfotos)</span>
-          </label>
+
+          <Teleport to="body">
+            <div
+              v-if="imageChangePickerOpen"
+              class="image-change-picker-overlay"
+              role="presentation"
+              @click.self="closeImageChangePicker"
+            >
+              <div
+                class="image-change-picker"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="image-change-picker-title"
+              >
+                <h2 id="image-change-picker-title" class="image-change-picker__title">Bild ändern</h2>
+                <div class="image-change-picker__options">
+                  <button type="button" class="image-change-picker__option" @click="pickImageUpload">
+                    Bild hochladen
+                  </button>
+                  <button
+                    v-if="showCameraOption"
+                    type="button"
+                    class="image-change-picker__option"
+                    @click="pickImageCamera"
+                  >
+                    Foto aufnehmen
+                  </button>
+                </div>
+                <button type="button" class="btn btn--secondary image-change-picker__cancel" @click="closeImageChangePicker">
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          </Teleport>
           <p v-if="cropError" class="image-upload__crop-error">{{ cropError }}</p>
         </div>
 
@@ -134,6 +172,10 @@
           title="Rezeptbild zuschneiden"
           alt="Rezeptbild Zuschnitt"
           :initial-natural-points="cropModalInitialPoints"
+          :confirm-label="cropModalConfirmLabel"
+          :hint="cropModalHint"
+          :show-full-frame-action="cropModalShowFullFrame"
+          :full-frame-label="cropModalFullFrameLabel"
           @confirm="onCropModalConfirm"
           @cancel="closeCropModal"
         />
@@ -1021,7 +1063,8 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useBodyModalLock } from '../composables/useBodyModalLock'
 import OriginalLanguageIcon from './icons/OriginalLanguageIcon.vue'
 import type {
   RecipeFormPayload,
@@ -1223,9 +1266,15 @@ function selectBookFromPicker(id: number) {
 
 // Image upload
 const imageInputRef = ref<HTMLInputElement | null>(null)
+const mobileVideoRef = ref<HTMLVideoElement | null>(null)
 const imageFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
 const currentImageUrl = ref<string | null>(null)
+const imageChangePickerOpen = ref(false)
+const mobileCameraStream = ref<MediaStream | null>(null)
+const cameraSupported = ref(false)
+
+useBodyModalLock(imageChangePickerOpen)
 
 // Crop modal (in-memory until save / apply)
 type CropPoint = CropNaturalPoint
@@ -1236,20 +1285,88 @@ const newImageCropNaturalPoints = ref<CropPoint[] | null>(null)
 const existingCropNaturalPoints = ref<CropPoint[] | null>(null)
 const cropping = ref(false)
 const cropError = ref('')
-const deferImageProcessing = ref(false)
-
 const imageProcessingPending = computed(
   () => !!(props.initial as { image_processing_pending?: boolean } | null)?.image_processing_pending
 )
+const localImagePending = ref<boolean | null>(null)
+const showImagePending = computed(() =>
+  localImagePending.value !== null ? localImagePending.value : imageProcessingPending.value
+)
+const showCameraOption = computed(() => cameraSupported.value)
 
 const cropModalInitialPoints = computed(() => {
   return cropModalMode.value === 'new' ? newImageCropNaturalPoints.value : existingCropNaturalPoints.value
 })
 
-const hasCropSet = computed(() => {
-  const pts = imageFile.value ? newImageCropNaturalPoints.value : existingCropNaturalPoints.value
-  return pts?.length === 4
+const hasUnsavedNewImage = computed(() => imageFile.value != null && imagePreview.value != null)
+
+const previewImageSrc = computed(() => {
+  if (imagePreview.value) return imagePreview.value
+  if (currentImageUrl.value && currentImageUrl.value !== '__DELETE__') return currentImageUrl.value
+  return undefined
 })
+
+const showPendingOverlay = computed(() => {
+  if (hasUnsavedNewImage.value) return true
+  return (
+    showImagePending.value &&
+    !!currentImageUrl.value &&
+    currentImageUrl.value !== '__DELETE__' &&
+    !imagePreview.value
+  )
+})
+
+const cropModalShowFullFrame = computed(
+  () => cropModalMode.value === 'existing' && showImagePending.value
+)
+
+const cropModalFullFrameLabel = computed(() => 'Ohne Zuschnitt übernehmen')
+
+const cropModalConfirmLabel = computed(() => {
+  if (cropModalMode.value === 'new') return 'Übernehmen'
+  if (cropModalMode.value === 'existing' && props.editingId != null) return 'Ausschnitt speichern'
+  return 'Fertig'
+})
+
+const cropModalHint = computed(() => {
+  if (cropModalMode.value === 'new') {
+    return 'Vier Ecken optional. Mit „Übernehmen“ ohne Ecken wird das ganze Bild übernommen.'
+  }
+  if (cropModalMode.value === 'existing' && props.editingId != null) {
+    if (showImagePending.value) {
+      return 'Vier Ecken setzen oder „Ohne Zuschnitt übernehmen“ für Vollbild-Optimierung.'
+    }
+    return 'Vier Ecken setzen. Mit „Ausschnitt speichern“ wird sofort gespeichert.'
+  }
+  return 'Tippe die vier Ecken der Seite der Reihe nach an. Ziehe die Punkte, um den Ausschnitt anzupassen. Gespeichert wird erst mit „Fertig“.'
+})
+
+function openImageChangePicker() {
+  imageChangePickerOpen.value = true
+}
+
+function closeImageChangePicker() {
+  imageChangePickerOpen.value = false
+}
+
+function pickImageUpload() {
+  closeImageChangePicker()
+  imageInputRef.value?.click()
+}
+
+function pickImageCamera() {
+  closeImageChangePicker()
+  void startMobileCamera()
+}
+
+async function setImageFromFile(file: File) {
+  if (imagePreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagePreview.value)
+  imageFile.value = file
+  imagePreview.value = URL.createObjectURL(file)
+  newImageCropNaturalPoints.value = null
+  localImagePending.value = null
+  if (currentImageUrl.value) currentImageUrl.value = '__DELETE__'
+}
 
 function revokeCropModalSrc() {
   if (!cropModalSrc.value.startsWith('blob:')) return
@@ -1290,7 +1407,7 @@ function onCropModalConfirm(points: CropPoint[] | null) {
 async function applyCropExisting(points: CropPoint[] | null) {
   const recipeId = props.editingId
   if (!recipeId || !currentImageUrl.value || currentImageUrl.value === '__DELETE__') return
-  const pending = imageProcessingPending.value
+  const pending = showImagePending.value && !imageFile.value
   const n = points?.length ?? 0
   if (!pending && n !== 4) return
   if (pending && n !== 0 && n !== 4) {
@@ -1311,6 +1428,7 @@ async function applyCropExisting(points: CropPoint[] | null) {
     if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText)
     const payload = data as { url?: string }
     if (payload.url) currentImageUrl.value = payload.url
+    localImagePending.value = false
     existingCropNaturalPoints.value = null
   } catch (e) {
     cropError.value = e instanceof Error ? e.message : 'Zuschneiden fehlgeschlagen'
@@ -2082,7 +2200,7 @@ function assignFromInitial() {
     })
     imagePreview.value = null
     imageFile.value = null
-    deferImageProcessing.value = false
+    localImagePending.value = null
     form.ingredients = (props.initial.ingredients ?? []).map((ing) =>
       createIngredientRow({
         amount: ing.amount != null ? String(ing.amount) : '',
@@ -2146,11 +2264,65 @@ function onImageSelected(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file || !file.type.startsWith('image/')) return
-
-  imageFile.value = file
-  imagePreview.value = URL.createObjectURL(file)
-  newImageCropNaturalPoints.value = null
+  void setImageFromFile(file)
   input.value = ''
+}
+
+async function startMobileCamera() {
+  cropError.value = ''
+  if (mobileCameraStream.value) return
+  if (!navigator.mediaDevices?.getUserMedia) {
+    cropError.value = 'Kamera nicht verfügbar'
+    return
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: 'environment' },
+    })
+    mobileCameraStream.value = stream
+    await nextTick()
+    if (mobileVideoRef.value) mobileVideoRef.value.srcObject = stream
+  } catch {
+    cropError.value = 'Kamera nicht verfügbar'
+  }
+}
+
+function stopMobileCamera() {
+  mobileCameraStream.value?.getTracks().forEach((t) => t.stop())
+  mobileCameraStream.value = null
+  if (mobileVideoRef.value) mobileVideoRef.value.srcObject = null
+}
+
+function captureMobilePhoto() {
+  const video = mobileVideoRef.value
+  if (!video || !mobileCameraStream.value) return
+  const maxDim = 1920
+  let w = video.videoWidth
+  let h = video.videoHeight
+  if (w <= 0 || h <= 0) return
+  const maxEdge = Math.max(w, h)
+  if (maxEdge > maxDim) {
+    const scale = maxDim / maxEdge
+    w = Math.round(w * scale)
+    h = Math.round(h * scale)
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.drawImage(video, 0, 0, w, h)
+  canvas.toBlob(
+    (blob) => {
+      if (!blob) return
+      const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      void setImageFromFile(file)
+      stopMobileCamera()
+    },
+    'image/jpeg',
+    0.88
+  )
 }
 
 async function rotateNewImage() {
@@ -2214,6 +2386,7 @@ watch(
 )
 
 onMounted(async () => {
+  cameraSupported.value = Boolean(navigator.mediaDevices?.getUserMedia)
   updateDesktopIngredientDrag()
   desktopIngredientDragMq = window.matchMedia('(min-width: 1100px)')
   desktopIngredientDragMq.addEventListener('change', updateDesktopIngredientDrag)
@@ -2232,7 +2405,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  closeImageChangePicker()
   desktopIngredientDragMq?.removeEventListener('change', updateDesktopIngredientDrag)
+  stopMobileCamera()
   closeCropModal()
   if (imagePreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagePreview.value)
 })
@@ -2335,14 +2510,21 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
     tags: [...form.tags],
   }
 
-  // Pass image file or delete marker, and optional 4-point crop (for new image upload)
+  // New images upload on save only (RecipeEditPage → POST /recipes/:id/image). Leaving without save keeps the server image unchanged.
   const imageToUpload = imageFile.value || (currentImageUrl.value === '__DELETE__' ? ('DELETE' as any) : null)
-  const cropLater = !!(imageToUpload instanceof File && deferImageProcessing.value)
-  const cropPointsForUpload =
-    imageToUpload instanceof File && !cropLater ? getNewImageCropPoints() : undefined
+  let cropPointsForUpload: CropPoint[] | undefined
+  let processImageLater = false
+  if (imageToUpload instanceof File) {
+    const pts = getNewImageCropPoints()
+    if (pts?.length === 4) {
+      cropPointsForUpload = pts
+    } else {
+      processImageLater = true
+    }
+  }
   emit('submit', payload, imageToUpload, cropPointsForUpload, {
     ...options,
-    processImageLater: cropLater || options?.processImageLater,
+    processImageLater: processImageLater || options?.processImageLater,
   })
 }
 </script>
@@ -3185,35 +3367,74 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   flex-shrink: 0;
 }
 
-.image-upload__preview-pending {
+.image-upload__preview-media {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.image-upload__preview-pending-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.image-upload__pending-overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.25rem;
+  padding: var(--spacing-sm);
+  background: rgba(0, 0, 0, 0.48);
+  color: #fff;
+  text-align: center;
+  transition: background var(--transition-fast);
+}
+
+.image-upload__preview-pending-wrap:hover .image-upload__pending-overlay {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.image-upload__pending-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.image-upload__pending-hint {
+  font-size: 0.68rem;
+  opacity: 0.92;
+  line-height: 1.3;
+}
+
+.image-upload__camera {
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing-sm);
   width: 100%;
-  min-height: 160px;
-  padding: var(--spacing-lg);
-  margin: 0;
-  border: 1px dashed var(--color-border);
+  max-width: 320px;
+}
+
+.image-upload__camera-video {
+  width: 100%;
   border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color var(--transition-fast), color var(--transition-fast);
+  background: #000;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
 }
 
-.image-upload__preview-pending:hover {
-  border-color: var(--color-primary);
-  color: var(--color-text);
-}
-
-.image-upload__pending-icon svg {
-  width: 40px;
-  height: 40px;
-  opacity: 0.9;
+.image-upload__camera-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .image-upload__preview img,
@@ -3241,18 +3462,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   color: #fff;
   font-size: 1rem;
   cursor: pointer;
-}
-
-.image-upload__crop-badge {
-  position: absolute;
-  left: var(--spacing-sm);
-  bottom: var(--spacing-sm);
-  background: rgba(0, 0, 0, 0.62);
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.2rem 0.45rem;
-  border-radius: 999px;
 }
 
 .image-upload__crop-error {
@@ -3314,25 +3523,83 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   font-size: 0.75rem;
 }
 
-.image-upload__defer {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-md);
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.image-upload__defer input {
-  margin-top: 0.2em;
-}
-
 .image-upload__actions {
   display: flex;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
   align-items: center;
+}
+
+.image-change-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background: var(--color-bg-overlay);
+}
+
+.image-change-picker {
+  width: min(100%, 22rem);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.image-change-picker__title {
+  margin: 0 0 var(--spacing-md);
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.image-change-picker__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.image-change-picker__option {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.image-change-picker__option:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-subtle);
+}
+
+.image-change-picker__cancel {
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .image-change-picker-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .image-change-picker {
+    width: 100%;
+    max-width: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: none;
+  }
 }
 
 /* Radio Group */
