@@ -244,24 +244,54 @@
           </div>
         </div>
 
-        <div class="form-section document-section">
-          <h4 class="form-section__title">Tags</h4>
-          <TagInput
-            v-model="form.tags"
-            :options="allAllowedTags"
-            :format-label="formatTagLabel"
-            placeholder="Tags suchen..."
-          />
-          <div v-if="editingId != null" class="form-field">
+        <div class="form-section document-section editor-tags-section">
+          <div class="form-section__head">
+            <h4 class="form-section__title">Tags</h4>
             <button
+              v-if="editingId != null"
               type="button"
-              class="btn btn--secondary"
+              class="editor-estimate-refresh"
               :disabled="tagGenerateLoading"
+              title="Tags vorschlagen"
+              aria-label="Tags vorschlagen"
+              :aria-busy="tagGenerateLoading"
               @click="emit('generateTags')"
             >
-              {{ tagGenerateLoading ? 'Tags werden vorgeschlagen…' : 'Tags vorschlagen' }}
+              ↻
             </button>
           </div>
+          <template v-if="!tagsEditOpen">
+            <div class="tags-section__compact">
+              <div v-if="form.tags.length" class="chip-row tags-section__chips">
+                <span v-for="t in form.tags" :key="t" class="chip chip--tag">
+                  {{ formatTagLabel(t) }}
+                </span>
+              </div>
+              <p v-else class="tags-section__empty meta-text">Keine Tags</p>
+              <button
+                type="button"
+                class="btn btn--ghost btn--tiny tags-section__edit-toggle"
+                @click="tagsEditOpen = true"
+              >
+                Tags bearbeiten
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <TagInput
+              v-model="form.tags"
+              :options="allAllowedTags"
+              :format-label="formatTagLabel"
+              placeholder="Tags suchen..."
+            />
+            <button
+              type="button"
+              class="btn btn--ghost btn--tiny tags-section__edit-toggle"
+              @click="tagsEditOpen = false"
+            >
+              Fertig
+            </button>
+          </template>
         </div>
 
         <div
@@ -1102,6 +1132,7 @@ const showBookPicker = ref(false)
 const showUrlEdit = ref(false)
 const showOriginalLines = ref(false)
 const showFullOcrText = ref(false)
+const tagsEditOpen = ref(false)
 
 const cookbookSources = computed(() => bookSources.value.filter((s) => s.type === 'book'))
 
@@ -2151,6 +2182,7 @@ watch(
     assignFromInitial()
     if (prevEditingId === undefined || editingId !== prevEditingId) {
       currentStep.value = 0
+      tagsEditOpen.value = false
     }
   },
   { immediate: true }
@@ -3915,6 +3947,30 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
 .editor-estimate-refresh:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.editor-tags-section .form-section__head {
+  margin-bottom: var(--spacing-sm);
+}
+
+.tags-section__compact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.tags-section__chips {
+  width: 100%;
+}
+
+.tags-section__empty {
+  margin: 0;
+}
+
+.tags-section__edit-toggle {
+  padding-left: 0;
+  color: var(--color-text-muted);
 }
 
 .editor-estimate-hint {
