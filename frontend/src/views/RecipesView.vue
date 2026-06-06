@@ -299,12 +299,21 @@
         <!-- Mobile/tablet: simple text metadata (no icons, no dividers) -->
         <div class="recipe-detail-meta-simple">
           <div class="recipe-detail-meta-simple__content">
-            <p class="recipe-detail-meta-simple__line">
+            <p
+              v-if="detailMetaSource || !detailMetaServingsOnTimeLine"
+              class="recipe-detail-meta-simple__line"
+            >
               <span v-if="detailMetaSource">{{ detailMetaSource }}</span>
-              <span v-if="detailMetaSource" aria-hidden="true"> · </span>
-              <span>{{ detailMetaServings }} Portionen</span>
+              <template v-if="!detailMetaServingsOnTimeLine">
+                <span v-if="detailMetaSource" aria-hidden="true"> · </span>
+                <span>{{ detailMetaServings }} Portionen</span>
+              </template>
             </p>
             <p class="recipe-detail-meta-simple__line">
+              <template v-if="detailMetaServingsOnTimeLine">
+                <span>{{ detailMetaServings }} Portionen</span>
+                <span aria-hidden="true"> · </span>
+              </template>
               <span>{{ detailMetaPrep.value }} Vorb.</span>
               <span aria-hidden="true"> · </span>
               <span>{{ detailMetaCook.value }} Garzeit</span>
@@ -1080,6 +1089,9 @@ const detailMetaSourceKind = computed(() => {
   if (!recipe) return 'unknown' as const
   return getRecipeDetailSourceKind(recipe)
 })
+
+/** Mobile/tablet simple meta: book sources show servings on the prep/cook line. */
+const detailMetaServingsOnTimeLine = computed(() => hasRecipeBookSource(viewingRecipe.value))
 
 const detailMetaPrep = computed(
   (): DetailTimeMeta =>
