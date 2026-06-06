@@ -624,7 +624,21 @@
 
           <div id="recipe-section-ingredients" class="recipe-detail-ingredients-panel">
             <div class="recipe-detail-ingredients-panel__head">
-              <h2 class="recipe-detail-ingredients-panel__title">Zutaten</h2>
+              <div class="recipe-detail-ingredients-panel__title-row">
+                <h2 class="recipe-detail-ingredients-panel__title">Zutaten</h2>
+                <button
+                  v-if="detailHasAnyOriginalText"
+                  type="button"
+                  class="ingredients-icon-btn"
+                  :class="{ 'ingredients-icon-btn--active': showDetailOriginalLines }"
+                  :aria-pressed="showDetailOriginalLines"
+                  :title="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                  :aria-label="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                  @click="showDetailOriginalLines = !showDetailOriginalLines"
+                >
+                  <OriginalLanguageIcon />
+                </button>
+              </div>
               <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
                 <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
                 <span class="servings-value">{{ displayServings }}</span>
@@ -641,7 +655,13 @@
                 <h3 v-if="section.heading" class="recipe-ingredient-group__heading">{{ section.heading }}</h3>
                 <ul class="recipe-ingredients-list recipe-ingredients-list--panel">
                   <li v-for="(line, idx) in section.items" :key="`${sidx}-${idx}`" class="recipe-ingredient">
-                    <span class="recipe-ingredient-text">{{ line.text }}</span>
+                    <div class="recipe-ingredient-lines">
+                      <span class="recipe-ingredient-text">{{ line.text }}</span>
+                      <span
+                        v-if="showDetailOriginalLines && line.originalText"
+                        class="recipe-ingredient-original"
+                      >{{ line.originalText }}</span>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -694,6 +714,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import AiSparkleIcon from '../components/icons/AiSparkleIcon.vue'
+import OriginalLanguageIcon from '../components/icons/OriginalLanguageIcon.vue'
 import { useRoute, useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
 import type { IFuseOptions } from 'fuse.js'
@@ -882,6 +903,7 @@ const showAddMenu = ref(false)
 const addMenuAnchorRef = ref<HTMLElement | null>(null)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
+const showDetailOriginalLines = ref(false)
 const coverOverlay = ref<{ visible: boolean; x: number; y: number; src?: string | null; title?: string | null }>({
   visible: false,
   x: 0,
@@ -1069,25 +1091,40 @@ const detailMetaCook = computed(
     formatDetailCookMeta(viewingRecipe.value) ?? { value: DETAIL_META_EMPTY, label: 'GARZEIT' }
 )
 
+const detailHasAnyOriginalText = computed(() => {
+  const recipe = viewingRecipe.value
+  if (!recipe) return false
+  if (recipe.ingredients?.some((i) => (i.original_text || '').trim())) return true
+  for (const section of recipe.parsed_recipe?.ingredientsSections ?? []) {
+    for (const item of section.items ?? []) {
+      if ((item.originalText || '').trim()) return true
+    }
+  }
+  return false
+})
+
 const ingredientSections = computed(() => {
   const recipe = viewingRecipe.value
   if (!recipe) return []
 
   const originalServings = recipe.servings || 1
   const scale = displayServings.value / originalServings
-  const servingsChanged = displayServings.value !== originalServings
-  const isImageBookRecipe = recipe.import_method === 'image' && recipe.source_id != null && recipe.source_type === 'book'
-  const shouldShowOriginalText = isImageBookRecipe && !servingsChanged
 
-  type IngredientLine = { text: string; category: string | null }
+  type IngredientLine = { text: string; originalText: string | null; category: string | null }
   const sections: { heading: string | null; key: string; items: IngredientLine[] }[] = []
-  const pushToSection = (heading: string | null, key: string, text: string, category: string | null = null) => {
+  const pushToSection = (
+    heading: string | null,
+    key: string,
+    text: string,
+    originalText: string | null = null,
+    category: string | null = null
+  ) => {
     let section = sections.length ? sections[sections.length - 1] : null
     if (!section || section.key !== key) {
       sections.push({ heading, key, items: [] })
       section = sections[sections.length - 1]
     }
-    section.items.push({ text, category })
+    section.items.push({ text, originalText, category })
   }
 
   const formatAmountRange = (amount: number | null | undefined, amountMax: number | null | undefined) => {
@@ -1105,19 +1142,15 @@ const ingredientSections = computed(() => {
 
   if (recipe.ingredients?.length) {
     for (const ing of recipe.ingredients) {
-      let text = ''
       const cat = ing.category?.trim() ? ing.category.trim() : null
-      if (shouldShowOriginalText && ing.original_text) {
-        text = ing.original_text ?? ''
-      } else {
-        const amountText = formatAmountRange(ing.amount ?? null, ing.amount_max ?? null)
-        const ingredientName = (ing.name || ing.ingredient || '').trim()
-        const additional = ing.additional_info ? ` (${ing.additional_info})` : ''
-        text = ([amountText, ing.unit ?? null, ingredientName].filter(Boolean).join(' ').trim() + additional).trim()
-      }
+      const originalText = (ing.original_text || '').trim() || null
+      const amountText = formatAmountRange(ing.amount ?? null, ing.amount_max ?? null)
+      const ingredientName = (ing.name || ing.ingredient || '').trim()
+      const additional = ing.additional_info ? ` (${ing.additional_info})` : ''
+      const text = ([amountText, ing.unit ?? null, ingredientName].filter(Boolean).join(' ').trim() + additional).trim()
       if (text) {
         const key = `section-${ing.section_id ?? 'manual'}-${ing.section_heading ?? 'no-heading'}`
-        pushToSection(ing.section_heading ?? null, key, text, cat)
+        pushToSection(ing.section_heading ?? null, key, text, originalText, cat)
       }
     }
   } else if (recipe.parsed_recipe?.ingredientsSections?.length) {
@@ -1125,23 +1158,18 @@ const ingredientSections = computed(() => {
       const sectionKey = `parsed-${idx}-${section.heading ?? 'no-heading'}`
       for (const item of section.items ?? []) {
         const amountText = formatAmountRange(item.amount ?? null, (item as any).amountMax ?? null)
-      const ingredientName = (item.ingredient ?? '').trim()
-      const additional = (item as any).additionalInfo ? ` (${(item as any).additionalInfo})` : ''
-      const catRaw = (item as { category?: string | null }).category
-      const cat = catRaw?.trim() ? catRaw.trim() : null
-
-      let text = ''
-      if (shouldShowOriginalText && item.originalText?.trim()) {
-        text = item.originalText.trim()
-      } else {
-        text = [amountText, item.unit ?? null, ingredientName]
+        const ingredientName = (item.ingredient ?? '').trim()
+        const additional = (item as any).additionalInfo ? ` (${(item as any).additionalInfo})` : ''
+        const catRaw = (item as { category?: string | null }).category
+        const cat = catRaw?.trim() ? catRaw.trim() : null
+        const originalText = (item.originalText || '').trim() || null
+        let text = [amountText, item.unit ?? null, ingredientName]
           .filter(Boolean)
           .join(' ')
           .trim()
         text = (text + additional).trim()
-      }
 
-      if (text) pushToSection(section.heading ?? null, sectionKey, text, cat)
+        if (text) pushToSection(section.heading ?? null, sectionKey, text, originalText, cat)
       }
     })
   }
@@ -1242,6 +1270,7 @@ async function loadRecipeDetail(id: number) {
   try {
     viewingRecipe.value = await getRecipe(id)
     displayServings.value = viewingRecipe.value.servings || 1
+    showDetailOriginalLines.value = false
     healthScoreResult.value = viewingRecipe.value.health_score ?? null
     healthScoreError.value = ''
     document.title = `${viewingRecipe.value.title} – Rezeptbibliothek`
@@ -1444,6 +1473,7 @@ function runEstimateTimesForDetail() {
 function clearDetailState() {
   viewingRecipe.value = null
   displayServings.value = 1
+  showDetailOriginalLines.value = false
   healthScoreResult.value = null
   healthScoreError.value = ''
   timeEstimateError.value = ''
@@ -2224,11 +2254,65 @@ onBeforeUnmount(() => {
   margin-bottom: var(--spacing-md);
 }
 
+.recipe-detail-ingredients-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .recipe-detail-ingredients-panel__title {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 650;
   color: var(--color-text);
+}
+
+.recipe-detail-ingredients-panel .ingredients-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  margin-left: 5px;
+}
+
+.recipe-detail-ingredients-panel .ingredients-icon-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.recipe-detail-ingredients-panel .ingredients-icon-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+}
+
+.recipe-detail-ingredients-panel .ingredients-icon-btn--active {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.recipe-ingredient-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.recipe-ingredient-original {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .recipe-ingredients-list--panel .recipe-ingredient {
