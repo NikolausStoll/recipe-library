@@ -134,8 +134,24 @@ export function clientToCropContentPoint(
 ): { x: number; y: number } | null {
   const imgRect = img.getBoundingClientRect()
   const metrics = getObjectFitContentSizeInElement(img)
+  if (metrics.width <= 0 || metrics.height <= 0) return null
+
   const x = clientX - imgRect.left - metrics.offsetX
   const y = clientY - imgRect.top - metrics.offsetY
+
+  const outsideImgElement =
+    clientX < imgRect.left ||
+    clientY < imgRect.top ||
+    clientX > imgRect.right ||
+    clientY > imgRect.bottom
+
+  if (outsideImgElement) {
+    return {
+      x: Math.max(0, Math.min(metrics.width, x)),
+      y: Math.max(0, Math.min(metrics.height, y)),
+    }
+  }
+
   const requireInside = readObjectFit(img) === 'contain'
   if (requireInside && (x < 0 || y < 0 || x > metrics.width || y > metrics.height)) return null
   return {

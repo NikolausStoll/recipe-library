@@ -102,12 +102,17 @@ onBeforeUnmount(() => dispose())
 
 <style scoped>
 .crop-perspective-editor {
+  --crop-edge-gutter: 16px;
   position: relative;
   touch-action: none;
   cursor: default;
   display: block;
   width: 100%;
   max-width: 100%;
+  padding: var(--crop-edge-gutter);
+  box-sizing: border-box;
+  background: var(--color-surface-subtle, #e8e8e8);
+  border-radius: var(--radius-sm, 6px);
 }
 
 .crop-perspective-editor--active {

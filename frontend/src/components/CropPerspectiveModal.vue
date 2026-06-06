@@ -241,9 +241,18 @@ function onDone() {
   border-radius: var(--radius-sm, 6px);
 }
 
-.crop-modal__reset:hover {
-  color: var(--color-text);
-  background: var(--color-bg-muted);
+@media (hover: hover) and (pointer: fine) {
+  .crop-modal__reset:hover {
+    color: var(--color-text);
+    background: var(--color-bg-muted);
+  }
+}
+
+@media (max-width: 1099px), (hover: none), (pointer: coarse) {
+  .crop-modal__reset {
+    color: var(--color-text);
+    background: var(--color-bg-muted);
+  }
 }
 
 .crop-modal__footer-actions {
