@@ -26,7 +26,7 @@
         <div class="sources-section__head">
           <h2 id="sources-books-heading" class="sources-section__title">Kochbücher</h2>
           <p class="sources-section__count meta-text">
-            {{ bookSources.length }} Kochbuch{{ bookSources.length !== 1 ? 'er' : '' }}
+            {{ bookSources.length }} {{ bookSources.length === 1 ? 'Kochbuch' : 'Kochbücher' }}
           </p>
         </div>
 
