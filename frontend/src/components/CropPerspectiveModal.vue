@@ -32,15 +32,17 @@
         <p v-if="errorText" class="crop-modal__error">{{ errorText }}</p>
 
         <footer class="crop-modal__footer">
-          <button type="button" class="crop-modal__reset" @click="onReset">Punkte zurücksetzen</button>
-          <button
-            v-if="showFullFrameAction"
-            type="button"
-            class="btn btn--secondary crop-modal__secondary-action"
-            @click="onFullFrame"
-          >
-            {{ fullFrameLabel }}
-          </button>
+          <div class="crop-modal__footer-start">
+            <button type="button" class="crop-modal__reset" @click="onReset">Punkte zurücksetzen</button>
+            <button
+              v-if="showFullFrameAction"
+              type="button"
+              class="crop-modal__reset"
+              @click="onFullFrame"
+            >
+              {{ fullFrameLabel }}
+            </button>
+          </div>
           <div class="crop-modal__footer-actions">
             <button type="button" class="btn btn--secondary" @click="onCancel">Abbrechen</button>
             <button type="button" class="btn btn--primary" @click="onDone">{{ confirmLabel }}</button>
@@ -220,8 +222,15 @@ function onDone() {
   border-top: 1px solid var(--color-border);
 }
 
+.crop-modal__footer-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 0.75rem;
+}
+
 .crop-modal__reset {
-  align-self: center;
   border: 0;
   background: transparent;
   color: var(--color-text-muted);
@@ -235,10 +244,6 @@ function onDone() {
 .crop-modal__reset:hover {
   color: var(--color-text);
   background: var(--color-bg-muted);
-}
-
-.crop-modal__secondary-action {
-  width: 100%;
 }
 
 .crop-modal__footer-actions {
@@ -261,12 +266,9 @@ function onDone() {
     gap: 0.5rem;
   }
 
-  .crop-modal__reset {
+  .crop-modal__footer-start {
     margin-right: auto;
-  }
-
-  .crop-modal__secondary-action {
-    width: auto;
+    justify-content: flex-start;
   }
 
   .crop-modal__footer-actions {
