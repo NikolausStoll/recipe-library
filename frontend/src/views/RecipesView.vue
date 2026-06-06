@@ -63,18 +63,15 @@
         @click="openRecipeDetail(recipe.id)"
       >
         <div class="recipe-card__thumb">
-          <img
-            v-if="getRecipeCardImageUrl(recipe)"
-            :src="getRecipeCardImageUrl(recipe)!"
-            :alt="recipe.title"
-            loading="lazy"
-          />
-          <div
-            v-else-if="recipe.image_processing_pending"
-            class="recipe-card__placeholder recipe-card__placeholder--pending"
-            title="Bild noch nicht verarbeitet"
-          >
-            <span class="recipe-card__pending-label">Ausstehend</span>
+          <div v-if="getRecipeCardImageUrl(recipe)" class="pending-media">
+            <img
+              :src="getRecipeCardImageUrl(recipe)!"
+              :alt="recipe.title"
+              loading="lazy"
+            />
+            <div v-if="recipe.image_processing_pending" class="pending-media__overlay">
+              <span class="pending-media__label">Noch nicht verarbeitet</span>
+            </div>
           </div>
           <div v-else class="recipe-card__placeholder" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -252,25 +249,23 @@
 
       <div class="recipe-detail-layout">
         <div
-          v-if="
-            (viewingRecipe.image_path && viewingRecipe.image_processing_pending) ||
-            getRecipeHeroImageUrl(viewingRecipe)
-          "
+          v-if="getRecipeHeroImageUrl(viewingRecipe)"
           class="recipe-detail-hero recipe-detail-hero--mobile"
         >
-          <button
-            v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
-            type="button"
-            class="recipe-detail-pending-hero"
-            @click.stop="navigateToEdit(viewingRecipe.id)"
-          >
-            <span class="recipe-detail-pending-hero__text">Bild noch nicht verarbeitet — zum Zuschneiden und Optimieren bitte bearbeiten</span>
-          </button>
-          <img
-            v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
-            :src="getRecipeHeroImageUrl(viewingRecipe)!"
-            :alt="viewingRecipe.title"
-          />
+          <div class="pending-media pending-media--hero">
+            <img
+              :src="getRecipeHeroImageUrl(viewingRecipe)!"
+              :alt="viewingRecipe.title"
+            />
+            <button
+              v-if="viewingRecipe.image_processing_pending"
+              type="button"
+              class="pending-media__overlay pending-media__overlay--interactive"
+              @click.stop="navigateToEdit(viewingRecipe.id)"
+            >
+              <span class="pending-media__label">Noch nicht verarbeitet</span>
+            </button>
+          </div>
           <button
             type="button"
             class="recipe-detail-favorite-star"
@@ -616,25 +611,23 @@
 
         <aside class="recipe-detail-side-panel" aria-label="Recipe image and ingredients">
           <div
-            v-if="
-              (viewingRecipe.image_path && viewingRecipe.image_processing_pending) ||
-              getRecipeHeroImageUrl(viewingRecipe)
-            "
+            v-if="getRecipeHeroImageUrl(viewingRecipe)"
             class="recipe-detail-hero recipe-detail-hero--desktop"
           >
-            <button
-              v-if="viewingRecipe.image_path && viewingRecipe.image_processing_pending"
-              type="button"
-              class="recipe-detail-pending-hero"
-              @click.stop="navigateToEdit(viewingRecipe.id)"
-            >
-            <span class="recipe-detail-pending-hero__text">Bild noch nicht verarbeitet — zum Zuschneiden und Optimieren bitte bearbeiten</span>
-            </button>
-            <img
-              v-else-if="getRecipeHeroImageUrl(viewingRecipe)"
-              :src="getRecipeHeroImageUrl(viewingRecipe)!"
-              :alt="viewingRecipe.title"
-            />
+            <div class="pending-media pending-media--hero">
+              <img
+                :src="getRecipeHeroImageUrl(viewingRecipe)!"
+                :alt="viewingRecipe.title"
+              />
+              <button
+                v-if="viewingRecipe.image_processing_pending"
+                type="button"
+                class="pending-media__overlay pending-media__overlay--interactive"
+                @click.stop="navigateToEdit(viewingRecipe.id)"
+              >
+                <span class="pending-media__label">Noch nicht verarbeitet</span>
+              </button>
+            </div>
             <button
               type="button"
               class="recipe-detail-favorite-star"

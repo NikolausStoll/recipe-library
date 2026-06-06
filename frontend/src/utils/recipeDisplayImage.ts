@@ -23,20 +23,32 @@ export function getRecipeCardImageUrl(recipe: {
   image_thumb_path?: string | null
   image_urls_json?: string | null
 }): string | null {
-  if (recipe.image_processing_pending) return null
-  if (recipe.image_path) return recipe.image_thumb_path ?? recipe.image_path
+  if (recipe.image_path) {
+    if (recipe.image_processing_pending) return recipe.image_path
+    return recipe.image_thumb_path ?? recipe.image_path
+  }
   return firstImageUrlFromJson(recipe.image_urls_json)
 }
 
-/** Full-size hero: upload path or first remote URL (no thumbnail). */
+/** Full-size hero: upload path or first remote URL (no thumbnail). Includes pending raw uploads. */
 export function getRecipeHeroImageUrl(recipe: {
   image_processing_pending?: boolean
   image_path?: string | null
   image_urls_json?: string | null
 }): string | null {
-  if (recipe.image_processing_pending) return null
   if (recipe.image_path) return recipe.image_path
   return firstImageUrlFromJson(recipe.image_urls_json)
+}
+
+/** Book cover for source cards; pending covers use the raw file path (no thumb yet). */
+export function getSourceCoverImageUrl(source: {
+  image_processing_pending?: boolean
+  image_path?: string | null
+  image_thumb_path?: string | null
+}): string | null {
+  if (!source.image_path) return null
+  if (source.image_processing_pending) return source.image_path
+  return source.image_thumb_path ?? source.image_path
 }
 
 /** Editor preview: same as hero (full path or best remote URL). */

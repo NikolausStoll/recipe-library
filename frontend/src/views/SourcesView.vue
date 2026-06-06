@@ -39,13 +39,16 @@
             @click="openEditBook(s)"
           >
             <div class="source-card__cover">
-              <img
-                v-if="s.image_path && !s.image_processing_pending"
-                :src="s.image_thumb_path ?? s.image_path"
-                :alt="s.name"
-                loading="lazy"
-              />
-              <span v-else-if="s.image_processing_pending" class="source-card__placeholder">Ausstehend</span>
+              <div v-if="getSourceCoverImageUrl(s)" class="pending-media">
+                <img
+                  :src="getSourceCoverImageUrl(s)!"
+                  :alt="s.name"
+                  loading="lazy"
+                />
+                <div v-if="s.image_processing_pending" class="pending-media__overlay">
+                  <span class="pending-media__label">Noch nicht verarbeitet</span>
+                </div>
+              </div>
               <span v-else class="source-card__placeholder">Kein Cover</span>
             </div>
             <div class="source-card__body">
@@ -197,6 +200,7 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import SourceBookOverlay from '../components/SourceBookOverlay.vue'
 import { deleteSource, listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
+import { getSourceCoverImageUrl } from '../utils/recipeDisplayImage'
 
 const sources = ref<RecipeSource[]>([])
 const loading = ref(true)

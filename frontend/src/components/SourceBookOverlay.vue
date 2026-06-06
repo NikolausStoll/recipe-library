@@ -38,17 +38,13 @@
 
             <div class="form__cover">
               <h3 class="form__cover-title">Cover</h3>
-              <div v-if="existingCoverUrl && !replacingCover && !pendingCoverUrl" class="form__cover-current">
-                <img :src="existingCoverUrl" alt="Current cover" class="form__cover-img" />
-                <button type="button" class="btn btn--secondary" :disabled="saving" @click="startReplaceCover">
-                  Replace cover
-                </button>
-              </div>
               <SourceCoverPicker
-                v-else
                 ref="coverPickerRef"
+                :source-id="sourceId ?? null"
+                :cover-url="effectiveCoverUrl"
+                :cover-pending="effectiveCoverPending"
                 :disabled="saving"
-                :pending-image-url="pendingCoverUrl"
+                @cover-updated="onCoverUpdated"
               />
             </div>
 
@@ -86,7 +82,6 @@ import {
   updateSource,
   deleteSource,
   uploadSourceCover,
-  finalizeSourceCoverCrop,
 } from '../api/sources'
 import type { RecipeSource, RecipeSourceInput } from '../api/sources'
 
@@ -103,7 +98,7 @@ const coverPickerRef = ref<InstanceType<typeof SourceCoverPicker> | null>(null)
 const saving = ref(false)
 const formError = ref('')
 const coverError = ref('')
-const replacingCover = ref(false)
+const patchedSource = ref<RecipeSource | null>(null)
 
 const form = ref({
   name: '',
@@ -112,17 +107,15 @@ const form = ref({
   year: null as number | null,
 })
 
-const existingCoverUrl = computed(() => {
-  const s = props.initial
-  if (!s?.image_path || s.image_processing_pending) return null
-  return s.image_path
-})
+const effectiveSource = computed(() => patchedSource.value ?? props.initial ?? null)
 
-const pendingCoverUrl = computed(() => {
-  if (!props.initial?.image_processing_pending || !props.initial.image_path) return null
-  if (replacingCover.value) return null
-  return props.initial.image_path
-})
+const effectiveCoverUrl = computed(() => effectiveSource.value?.image_path ?? null)
+
+const effectiveCoverPending = computed(() => effectiveSource.value?.image_processing_pending === true)
+
+function onCoverUpdated(source: RecipeSource) {
+  patchedSource.value = source
+}
 
 function resetFormFromInitial() {
   const s = props.initial
@@ -132,14 +125,9 @@ function resetFormFromInitial() {
     author: s?.author && s.author !== 'null' ? s.author : '',
     year: s?.year ?? null,
   }
-  replacingCover.value = false
+  patchedSource.value = null
   formError.value = ''
   coverError.value = ''
-}
-
-function startReplaceCover() {
-  replacingCover.value = true
-  coverPickerRef.value?.clearCover()
 }
 
 watch(() => props.initial, resetFormFromInitial, { immediate: true })
@@ -148,14 +136,8 @@ async function applyCover(sourceId: number): Promise<RecipeSource | null> {
   const picker = coverPickerRef.value
   if (!picker) return null
 
-  if (picker.shouldApplyPendingFinalize()) {
-    const finalizePoints = picker.getFinalizePoints()
-    if (finalizePoints === false || !Array.isArray(finalizePoints)) {
-      coverError.value = 'Use four corner points to crop the pending cover.'
-      throw new Error('invalid crop')
-    }
-    const { source } = await finalizeSourceCoverCrop(sourceId, finalizePoints)
-    return source
+  if (picker.wantsRemoveCover()) {
+    return updateSource(sourceId, { image_path: null })
   }
 
   const payload = picker.getUploadPayload()
@@ -188,21 +170,13 @@ async function save() {
     }
 
     const picker = coverPickerRef.value
-    if (picker?.isFinalizingPending()) {
-      const pendingPts = picker.getFinalizePoints()
-      if (pendingPts === false) {
-        coverError.value = 'Use four corner points to crop, or reset points to keep the cover pending.'
-        return
-      }
-    }
-    const hasCoverWork = Boolean(picker?.getUploadPayload() || picker?.shouldApplyPendingFinalize())
+    const hasCoverWork = Boolean(picker?.getUploadPayload() || picker?.wantsRemoveCover())
     if (hasCoverWork) {
       try {
         const updated = await applyCover(source.id)
         if (updated) source = updated
       } catch (e) {
-        if (e instanceof Error && e.message === 'invalid crop') return
-        coverError.value = e instanceof Error ? e.message : 'Cover upload failed'
+        coverError.value = e instanceof Error ? e.message : 'Cover konnte nicht gespeichert werden'
         emit('saved', source)
         return
       }
@@ -288,8 +262,6 @@ async function onDelete() {
 }
 .form__cover { margin-top: 0.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border); }
 .form__cover-title { margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600; color: var(--color-text); }
-.form__cover-current { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.form__cover-img { max-width: 100px; max-height: 140px; object-fit: contain; border-radius: 4px; border: 1px solid var(--color-border); }
 .form__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
 .form__delete { margin-left: auto; }
 .form__error { margin: 0.5rem 0 0; color: var(--color-error); font-size: 0.9rem; }

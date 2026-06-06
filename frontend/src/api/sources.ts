@@ -36,6 +36,7 @@ export interface RecipeSourceInput {
   author?: string | null
   year?: number | null
   url?: string | null
+  image_path?: string | null
 }
 
 export function listSources(): Promise<RecipeSource[]> {
