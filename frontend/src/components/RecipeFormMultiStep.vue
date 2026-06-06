@@ -292,14 +292,14 @@
             <button
               v-if="editingId != null"
               type="button"
-              class="editor-estimate-refresh"
+              class="editor-estimate-refresh editor-ai-action"
               :disabled="tagGenerateLoading"
               title="Tags vorschlagen"
               aria-label="Tags vorschlagen"
               :aria-busy="tagGenerateLoading"
               @click="emit('generateTags')"
             >
-              ↻
+              <AiSparkleIcon />
             </button>
           </div>
           <template v-if="!tagsEditOpen">
@@ -1065,6 +1065,7 @@
 <script setup lang="ts">
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useBodyModalLock } from '../composables/useBodyModalLock'
+import AiSparkleIcon from './icons/AiSparkleIcon.vue'
 import OriginalLanguageIcon from './icons/OriginalLanguageIcon.vue'
 import type {
   RecipeFormPayload,
@@ -4214,6 +4215,21 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
 .editor-estimate-refresh:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.editor-ai-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+}
+
+.editor-ai-action svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
 }
 
 .editor-tags-section .form-section__head {

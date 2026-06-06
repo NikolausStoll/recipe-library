@@ -296,28 +296,35 @@
           {{ viewingRecipe.description }}
         </p>
 
-        <!-- Mobile: simple text metadata (no icons, no dividers) -->
-        <div
-          v-if="detailMetaSource || detailMetaServings || detailMetaPrep || detailMetaCook"
-          class="recipe-detail-meta-simple"
-        >
-          <p v-if="detailMetaSource || detailMetaServings" class="recipe-detail-meta-simple__line">
-            <span v-if="detailMetaSource">{{ detailMetaSource }}</span>
-            <span v-if="detailMetaSource && detailMetaServings" aria-hidden="true"> · </span>
-            <span v-if="detailMetaServings">{{ detailMetaServings }} Portionen</span>
-          </p>
-          <p v-if="detailMetaPrep || detailMetaCook" class="recipe-detail-meta-simple__line">
-            <span v-if="detailMetaPrep">{{ detailMetaPrep.value }} Vorb.</span>
-            <span v-if="detailMetaPrep && detailMetaCook" aria-hidden="true"> · </span>
-            <span v-if="detailMetaCook">{{ detailMetaCook.value }} Garzeit</span>
-          </p>
+        <!-- Mobile/tablet: simple text metadata (no icons, no dividers) -->
+        <div class="recipe-detail-meta-simple">
+          <div class="recipe-detail-meta-simple__content">
+            <p class="recipe-detail-meta-simple__line">
+              <span v-if="detailMetaSource">{{ detailMetaSource }}</span>
+              <span v-if="detailMetaSource" aria-hidden="true"> · </span>
+              <span>{{ detailMetaServings }} Portionen</span>
+            </p>
+            <p class="recipe-detail-meta-simple__line">
+              <span>{{ detailMetaPrep.value }} Vorb.</span>
+              <span aria-hidden="true"> · </span>
+              <span>{{ detailMetaCook.value }} Garzeit</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            class="recipe-detail-meta__refresh recipe-detail-meta-simple__refresh"
+            :disabled="timeEstimateLoading"
+            title="Zeiten neu schätzen"
+            aria-label="Zeiten neu schätzen"
+            :aria-busy="timeEstimateLoading"
+            @click="runEstimateTimesForDetail"
+          >
+            <AiSparkleIcon />
+          </button>
         </div>
 
         <!-- Desktop/tablet: structured icon metadata row -->
-        <div
-          v-if="detailMetaSource || detailMetaServings || detailMetaPrep || detailMetaCook"
-          class="recipe-detail-meta"
-        >
+        <div class="recipe-detail-meta">
           <div class="recipe-detail-meta__item recipe-detail-meta__item--source">
             <svg v-if="detailMetaSourceKind === 'book'" class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
@@ -333,49 +340,44 @@
             </svg>
             <span class="recipe-detail-meta__source">{{ detailMetaSource }}</span>
           </div>
-          <template v-if="detailMetaServings">
-            <span class="recipe-detail-meta__sep" aria-hidden="true" />
-            <div class="recipe-detail-meta__item recipe-detail-meta__item--servings">
-              <svg class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.75"/>
-                <circle cx="16" cy="10" r="2.5" stroke="currentColor" stroke-width="1.75"/>
-                <path d="M4 20C4 16.5 6.5 14 9 14C11 14 12.2 14.8 13 16M13 16C13.8 14.8 15 14 16.5 14C19 14 21 16 21 19" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
-              </svg>
-              <span class="recipe-detail-meta__servings">{{ detailMetaServings }}</span>
+          <span class="recipe-detail-meta__sep" aria-hidden="true" />
+          <div class="recipe-detail-meta__item recipe-detail-meta__item--servings">
+            <svg class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.75"/>
+              <circle cx="16" cy="10" r="2.5" stroke="currentColor" stroke-width="1.75"/>
+              <path d="M4 20C4 16.5 6.5 14 9 14C11 14 12.2 14.8 13 16M13 16C13.8 14.8 15 14 16.5 14C19 14 21 16 21 19" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </svg>
+            <span class="recipe-detail-meta__servings">{{ detailMetaServings }}</span>
+          </div>
+          <span class="recipe-detail-meta__sep" aria-hidden="true" />
+          <div class="recipe-detail-meta__item recipe-detail-meta__item--time">
+            <svg class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.75"/>
+              <path d="M12 9V13L14.5 14.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+              <path d="M10 3H14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </svg>
+            <div class="recipe-detail-meta__time-stack">
+              <span class="recipe-detail-meta__time-value">{{ detailMetaPrep.value }}</span>
+              <span class="recipe-detail-meta__time-label">{{ detailMetaPrep.label }}</span>
             </div>
-          </template>
-          <template v-if="detailMetaPrep">
-            <span class="recipe-detail-meta__sep" aria-hidden="true" />
-            <div class="recipe-detail-meta__item recipe-detail-meta__item--time">
-              <svg class="recipe-detail-meta__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.75"/>
-                <path d="M12 9V13L14.5 14.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
-                <path d="M10 3H14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
-              </svg>
-              <div class="recipe-detail-meta__time-stack">
-                <span class="recipe-detail-meta__time-value">{{ detailMetaPrep.value }}</span>
-                <span class="recipe-detail-meta__time-label">{{ detailMetaPrep.label }}</span>
-              </div>
+          </div>
+          <span class="recipe-detail-meta__sep" aria-hidden="true" />
+          <div class="recipe-detail-meta__item recipe-detail-meta__item--time">
+            <div class="recipe-detail-meta__time-stack">
+              <span class="recipe-detail-meta__time-value">{{ detailMetaCook.value }}</span>
+              <span class="recipe-detail-meta__time-label">{{ detailMetaCook.label }}</span>
             </div>
-          </template>
-          <template v-if="detailMetaCook">
-            <span class="recipe-detail-meta__sep" aria-hidden="true" />
-            <div class="recipe-detail-meta__item recipe-detail-meta__item--time">
-              <div class="recipe-detail-meta__time-stack">
-                <span class="recipe-detail-meta__time-value">{{ detailMetaCook.value }}</span>
-                <span class="recipe-detail-meta__time-label">{{ detailMetaCook.label }}</span>
-              </div>
-            </div>
-          </template>
+          </div>
           <button
             type="button"
             class="recipe-detail-meta__refresh"
             :disabled="timeEstimateLoading"
             title="Zeiten neu schätzen"
             aria-label="Zeiten neu schätzen"
+            :aria-busy="timeEstimateLoading"
             @click="runEstimateTimesForDetail"
           >
-            ↻
+            <AiSparkleIcon />
           </button>
         </div>
         <p v-if="timeEstimateError" class="recipe-detail-time-inline-error">{{ timeEstimateError }}</p>
@@ -422,15 +424,15 @@
               <div class="recipe-doc-section__head">
                 <h2 class="recipe-doc-section__title">Gesundheitscheck</h2>
                 <button
-                  v-if="healthScoreResult && healthScoreResult.estimate.healthScore != null"
                   type="button"
                   class="recipe-detail-section-refresh"
                   :disabled="healthScoreLoading"
-                  title="Gesundheitscheck neu berechnen"
-                  aria-label="Gesundheitscheck neu berechnen"
+                  :title="detailHealthScoreActionLabel"
+                  :aria-label="detailHealthScoreActionLabel"
+                  :aria-busy="healthScoreLoading"
                   @click="requestDetailHealthScore"
                 >
-                  ↻
+                  <AiSparkleIcon />
                 </button>
               </div>
 
@@ -475,16 +477,6 @@
                 </div>
               </div>
 
-              <div v-if="!(healthScoreResult && healthScoreResult.estimate.healthScore != null)" class="recipe-detail-estimate-cta">
-                <button
-                  type="button"
-                  class="btn btn--secondary btn--small"
-                  :disabled="healthScoreLoading"
-                  @click="requestDetailHealthScore"
-                >
-                  {{ healthScoreLoading ? 'Wird berechnet…' : 'Gesundheitscheck holen' }}
-                </button>
-              </div>
             </div>
           </section>
 
@@ -492,15 +484,15 @@
             <div class="recipe-doc-section__head">
               <h2 class="recipe-doc-section__title">Nährwerte</h2>
               <button
-                v-if="hasNutrition"
                 type="button"
                 class="recipe-detail-section-refresh"
                 :disabled="nutritionLoading"
-                title="Nährwerte neu schätzen"
-                aria-label="Nährwerte neu schätzen"
+                :title="detailNutritionActionLabel"
+                :aria-label="detailNutritionActionLabel"
+                :aria-busy="nutritionLoading"
                 @click="requestDetailNutritionEstimate"
               >
-                ↻
+                <AiSparkleIcon />
               </button>
             </div>
             <div v-if="hasNutrition" class="recipe-nutrition">
@@ -522,16 +514,6 @@
               </div>
             </div>
 
-            <div v-if="!hasNutrition" class="recipe-detail-estimate-cta">
-              <button
-                type="button"
-                class="btn btn--secondary btn--small"
-                @click="requestDetailNutritionEstimate"
-                :disabled="nutritionLoading"
-              >
-                {{ nutritionLoading ? 'Nährwerte werden geschätzt…' : 'Nährwerte schätzen' }}
-              </button>
-            </div>
           </section>
 
           <section id="recipe-section-source" class="recipe-doc-section">
@@ -711,6 +693,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import AiSparkleIcon from '../components/icons/AiSparkleIcon.vue'
 import { useRoute, useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
 import type { IFuseOptions } from 'fuse.js'
@@ -751,6 +734,7 @@ import {
   formatDetailPrepMeta,
   formatDetailCookMeta,
   getRecipeDetailSourceKind,
+  type DetailTimeMeta,
 } from '../utils/recipeDetailMeta'
 
 const props = defineProps<{ favoritesOnly?: boolean }>()
@@ -1047,13 +1031,27 @@ const hasNutrition = computed(() => {
   return kcal != null || protein != null || carbs != null || fat != null
 })
 
+const hasDetailHealthScore = computed(() => healthScoreResult.value?.estimate.healthScore != null)
+
+const detailHealthScoreActionLabel = computed(() =>
+  hasDetailHealthScore.value ? 'Gesundheitscheck neu berechnen' : 'Gesundheitscheck holen'
+)
+
+const detailNutritionActionLabel = computed(() =>
+  hasNutrition.value ? 'Nährwerte neu schätzen' : 'Nährwerte schätzen'
+)
+
 const detailMetaSource = computed(() => {
   const recipe = viewingRecipe.value
   if (!recipe) return null
   return formatRecipeDetailSourceMeta(recipe)
 })
 
-const detailMetaServings = computed(() => formatDetailServingsCount(viewingRecipe.value?.servings))
+const DETAIL_META_EMPTY = '-'
+
+const detailMetaServings = computed(
+  () => formatDetailServingsCount(viewingRecipe.value?.servings) ?? DETAIL_META_EMPTY
+)
 
 const detailMetaSourceKind = computed(() => {
   const recipe = viewingRecipe.value
@@ -1061,9 +1059,15 @@ const detailMetaSourceKind = computed(() => {
   return getRecipeDetailSourceKind(recipe)
 })
 
-const detailMetaPrep = computed(() => formatDetailPrepMeta(viewingRecipe.value))
+const detailMetaPrep = computed(
+  (): DetailTimeMeta =>
+    formatDetailPrepMeta(viewingRecipe.value) ?? { value: DETAIL_META_EMPTY, label: 'VORB.' }
+)
 
-const detailMetaCook = computed(() => formatDetailCookMeta(viewingRecipe.value))
+const detailMetaCook = computed(
+  (): DetailTimeMeta =>
+    formatDetailCookMeta(viewingRecipe.value) ?? { value: DETAIL_META_EMPTY, label: 'GARZEIT' }
+)
 
 const ingredientSections = computed(() => {
   const recipe = viewingRecipe.value
@@ -2256,7 +2260,12 @@ onBeforeUnmount(() => {
 .recipe-detail-meta__refresh {
   flex-shrink: 0;
   margin-left: 4px;
-  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
   border: none;
   border-radius: var(--radius-xs);
   background: transparent;
@@ -2264,6 +2273,13 @@ onBeforeUnmount(() => {
   font-size: 0.95rem;
   line-height: 1;
   cursor: pointer;
+}
+
+.recipe-detail-section-refresh svg,
+.recipe-detail-meta__refresh svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
 }
 
 .recipe-detail-section-refresh:hover:not(:disabled),
@@ -2276,10 +2292,6 @@ onBeforeUnmount(() => {
 .recipe-detail-meta__refresh:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.recipe-detail-estimate-cta {
-  margin-top: var(--spacing-sm);
 }
 
 .recipe-detail-action.recipe-detail-action--edit-desktop {
@@ -2336,13 +2348,27 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
 }
 
-/* Mobile simple text metadata */
+/* Mobile/tablet simple text metadata */
 .recipe-detail-meta-simple {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.recipe-detail-meta-simple__content {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
+}
+
+.recipe-detail-meta-simple__refresh {
+  flex-shrink: 0;
+  margin-left: 0;
 }
 
 .recipe-detail-meta-simple__line {

@@ -1,0 +1,19 @@
+<template>
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M6.5 4.5H4.8C3.8 4.5 3 5.3 3 6.3v12.9c0 1 .8 1.8 1.8 1.8h12.9c1 0 1.8-.8 1.8-1.8v-1.7"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M15.2 2.5l1.1 3.1c.1.3.3.5.6.6l3.1 1.1-3.1 1.1c-.3.1-.5.3-.6.6l-1.1 3.1-1.1-3.1c-.1-.3-.3-.5-.6-.6l-3.1-1.1 3.1-1.1c.3-.1.5-.3.6-.6l1.1-3.1z"
+      fill="currentColor"
+    />
+    <path
+      d="M9 10.5l.7 1.9c.1.2.2.3.4.4l1.9.7-1.9.7c-.2.1-.3.2-.4.4L9 16.5l-.7-1.9c-.1-.2-.2-.3-.4-.4L6 13.5l1.9-.7c.2-.1.3-.2.4-.4L9 10.5z"
+      fill="currentColor"
+    />
+  </svg>
+</template>
