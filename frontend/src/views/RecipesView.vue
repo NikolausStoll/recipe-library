@@ -291,10 +291,7 @@
             Prüfen
           </button>
         </h1>
-        <p v-if="viewingRecipe.subtitle" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
-        <p v-else-if="viewingRecipe.description && !viewingRecipe.subtitle" class="recipe-detail-subtitle">
-          {{ viewingRecipe.description }}
-        </p>
+        <p v-if="viewingRecipe.subtitle?.trim()" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
 
         <!-- Mobile/tablet: simple text metadata (no icons, no dividers) -->
         <div class="recipe-detail-meta-simple">
@@ -407,8 +404,31 @@
         </div>
 
         <div class="recipe-detail-main">
-          <section v-if="viewingRecipe.description && viewingRecipe.subtitle" class="recipe-doc-section">
-            <p class="recipe-doc-section__text">{{ viewingRecipe.description }}</p>
+          <section v-if="viewingRecipe.description?.trim()" class="recipe-doc-section">
+            <button
+              v-if="descriptionClampable"
+              type="button"
+              class="recipe-detail-description-toggle"
+              :aria-expanded="descriptionExpanded"
+              aria-label="Beschreibung ein- oder ausklappen"
+              @click="toggleDetailDescription"
+            >
+              <span
+                ref="detailDescriptionEl"
+                class="recipe-detail-description recipe-doc-section__text"
+                :class="descriptionClampable && descriptionExpanded
+                  ? 'recipe-detail-description--expanded'
+                  : 'recipe-detail-description--clamp'"
+              >{{ viewingRecipe.description }}</span>
+            </button>
+            <span
+              v-else
+              ref="detailDescriptionEl"
+              class="recipe-detail-description recipe-doc-section__text"
+              :class="descriptionClampable === null
+                ? 'recipe-detail-description--clamp'
+                : 'recipe-detail-description--full'"
+            >{{ viewingRecipe.description }}</span>
           </section>
 
           <section id="recipe-section-steps" class="recipe-doc-section">
@@ -789,6 +809,9 @@ const activeFilter = ref(
   props.favoritesOnly ? 'favorites' : (typeof route.query.filter === 'string' ? route.query.filter : 'all')
 )
 const cookingStepIndex = ref(0)
+const detailDescriptionEl = ref<HTMLElement | null>(null)
+const descriptionClampable = ref<boolean | null>(null)
+const descriptionExpanded = ref(false)
 
 const sortByLabels: Record<typeof sortBy.value, string> = {
   'updated-desc': 'Zuletzt aktualisiert',
@@ -1282,10 +1305,13 @@ async function loadRecipeDetail(id: number) {
   try {
     viewingRecipe.value = await getRecipe(id)
     displayServings.value = viewingRecipe.value.servings || 1
+    descriptionClampable.value = null
+    descriptionExpanded.value = false
     showDetailOriginalLines.value = false
     healthScoreResult.value = viewingRecipe.value.health_score ?? null
     healthScoreError.value = ''
     document.title = `${viewingRecipe.value.title} – Rezeptbibliothek`
+    await measureDetailDescriptionClamp()
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Rezept konnte nicht geladen werden'
     router.replace(listPath.value)
@@ -1482,9 +1508,32 @@ function runEstimateTimesForDetail() {
   void runEstimateTimesFlow(id)
 }
 
+function toggleDetailDescription() {
+  if (!descriptionClampable.value) return
+  descriptionExpanded.value = !descriptionExpanded.value
+}
+
+async function measureDetailDescriptionClamp() {
+  descriptionExpanded.value = false
+  descriptionClampable.value = null
+  await nextTick()
+  const el = detailDescriptionEl.value
+  if (!el || !viewingRecipe.value?.description?.trim()) {
+    descriptionClampable.value = false
+    return
+  }
+  const needsClamp = el.scrollHeight > el.clientHeight + 1
+  descriptionClampable.value = needsClamp
+  if (needsClamp) {
+    await nextTick()
+  }
+}
+
 function clearDetailState() {
   viewingRecipe.value = null
   displayServings.value = 1
+  descriptionClampable.value = null
+  descriptionExpanded.value = false
   showDetailOriginalLines.value = false
   healthScoreResult.value = null
   healthScoreError.value = ''
@@ -1645,7 +1694,13 @@ onMounted(() => {
   document.addEventListener('click', onDocumentClickForAddMenu)
   document.addEventListener('click', onDocumentClickForDetailMenu)
   document.addEventListener('visibilitychange', onVisibilityChangeForCookingWakeLock)
+  window.addEventListener('resize', onDetailDescriptionResize)
 })
+
+function onDetailDescriptionResize() {
+  if (!viewingRecipe.value?.description?.trim()) return
+  void measureDetailDescriptionClamp()
+}
 
 watch(
   () => props.favoritesOnly,
@@ -1676,6 +1731,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClickForAddMenu)
   document.removeEventListener('click', onDocumentClickForDetailMenu)
   document.removeEventListener('visibilitychange', onVisibilityChangeForCookingWakeLock)
+  window.removeEventListener('resize', onDetailDescriptionResize)
   releaseCookingWakeLock()
 })
 </script>
@@ -2032,7 +2088,7 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-side-panel {
-  order: 3;
+  order: 4;
   min-width: 0;
 }
 
@@ -2060,7 +2116,7 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-main {
-  order: 4;
+  order: 3;
   min-width: 0;
   padding: 0 var(--content-padding-mobile);
 }
@@ -2133,7 +2189,7 @@ onBeforeUnmount(() => {
 
   .recipe-detail-ingredients-panel {
     grid-column: 1 / -1;
-    grid-row: 2;
+    grid-row: 3;
     padding: 0;
     margin-top: var(--spacing-sm);
   }
@@ -2145,7 +2201,7 @@ onBeforeUnmount(() => {
 
   .recipe-detail-main {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
     order: unset;
     padding: 0;
     margin-top: var(--spacing-md);
@@ -2656,6 +2712,48 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   color: var(--color-text-muted);
   white-space: pre-wrap;
+}
+
+.recipe-detail-description-toggle {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.recipe-detail-description-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.recipe-detail-description--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.recipe-detail-description--full,
+.recipe-detail-description--expanded {
+  display: block;
+  overflow: visible;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 767px) {
+  .recipe-detail-description {
+    text-align: justify;
+    hyphens: auto;
+  }
 }
 
 .recipe-detail-source-type {

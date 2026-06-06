@@ -226,7 +226,7 @@
         </div>
         <div
           class="form-row form-row--prep-cook-estimate"
-          :class="{ 'form-row--prep-cook-estimate--with-refresh': editingId != null && hasPrepOrCookTimes }"
+          :class="{ 'form-row--prep-cook-estimate--with-refresh': editingId != null }"
         >
           <div class="form-field">
             <label for="recipe-prep-time">Vorbereitung (Min.)</label>
@@ -248,17 +248,18 @@
               class="form-input"
             />
           </div>
-          <div v-if="editingId != null && hasPrepOrCookTimes" class="form-field form-field--estimate-refresh">
+          <div v-if="editingId != null" class="form-field form-field--estimate-refresh">
             <span class="form-field__label-spacer" aria-hidden="true"></span>
             <button
               type="button"
-              class="editor-estimate-refresh"
+              class="editor-estimate-refresh editor-ai-action"
               :disabled="timeEstimateLoading"
-              title="Zeiten neu schätzen"
-              aria-label="Zeiten neu schätzen"
+              title="Zeiten schätzen"
+              aria-label="Zeiten schätzen"
+              :aria-busy="timeEstimateLoading"
               @click="emit('estimateTimes')"
             >
-              ↻
+              <AiSparkleIcon />
             </button>
           </div>
         </div>
@@ -1087,7 +1088,6 @@ import { rotateImageFile90 } from '../utils/imageRotate'
 import {
   perServingNutrition,
   recipeHasNutrition,
-  recipeHasPrepOrCookTimes,
 } from '../utils/recipeEstimateNeeds'
 import type { RecipeHealthScoreResponse } from '../api/recipes'
 
@@ -1503,13 +1503,6 @@ const hasHealthScore = computed(() => {
 })
 const healthScoreValue = computed(() => props.initial?.health_score?.estimate?.healthScore ?? null)
 const healthScoreSummary = computed(() => props.initial?.health_score?.estimate?.summary?.trim() ?? '')
-
-const hasPrepOrCookTimes = computed(() =>
-  recipeHasPrepOrCookTimes({
-    prep_time_min: form.prep_time,
-    cook_time_min: form.cook_time,
-  })
-)
 
 const hasAnyOriginalText = computed(() =>
   form.ingredients.some((i) => (i.original_text || '').trim())
@@ -4455,6 +4448,37 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
 
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .form-row.form-row--prep-cook-estimate--with-refresh {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: var(--spacing-sm);
+    row-gap: var(--spacing-md);
+  }
+
+  .form-row.form-row--prep-cook-estimate--with-refresh > .form-field:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .form-row.form-row--prep-cook-estimate--with-refresh > .form-field:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .form-row.form-row--prep-cook-estimate--with-refresh > .form-field--estimate-refresh {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    justify-self: center;
+    min-width: 0;
+    margin-top: 20px;
+  }
+
+  .form-row.form-row--prep-cook-estimate--with-refresh .form-field__label-spacer {
+    display: none;
   }
 
   .source-books {
