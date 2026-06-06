@@ -280,8 +280,8 @@
 
         <div class="recipe-detail-main-col">
         <div class="recipe-detail-identity">
-        <div class="recipe-detail-title-row">
-          <h1 class="recipe-detail-title">{{ viewingRecipe.title }}</h1>
+        <h1 class="recipe-detail-title">
+          {{ viewingRecipe.title }}
           <button
             v-if="recipeNeedsReview(viewingRecipe.status)"
             type="button"
@@ -290,7 +290,7 @@
           >
             Prüfen
           </button>
-        </div>
+        </h1>
         <p v-if="viewingRecipe.subtitle" class="recipe-detail-subtitle">{{ viewingRecipe.subtitle }}</p>
         <p v-else-if="viewingRecipe.description && !viewingRecipe.subtitle" class="recipe-detail-subtitle">
           {{ viewingRecipe.description }}
@@ -2388,21 +2388,10 @@ onBeforeUnmount(() => {
   }
 }
 
-.recipe-detail-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-xs) var(--spacing-sm);
-  margin-bottom: 0.35rem;
-  min-width: 0;
-}
-
-.recipe-detail-title-row .recipe-detail-title {
-  margin-bottom: 0;
-}
-
 .recipe-detail-review-badge {
-  flex-shrink: 0;
+  vertical-align: middle;
+  margin-left: var(--spacing-sm);
+  white-space: nowrap;
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 }
