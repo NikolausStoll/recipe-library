@@ -70,8 +70,8 @@ export function attachCropPointPointerDrag(
     crosshairV.style.boxShadow = '0 0 0 1px rgba(0,0,0,0.18)'
     crosshair.appendChild(crosshairH)
     crosshair.appendChild(crosshairV)
+    lens.style.visibility = 'hidden'
     lens.appendChild(crosshair)
-    wrap.appendChild(lens)
   }
 
   let lensRaf = 0
@@ -100,6 +100,12 @@ export function attachCropPointPointerDrag(
       lens.style.backgroundPosition = `${-natural.x * zoom + lensSize / 2}px ${-natural.y * zoom + lensSize / 2}px`
     }
     return pt
+  }
+
+  if (hasLensImage) {
+    positionLens(e.clientX, e.clientY)
+    lens.style.visibility = 'visible'
+    wrap.appendChild(lens)
   }
 
   const move = (ev: PointerEvent) => {
