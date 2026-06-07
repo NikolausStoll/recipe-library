@@ -17,7 +17,7 @@ import {
 import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistence.js'
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { findOrCreateUrlSource } from '../services/sourceService.js'
-import { normalizeRecipeWithLLM } from '../services/recipeNormalizationService.js'
+import { normalizeRecipeWithLLM, finalizeNormalizedTips } from '../services/recipeNormalizationService.js'
 import {
   applyPostNormalizationStages,
   finalizeImportedRecipe,
@@ -397,6 +397,7 @@ router.post('/extract-from-url', async (req, res) => {
     try {
       const { recipe: structured, usage: normalize_usage, model: normalize_model } =
         await normalizeRecipeWithLLM(result.recipe)
+      finalizeNormalizedTips(structured, result.recipe)
       const { envelope: finalStructured, cupAttempt } = await applyPostNormalizationStages(structured)
       return res.json({
         ...result,
@@ -462,6 +463,7 @@ router.post('/import-from-url', async (req, res) => {
     })
 
     const { recipe: structured, attempts } = await normalizeRecipeWithLLM(scraped.recipe)
+    finalizeNormalizedTips(structured, scraped.recipe)
     if (structured?.recipe && typeof structured.recipe === 'object') {
       structured.recipe.prepTimeMinutes = null
       structured.recipe.cookTimeMinutes = null

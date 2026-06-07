@@ -24,22 +24,27 @@ Input context:
 - Data comes from a web scraper.
 - It may be incomplete, inconsistent, mixed-language, or partially duplicated.
 - Prefer structured data. Use original text only as fallback/context.
+- Ingredients are provided as ingredient_sections. Each section has a heading and lines.
 
 Tasks:
 - Clean and structure the recipe.
 - Normalize ingredient lines.
+- Preserve ingredient section structure.
 - Do not invent ingredients or steps.
 - If unclear, stay close to the original.
 - When rules conflict, preserve original meaning and avoid unsafe conversions over aggressive normalization.
 
 Translation:
 - Translate recipe.description to German.
+- Translate ingredient section headings to German when present.
 - Translate ingredients to German:
   - ingredient
   - additionalInfo
 - Translate steps to German.
+- Translate notes/tips to German.
 - Do not translate recipe.title.
-- Do not translate originalText.
+- Do not translate ingredient originalText.
+- Do not include original untranslated notes/tips in the final recipe.
 
 Translation style:
 - Use natural German recipe language for home cooks.
@@ -71,12 +76,22 @@ Times:
 
 Ingredient fields follow the provided JSON schema.
 
+Ingredient sections:
+- Preserve section order.
+- Preserve ingredient order within each section.
+- If a section heading is null, keep it null.
+- If a section heading is present, translate it naturally and keep it short.
+- Examples:
+  - "dressing" → "Dressing"
+  - "herb oil" → "Kräuteröl"
+  - "for serving" → "Zum Servieren"
+
 Ingredient parsing:
 - For single amounts, amountMax must equal amount. Do not use null for amountMax unless amount itself is null.
 - unit is German or null.
 - ingredient is a clean German name.
 - additionalInfo contains translated preparation notes, alternatives, or modifiers.
-- originalText preserves the source line.
+- ingredient originalText preserves the original ingredient source line.
 - category must be exactly one allowed category.
 
 Allowed categories:
@@ -119,7 +134,7 @@ Cup handling:
 - Do not estimate grams or ml for cup ingredients in this step.
 - Cup conversion is handled by a separate pipeline step after normalization.
 
-Examples:
+Ingredient examples:
 - "1/2 red onion" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "rote Zwiebel"
 - "2 carrots" → amount: 2, amountMax: 2, unit: null, ingredient: "Karotten"
 - "3 eggs" → amount: 3, amountMax: 3, unit: null, ingredient: "Eier"
@@ -143,7 +158,82 @@ Steps:
 - Preserve meaning and cooking intent.
 - Do not translate word-for-word if it sounds unnatural.
 - Keep order.
-- Keep concise, but not at the cost of awkward wording.`
+- Keep concise, but not at the cost of awkward wording.
+
+Notes/Tips:
+- If input contains notes, map them to recipe.tips.
+- Translate notes/tips to natural German.
+- recipe.tips must contain German text only.
+- Do not include original English notes/tips in recipe.tips.
+- Do not include both translated and original versions.
+- Do not duplicate notes.
+- For N input notes, usually return at most N tips unless distinct notes are clearly combined or split for clarity.
+- originalText preservation applies only to ingredient items, never to notes/tips.
+- Notes/tips do not have an originalText field.
+- Preserve meaning.
+- Keep notes concise but natural.
+
+Notes/Tips example:
+Input note:
+"Make the tortellini and sweet potatoes ahead of time so they have enough time to cool before adding to the salad."
+
+Output tip:
+"Bereite Tortellini und Süßkartoffeln im Voraus zu, damit sie genug Zeit zum Abkühlen haben, bevor du sie zum Salat gibst."
+
+Do not also output the English input note.`
+}
+
+/**
+ * @typedef {{ heading: string | null, lines: string[] }} NormalizationIngredientSection
+ */
+
+/**
+ * Canonical ingredient_sections for the normalization LLM (never duplicates ingredient_lines).
+ * @param {object} rawRecipe
+ * @returns {NormalizationIngredientSection[]}
+ */
+export function buildCanonicalIngredientSections(rawRecipe) {
+  const sections = Array.isArray(rawRecipe?.ingredient_sections) ? rawRecipe.ingredient_sections : []
+  const lines = Array.isArray(rawRecipe?.ingredient_lines) ? rawRecipe.ingredient_lines : []
+
+  /** @type {NormalizationIngredientSection[]} */
+  const fromSections = []
+  for (const section of sections) {
+    if (!section || !Array.isArray(section.lines)) continue
+    const cleanedLines = section.lines
+      .map((line) => (typeof line === 'string' ? line.replace(/\s+/g, ' ').trim() : ''))
+      .filter(Boolean)
+    if (!cleanedLines.length) continue
+    const heading =
+      section.heading != null && String(section.heading).trim()
+        ? String(section.heading).replace(/\s+/g, ' ').trim()
+        : null
+    fromSections.push({ heading, lines: cleanedLines })
+  }
+
+  if (fromSections.length > 0) return fromSections
+
+  const cleanedLines = lines
+    .map((line) => (typeof line === 'string' ? line.replace(/\s+/g, ' ').trim() : ''))
+    .filter(Boolean)
+  if (cleanedLines.length > 0) return [{ heading: null, lines: cleanedLines }]
+
+  return [{ heading: null, lines: [] }]
+}
+
+/**
+ * Payload sent to the normalization LLM (no duplicate ingredient sources).
+ * @param {object} rawRecipe
+ */
+export function buildNormalizationPayloadForModel(rawRecipe) {
+  return {
+    title: rawRecipe?.title ?? null,
+    description: rawRecipe?.description ?? null,
+    servings_raw: rawRecipe?.servings_raw ?? null,
+    ingredient_sections: buildCanonicalIngredientSections(rawRecipe),
+    steps: Array.isArray(rawRecipe?.steps) ? rawRecipe.steps : [],
+    notes: Array.isArray(rawRecipe?.notes) ? rawRecipe.notes : [],
+  }
 }
 
 /**
@@ -156,14 +246,8 @@ async function callLLM(rawRecipe, model) {
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
 
   const client = new OpenAI({ apiKey })
-  // Do not send time fields or image URLs to the model (they are stored directly on the recipe row).
-  const payloadForModel = {
-    title: rawRecipe?.title ?? null,
-    description: rawRecipe?.description ?? null,
-    servings_raw: rawRecipe?.servings_raw ?? null,
-    ingredient_lines: Array.isArray(rawRecipe?.ingredient_lines) ? rawRecipe.ingredient_lines : [],
-    steps: Array.isArray(rawRecipe?.steps) ? rawRecipe.steps : [],
-  }
+  // Do not send time fields, image URLs, or duplicate ingredient sources to the model.
+  const payloadForModel = buildNormalizationPayloadForModel(rawRecipe)
   /** Serialized input JSON sent to the model (stored in ai_token_usage.request_json). */
   const userPayload = JSON.stringify(payloadForModel, null, 0)
 
@@ -203,7 +287,71 @@ async function callLLM(rawRecipe, model) {
 }
 
 /**
- * Normalize URL-scraped raw recipe via LLM (`OPENAI_NORMALIZE_MODEL_PRIMARY`).
+ * Remove tips that exactly match raw scraper notes (untranslated echoes) and dedupe tips.
+ * @param {object} structured – normalization envelope
+ * @param {object} rawRecipe – scraped raw recipe
+ */
+export function sanitizeNormalizedTips(structured, rawRecipe) {
+  if (!structured?.recipe) return structured
+
+  const rawNotes = Array.isArray(rawRecipe?.notes) ? rawRecipe.notes : []
+  const rawNoteKeys = new Set(
+    rawNotes.map((note) => String(note).trim()).filter(Boolean)
+  )
+
+  const tips = Array.isArray(structured.recipe.tips) ? structured.recipe.tips : []
+  const seen = new Set()
+  /** @type {string[]} */
+  const cleaned = []
+
+  for (const tip of tips) {
+    const trimmed = String(tip).trim()
+    if (!trimmed) continue
+    if (rawNoteKeys.has(trimmed)) continue
+    if (seen.has(trimmed)) continue
+    seen.add(trimmed)
+    cleaned.push(trimmed)
+  }
+
+  structured.recipe.tips = cleaned
+  return structured
+}
+
+/**
+ * Append scraped notes to normalized tips when the LLM omitted them entirely.
+ * @param {object} structured – normalization envelope
+ * @param {object} rawRecipe – scraped raw recipe
+ */
+export function mergeScrapedNotesIntoEnvelope(structured, rawRecipe) {
+  if (!structured?.recipe || !Array.isArray(rawRecipe?.notes) || !rawRecipe.notes.length) return structured
+
+  const tips = Array.isArray(structured.recipe.tips) ? structured.recipe.tips : []
+  if (tips.length > 0) return structured
+
+  const merged = []
+  const seen = new Set()
+  for (const note of rawRecipe.notes) {
+    const text = String(note).trim()
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    merged.push(text)
+  }
+  structured.recipe.tips = merged
+  return structured
+}
+
+/**
+ * Sanitize echoed raw notes from tips, then merge only when the LLM omitted all tips.
+ * @param {object} structured – normalization envelope
+ * @param {object} rawRecipe – scraped raw recipe
+ */
+export function finalizeNormalizedTips(structured, rawRecipe) {
+  sanitizeNormalizedTips(structured, rawRecipe)
+  mergeScrapedNotesIntoEnvelope(structured, rawRecipe)
+  return structured
+}
+
+/**
  * @param {object} rawRecipe - Same shape as extractRecipeFromUrl().recipe
  * @returns {Promise<{ recipe: object, usage?: object, model: string, attempts: Array<{ recipe: object, usage?: object, model: string, request_json: string }> }>}
  */

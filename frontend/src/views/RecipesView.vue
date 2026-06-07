@@ -138,7 +138,21 @@
           </div>
         </div>
         <aside class="cooking-mode__aside" aria-label="Zutaten">
-          <h2 class="cooking-mode__aside-title">Zutaten</h2>
+          <div class="cooking-mode__aside-head">
+            <h2 class="cooking-mode__aside-title">Zutaten</h2>
+            <button
+              v-if="detailHasAnyOriginalText"
+              type="button"
+              class="ingredients-icon-btn cooking-mode__original-toggle"
+              :class="{ 'ingredients-icon-btn--active': showDetailOriginalLines }"
+              :aria-pressed="showDetailOriginalLines"
+              :title="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+              :aria-label="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+              @click="showDetailOriginalLines = !showDetailOriginalLines"
+            >
+              <OriginalLanguageIcon />
+            </button>
+          </div>
           <div class="cooking-mode__ingredient-groups">
             <section
               v-for="(section, sidx) in cookingIngredientSections"
@@ -152,34 +166,60 @@
                   :key="`cook-d-${sidx}-${idx}`"
                   class="recipe-ingredient"
                 >
-                  <span class="recipe-ingredient-text">{{ line.text }}</span>
+                  <div class="recipe-ingredient-lines">
+                    <span class="recipe-ingredient-text">{{ line.text }}</span>
+                    <span
+                      v-if="showDetailOriginalLines && line.originalText"
+                      class="recipe-ingredient-original"
+                    >{{ line.originalText }}</span>
+                  </div>
                 </li>
               </ul>
             </section>
           </div>
         </aside>
       </div>
-      <details class="cooking-mode__ingredients-mobile" open>
-        <summary>Alle Zutaten</summary>
-        <div class="cooking-mode__ingredient-groups">
-          <section
-            v-for="(section, sidx) in cookingIngredientSections"
-            :key="`cook-m-${section.key}-${sidx}`"
-            class="recipe-ingredient-group"
-          >
-            <h3 v-if="section.heading" class="recipe-ingredient-group__heading">{{ section.heading }}</h3>
-            <ul class="recipe-ingredients-list recipe-ingredients-list--panel cooking-mode__ingredient-list">
-              <li
-                v-for="(line, idx) in section.items"
-                :key="`cook-m-${sidx}-${idx}`"
-                class="recipe-ingredient"
-              >
-                <span class="recipe-ingredient-text">{{ line.text }}</span>
-              </li>
-            </ul>
-          </section>
-        </div>
-      </details>
+      <div class="cooking-mode__ingredients-mobile-wrap">
+        <details class="cooking-mode__ingredients-mobile" open>
+          <summary>Alle Zutaten</summary>
+          <div class="cooking-mode__ingredient-groups">
+            <section
+              v-for="(section, sidx) in cookingIngredientSections"
+              :key="`cook-m-${section.key}-${sidx}`"
+              class="recipe-ingredient-group"
+            >
+              <h3 v-if="section.heading" class="recipe-ingredient-group__heading">{{ section.heading }}</h3>
+              <ul class="recipe-ingredients-list recipe-ingredients-list--panel cooking-mode__ingredient-list">
+                <li
+                  v-for="(line, idx) in section.items"
+                  :key="`cook-m-${sidx}-${idx}`"
+                  class="recipe-ingredient"
+                >
+                  <div class="recipe-ingredient-lines">
+                    <span class="recipe-ingredient-text">{{ line.text }}</span>
+                    <span
+                      v-if="showDetailOriginalLines && line.originalText"
+                      class="recipe-ingredient-original"
+                    >{{ line.originalText }}</span>
+                  </div>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </details>
+        <button
+          v-if="detailHasAnyOriginalText"
+          type="button"
+          class="ingredients-icon-btn cooking-mode__original-toggle"
+          :class="{ 'ingredients-icon-btn--active': showDetailOriginalLines }"
+          :aria-pressed="showDetailOriginalLines"
+          :title="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+          :aria-label="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+          @click="showDetailOriginalLines = !showDetailOriginalLines"
+        >
+          <OriginalLanguageIcon />
+        </button>
+      </div>
     </article>
 
     <!-- Recipe detail (full page) -->
@@ -858,19 +898,22 @@ const cookingIngredientSections = computed(() => {
 
   const originalServings = recipe.servings || 1
   const scale = cookingServings.value / originalServings
-  const servingsChanged = cookingServings.value !== originalServings
-  const isImageBookRecipe = recipe.import_method === 'image' && recipe.source_id != null && recipe.source_type === 'book'
-  const shouldShowOriginalText = isImageBookRecipe && !servingsChanged
 
-  type IngredientLine = { text: string; category: string | null }
+  type IngredientLine = { text: string; originalText: string | null; category: string | null }
   const sections: { heading: string | null; key: string; items: IngredientLine[] }[] = []
-  const pushToSection = (heading: string | null, key: string, text: string, category: string | null = null) => {
+  const pushToSection = (
+    heading: string | null,
+    key: string,
+    text: string,
+    originalText: string | null = null,
+    category: string | null = null
+  ) => {
     let section = sections.length ? sections[sections.length - 1] : null
     if (!section || section.key !== key) {
       sections.push({ heading, key, items: [] })
       section = sections[sections.length - 1]
     }
-    section.items.push({ text, category })
+    section.items.push({ text, originalText, category })
   }
 
   const formatAmountRange = (amount: number | null | undefined, amountMax: number | null | undefined) => {
@@ -888,19 +931,15 @@ const cookingIngredientSections = computed(() => {
 
   if (recipe.ingredients?.length) {
     for (const ing of recipe.ingredients) {
-      let text = ''
       const cat = ing.category?.trim() ? ing.category.trim() : null
-      if (shouldShowOriginalText && ing.original_text) {
-        text = ing.original_text ?? ''
-      } else {
-        const amountText = formatAmountRange(ing.amount ?? null, ing.amount_max ?? null)
-        const ingredientName = (ing.name || ing.ingredient || '').trim()
-        const additional = ing.additional_info ? ` (${ing.additional_info})` : ''
-        text = ([amountText, ing.unit ?? null, ingredientName].filter(Boolean).join(' ').trim() + additional).trim()
-      }
+      const originalText = (ing.original_text || '').trim() || null
+      const amountText = formatAmountRange(ing.amount ?? null, ing.amount_max ?? null)
+      const ingredientName = (ing.name || ing.ingredient || '').trim()
+      const additional = ing.additional_info ? ` (${ing.additional_info})` : ''
+      const text = ([amountText, ing.unit ?? null, ingredientName].filter(Boolean).join(' ').trim() + additional).trim()
       if (text) {
         const key = `section-${ing.section_id ?? 'manual'}-${ing.section_heading ?? 'no-heading'}`
-        pushToSection(ing.section_heading ?? null, key, text, cat)
+        pushToSection(ing.section_heading ?? null, key, text, originalText, cat)
       }
     }
   } else if (recipe.parsed_recipe?.ingredientsSections?.length) {
@@ -912,19 +951,14 @@ const cookingIngredientSections = computed(() => {
         const additional = (item as any).additionalInfo ? ` (${(item as any).additionalInfo})` : ''
         const catRaw = (item as { category?: string | null }).category
         const cat = catRaw?.trim() ? catRaw.trim() : null
+        const originalText = (item.originalText || '').trim() || null
+        let text = [amountText, item.unit ?? null, ingredientName]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+        text = (text + additional).trim()
 
-        let text = ''
-        if (shouldShowOriginalText && item.originalText?.trim()) {
-          text = item.originalText.trim()
-        } else {
-          text = [amountText, item.unit ?? null, ingredientName]
-            .filter(Boolean)
-            .join(' ')
-            .trim()
-          text = (text + additional).trim()
-        }
-
-        if (text) pushToSection(section.heading ?? null, sectionKey, text, cat)
+        if (text) pushToSection(section.heading ?? null, sectionKey, text, originalText, cat)
       }
     })
   }
@@ -2336,7 +2370,8 @@ onBeforeUnmount(() => {
   color: var(--color-text);
 }
 
-.recipe-detail-ingredients-panel .ingredients-icon-btn {
+.recipe-detail-ingredients-panel .ingredients-icon-btn,
+.cooking-mode .ingredients-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2348,21 +2383,27 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
+}
+
+.recipe-detail-ingredients-panel .ingredients-icon-btn {
   margin-left: 5px;
 }
 
-.recipe-detail-ingredients-panel .ingredients-icon-btn svg {
+.recipe-detail-ingredients-panel .ingredients-icon-btn svg,
+.cooking-mode .ingredients-icon-btn svg {
   width: 1.05rem;
   height: 1.05rem;
 }
 
-.recipe-detail-ingredients-panel .ingredients-icon-btn:hover {
+.recipe-detail-ingredients-panel .ingredients-icon-btn:hover,
+.cooking-mode .ingredients-icon-btn:hover {
   color: var(--color-text);
   background: var(--color-surface-subtle);
   border-color: var(--color-border);
 }
 
-.recipe-detail-ingredients-panel .ingredients-icon-btn--active {
+.recipe-detail-ingredients-panel .ingredients-icon-btn--active,
+.cooking-mode .ingredients-icon-btn--active {
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
@@ -2896,10 +2937,34 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-.cooking-mode__ingredients-mobile {
+.cooking-mode__aside-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.cooking-mode__original-toggle {
+  flex-shrink: 0;
+}
+
+.cooking-mode__ingredients-mobile-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
   margin-top: var(--spacing-lg);
   padding: var(--spacing-md) 0 0;
   border-top: 1px solid var(--color-border);
+}
+
+.cooking-mode__ingredients-mobile {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  padding: 0;
+  border-top: none;
 }
 
 .cooking-mode__ingredients-mobile summary {
@@ -2964,7 +3029,7 @@ onBeforeUnmount(() => {
   }
 
   .cooking-mode__aside-title {
-    margin: 0 0 var(--spacing-md);
+    margin: 0;
     font-size: 0.95rem;
     font-weight: 650;
     color: var(--color-text);
@@ -2976,7 +3041,7 @@ onBeforeUnmount(() => {
     color: var(--color-text-muted);
   }
 
-  .cooking-mode__ingredients-mobile {
+  .cooking-mode__ingredients-mobile-wrap {
     display: none;
   }
 }

@@ -1023,14 +1023,88 @@
           </div>
         </div>
 
-        <div class="form-section document-section">
+        <div class="form-section document-section tips-section">
           <h4 class="form-section__title">Tipps & Notizen</h4>
-          <textarea
-            v-model="form.tips_notes"
-            rows="3"
-            class="form-textarea"
-            aria-label="Tipps und Notizen"
-          />
+          <p v-if="form.tips.length === 0" class="tips-section__empty">Keine Tipps</p>
+          <div v-else class="tips-section__list instructions-step__list">
+            <div
+              v-for="(tip, index) in form.tips"
+              :key="index"
+              class="instruction-card"
+              :class="{ 'instruction-card--editing': isTipEditing(index) }"
+            >
+              <div v-if="!isTipEditing(index)" class="instruction-card__view">
+                <span class="instruction-card__num" aria-hidden="true">{{ index + 1 }}</span>
+                <div
+                  class="instruction-card__summary"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="'Tipp ' + (index + 1) + ' bearbeiten'"
+                  @click="openTipEdit(index)"
+                  @keydown.enter.prevent="openTipEdit(index)"
+                  @keydown.space.prevent="openTipEdit(index)"
+                >
+                  <div class="instruction-card__summary-main">
+                    {{
+                      (tip.text || '').trim()
+                        ? tip.text
+                        : 'Leerer Tipp — tippen zum Bearbeiten'
+                    }}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="ingredients-icon-btn ingredients-icon-btn--subtle"
+                  title="Tipp entfernen"
+                  aria-label="Tipp entfernen"
+                  @click.stop="removeTip(index)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
+              <div v-else class="instruction-card__edit">
+                <div class="instruction-card__edit-row instruction-card__edit-row--main">
+                  <span class="instruction-card__num" aria-hidden="true">{{ index + 1 }}</span>
+                  <textarea
+                    v-model="tip.text"
+                    rows="2"
+                    class="instruction-card__textarea"
+                    aria-label="Tipp oder Notiz"
+                  />
+                  <button
+                    type="button"
+                    class="ingredients-icon-btn ingredients-icon-btn--done"
+                    aria-label="Fertig"
+                    title="Fertig"
+                    @click="closeTipEdit(index)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M6 12l4 4 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="ingredients-icon-btn ingredients-icon-btn--subtle"
+                    title="Tipp entfernen"
+                    aria-label="Tipp entfernen"
+                    @click="removeTip(index)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ingredients-step__bottom-actions">
+            <button type="button" class="btn btn--secondary btn--block" @click="addTip">
+              + Tipp hinzufügen
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1462,7 +1536,7 @@ const form = reactive({
   title: '',
   subtitle: '',
   description: '',
-  tips_notes: '',
+  tips: [] as { text: string }[],
   servings: null as number | null,
   prep_time: null as number | null,
   cook_time: null as number | null,
@@ -1533,6 +1607,9 @@ const editingIngredientIndices = ref<Set<number>>(new Set())
 /** Steps shown as textarea (otherwise one-line summary). */
 const editingStepIndices = ref<Set<number>>(new Set())
 
+/** Tips shown as textarea (otherwise one-line summary). */
+const editingTipIndices = ref<Set<number>>(new Set())
+
 function isIngredientEditing(flatIndex: number): boolean {
   return editingIngredientIndices.value.has(flatIndex)
 }
@@ -1563,6 +1640,22 @@ function closeStepEdit(index: number) {
   const next = new Set(editingStepIndices.value)
   next.delete(index)
   editingStepIndices.value = next
+}
+
+function isTipEditing(index: number): boolean {
+  return editingTipIndices.value.has(index)
+}
+
+function openTipEdit(index: number) {
+  const next = new Set(editingTipIndices.value)
+  next.add(index)
+  editingTipIndices.value = next
+}
+
+function closeTipEdit(index: number) {
+  const next = new Set(editingTipIndices.value)
+  next.delete(index)
+  editingTipIndices.value = next
 }
 
 function ingredientLineMain(ing: IngredientRow): string {
@@ -2147,6 +2240,16 @@ function removeStep(index: number) {
   remapIndexSetAfterRemove(editingStepIndices, index)
 }
 
+function addTip() {
+  form.tips.push({ text: '' })
+  openTipEdit(form.tips.length - 1)
+}
+
+function removeTip(index: number) {
+  form.tips.splice(index, 1)
+  remapIndexSetAfterRemove(editingTipIndices, index)
+}
+
 function nextStep() {
   if (currentStep.value < steps.length - 1) {
     currentStep.value++
@@ -2167,6 +2270,7 @@ function assignFromInitial() {
   expandedOriginalLineIndices.value = new Set()
   editingIngredientIndices.value = new Set()
   editingStepIndices.value = new Set()
+  editingTipIndices.value = new Set()
   emptyEditorGroups.value = []
   sectionOrderIds.value = []
   editorClientIdSeq = 0
@@ -2180,7 +2284,7 @@ function assignFromInitial() {
     form.subtitle = props.initial.subtitle ?? ''
     form.description = props.initial.description ?? ''
     const initialTips = (props.initial as { tips?: string[] })?.tips
-    form.tips_notes = Array.isArray(initialTips) ? initialTips.join('\n') : ''
+    form.tips = Array.isArray(initialTips) ? initialTips.map((t) => ({ text: t ?? '' })) : []
     form.servings = props.initial.servings ?? null
     form.prep_time = props.initial.prep_time_min ?? null
     form.cook_time = props.initial.cook_time_min ?? null
@@ -2235,7 +2339,7 @@ function assignFromInitial() {
     form.title = ''
     form.subtitle = ''
     form.description = ''
-    form.tips_notes = ''
+    form.tips = []
     form.servings = null
     form.prep_time = null
     form.cook_time = null
@@ -2371,11 +2475,13 @@ watch(
     const expanded = expandedOriginalLineIndices.value
     const editingIng = editingIngredientIndices.value
     const editingSt = editingStepIndices.value
+    const editingTp = editingTipIndices.value
     assignFromInitial()
     currentStep.value = step
     expandedOriginalLineIndices.value = expanded
     editingIngredientIndices.value = editingIng
     editingStepIndices.value = editingSt
+    editingTipIndices.value = editingTp
   }
 )
 
@@ -2465,10 +2571,8 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
     .filter((s) => s.instruction.trim() !== '')
     .map((s, i) => ({ step_number: i + 1, instruction: s.instruction.trim() }))
 
-  const tipsTrimmed = form.tips_notes.trim()
-  const tips = tipsTrimmed
-    ? tipsTrimmed.split(/\n/).map((s) => s.trim()).filter(Boolean)
-    : undefined
+  const tips = form.tips.map((t) => t.text.trim()).filter(Boolean)
+
   const init = props.initial
   const prepMeta = timeFieldPayload(
     form.prep_time,
@@ -2500,7 +2604,7 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
     cook_time_confidence: cookMeta.confidence,
     ingredients,
     recipe_steps,
-    ...(tips != null ? { tips } : {}),
+    tips,
     tags: [...form.tags],
   }
 
@@ -3979,6 +4083,20 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
   flex-direction: column;
   gap: 0;
   min-width: 0;
+}
+
+.tips-section {
+  margin-top: var(--spacing-md);
+}
+
+.tips-section__empty {
+  margin: 0 0 0.35rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.tips-section__list {
+  margin-bottom: 0.15rem;
 }
 
 .instruction-card {

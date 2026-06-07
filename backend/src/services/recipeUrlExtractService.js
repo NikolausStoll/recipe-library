@@ -4,6 +4,13 @@
  */
 
 import * as cheerio from 'cheerio'
+import {
+  countSectionLines,
+  extractRecipeCardData,
+  flattenIngredientSections,
+  shouldAcceptHtmlIngredientSections,
+  textOneLine,
+} from './recipeHtmlEnrichment.js'
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.RECIPE_URL_FETCH_TIMEOUT_MS) || 25_000
 const DEFAULT_MAX_BYTES = Number(process.env.RECIPE_URL_MAX_BYTES) || 2_000_000
@@ -19,7 +26,9 @@ function emptyRawRecipe() {
     cook_time_min: null,
     total_time_min: null,
     ingredient_lines: [],
+    ingredient_sections: [],
     steps: [],
+    notes: [],
     image_urls: [],
   }
 }
@@ -470,14 +479,7 @@ function extractJsonLdRecipes(html, pageUrl, warnings, areaHints = null) {
   return { raw: recipeNodeToRaw(picked, pageUrl, areaHints), picked }
 }
 
-function textOneLine($, el) {
-  return $(el).text().replace(/\s+/g, ' ').trim()
-}
-
-function extractHtmlHeuristics(html, pageUrl, warnings) {
-  const $ = cheerio.load(html)
-  const raw = emptyRawRecipe()
-
+function extractPageMeta($, pageUrl, raw) {
   raw.title =
     $('meta[property="og:title"]').attr('content')?.trim() ||
     $('meta[name="twitter:title"]').attr('content')?.trim() ||
@@ -513,61 +515,22 @@ function extractHtmlHeuristics(html, pageUrl, warnings) {
     const srcset = $(el).attr('srcset') || $(el).attr('data-srcset')
     for (const u of parseSrcsetUrls(srcset, pageUrl)) raw.image_urls.push(u)
   })
+}
 
-  // WordPress Recipe Maker
-  $('.wprm-recipe-ingredient').each((_, el) => {
-    const t = textOneLine($, el)
-    if (t) raw.ingredient_lines.push(t)
-  })
-  $('.wprm-recipe-instruction-text').each((_, el) => {
-    const t = textOneLine($, el)
-    if (t) raw.steps.push(t)
-  })
+function extractHtmlHeuristics(html, pageUrl, warnings) {
+  const $ = cheerio.load(html)
+  const raw = emptyRawRecipe()
+  extractPageMeta($, pageUrl, raw)
 
-  // Generic: headings + following list
-  if (!raw.ingredient_lines.length) {
-    $('h2, h3, h4').each((_, h) => {
-      const label = $(h).text().toLowerCase()
-      if (!/(ingredient|zutaten|what you need|you will need)/i.test(label)) return
-      let n = $(h).next()
-      let guard = 0
-      while (n.length && guard++ < 8) {
-        if (n.is('ul, ol')) {
-          n.find('li').each((__, li) => {
-            const t = textOneLine($, li)
-            if (t) raw.ingredient_lines.push(t)
-          })
-          break
-        }
-        n = n.next()
-      }
-    })
-  }
+  const cardData = extractRecipeCardData($, pageUrl, warnings)
+  raw.ingredient_sections = cardData.ingredient_sections
+  raw.ingredient_lines = cardData.ingredient_lines
+  raw.steps = cardData.steps
+  raw.notes = cardData.notes
 
-  if (!raw.steps.length) {
-    $('h2, h3, h4').each((_, h) => {
-      const label = $(h).text().toLowerCase()
-      if (!/(instruction|method|direction|steps|zubereitung|anleitung|how to)/i.test(label)) return
-      let n = $(h).next()
-      let guard = 0
-      while (n.length && guard++ < 10) {
-        if (n.is('ol')) {
-          n.find('li').each((__, li) => {
-            const t = textOneLine($, li)
-            if (t) raw.steps.push(t)
-          })
-          break
-        }
-        if (n.is('ul')) {
-          n.find('li').each((__, li) => {
-            const t = textOneLine($, li)
-            if (t) raw.steps.push(t)
-          })
-          break
-        }
-        n = n.next()
-      }
-    })
+  if (cardData.cardFound && cardData.card) {
+    const cardTitle = textOneLine($, $(cardData.card).find('.wprm-recipe-name, [itemprop="name"], h2').first())
+    if (cardTitle && (!raw.title || raw.title.length > 120)) raw.title = cardTitle
   }
 
   raw.image_urls = [...new Set(raw.image_urls)]
@@ -587,9 +550,53 @@ function mergePreferStructured(structured, html) {
   out.total_time_min = structured.total_time_min ?? html.total_time_min ?? null
   out.ingredient_lines =
     structured.ingredient_lines.length > 0 ? structured.ingredient_lines : [...html.ingredient_lines]
+  out.ingredient_sections =
+    html.ingredient_sections.length > 0 ? html.ingredient_sections.map((s) => ({ ...s, lines: [...s.lines] })) : []
   out.steps = structured.steps.length > 0 ? structured.steps : [...html.steps]
+  out.notes = html.notes.length > 0 ? [...html.notes] : []
   out.image_urls = [...new Set([...structured.image_urls, ...html.image_urls])]
   return out
+}
+
+/**
+ * Apply HTML enrichment on top of JSON-LD merge: grouped ingredients, notes, HTML-only threshold.
+ * @param {ReturnType<typeof emptyRawRecipe>} merged
+ * @param {ReturnType<typeof emptyRawRecipe>} fromLd
+ * @param {ReturnType<typeof emptyRawRecipe>} fromHtml
+ * @param {unknown} jsonLdPicked
+ * @param {string[]} warnings
+ */
+function applyHtmlEnrichment(merged, fromLd, fromHtml, jsonLdPicked, warnings) {
+  const htmlSections = fromHtml.ingredient_sections || []
+  const htmlLineCount = countSectionLines(htmlSections)
+  const ldCount = fromLd.ingredient_lines.length
+
+  if (htmlSections.length > 0 && htmlLineCount > 0) {
+    if (jsonLdPicked) {
+      if (shouldAcceptHtmlIngredientSections(htmlLineCount, ldCount, warnings)) {
+        merged.ingredient_sections = htmlSections.map((s) => ({ heading: s.heading, lines: [...s.lines] }))
+        merged.ingredient_lines = flattenIngredientSections(merged.ingredient_sections)
+      } else if (ldCount > 0) {
+        merged.ingredient_sections = [{ heading: null, lines: [...merged.ingredient_lines] }]
+      }
+    } else if (htmlLineCount >= 2 && merged.steps.length >= 2) {
+      merged.ingredient_sections = htmlSections.map((s) => ({ heading: s.heading, lines: [...s.lines] }))
+      merged.ingredient_lines = flattenIngredientSections(merged.ingredient_sections)
+    }
+  } else if (merged.ingredient_lines.length > 0 && !merged.ingredient_sections.length) {
+    merged.ingredient_sections = [{ heading: null, lines: [...merged.ingredient_lines] }]
+  }
+
+  if (fromHtml.notes?.length) {
+    merged.notes = [...fromHtml.notes]
+  }
+
+  if (!jsonLdPicked) {
+    warnings.push('JSON-LD missing')
+    const ok =
+      Boolean(merged.title?.trim()) && merged.ingredient_lines.length >= 2 && merged.steps.length >= 2
+    if (!ok) warnings.push('HTML-only extraction threshold not met')
+  }
 }
 
 function hasUsefulContent(raw) {
@@ -604,7 +611,9 @@ function hasUsefulContent(raw) {
 
 function determineSource(jsonLdPicked, fromLd, fromHtml, merged) {
   if (!jsonLdPicked) {
-    return hasUsefulContent(merged) ? 'html' : 'none'
+    const ok =
+      Boolean(merged.title?.trim()) && merged.ingredient_lines.length >= 2 && merged.steps.length >= 2
+    return ok ? 'html' : 'none'
   }
   const htmlFilledGaps =
     (fromLd.ingredient_lines.length === 0 && fromHtml.ingredient_lines.length > 0) ||
@@ -612,7 +621,16 @@ function determineSource(jsonLdPicked, fromLd, fromHtml, merged) {
     (!fromLd.title && fromHtml.title) ||
     (!fromLd.description && fromHtml.description) ||
     (!fromLd.servings_raw && fromHtml.servings_raw) ||
-    (fromLd.image_urls.length === 0 && fromHtml.image_urls.length > 0)
+    (fromLd.image_urls.length === 0 && fromHtml.image_urls.length > 0) ||
+    (fromHtml.notes?.length > 0) ||
+    (fromHtml.ingredient_sections?.length > 1) ||
+    (countSectionLines(fromHtml.ingredient_sections) > 0 &&
+      shouldAcceptHtmlIngredientSections(
+        countSectionLines(fromHtml.ingredient_sections),
+        fromLd.ingredient_lines.length,
+        []
+      ) &&
+      fromHtml.ingredient_sections.some((s) => s.heading))
   if (htmlFilledGaps) return 'jsonld+html'
   return 'jsonld'
 }
@@ -697,12 +715,17 @@ export async function extractRecipeFromUrl(urlString) {
   const { raw: fromLd, picked } = extractJsonLdRecipes(html, finalUrl, warnings, areaHints)
   const fromHtml = extractHtmlHeuristics(html, finalUrl, warnings)
   const merged = mergePreferStructured(fromLd, fromHtml)
+  applyHtmlEnrichment(merged, fromLd, fromHtml, picked, warnings)
   merged.image_urls = dedupeImageUrlsByBestResolution(merged.image_urls, areaHints)
 
   let source = determineSource(picked, fromLd, fromHtml, merged)
   if (!hasUsefulContent(merged)) {
     source = 'none'
     warnings.push('No recipe content could be extracted from this page')
+  } else if (!picked) {
+    const ok =
+      Boolean(merged.title?.trim()) && merged.ingredient_lines.length >= 2 && merged.steps.length >= 2
+    if (!ok) source = 'none'
   }
 
   return {
@@ -711,4 +734,31 @@ export async function extractRecipeFromUrl(urlString) {
     fetched_url: finalUrl,
     recipe: merged,
   }
+}
+
+/**
+ * Test helper: parse HTML string without network fetch.
+ * @param {string} html
+ * @param {string} pageUrl
+ */
+export function scrapeRecipeFromHtmlForTest(html, pageUrl) {
+  const warnings = []
+  const areaHints = new Map()
+  const { raw: fromLd, picked } = extractJsonLdRecipes(html, pageUrl, warnings, areaHints)
+  const fromHtml = extractHtmlHeuristics(html, pageUrl, warnings)
+  const merged = mergePreferStructured(fromLd, fromHtml)
+  applyHtmlEnrichment(merged, fromLd, fromHtml, picked, warnings)
+  merged.image_urls = dedupeImageUrlsByBestResolution(merged.image_urls, areaHints)
+
+  let source = determineSource(picked, fromLd, fromHtml, merged)
+  if (!hasUsefulContent(merged)) {
+    source = 'none'
+    warnings.push('No recipe content could be extracted from this page')
+  } else if (!picked) {
+    const ok =
+      Boolean(merged.title?.trim()) && merged.ingredient_lines.length >= 2 && merged.steps.length >= 2
+    if (!ok) source = 'none'
+  }
+
+  return { source, warnings, fetched_url: pageUrl, recipe: merged }
 }

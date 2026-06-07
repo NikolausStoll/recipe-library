@@ -226,7 +226,9 @@ export interface RawRecipeFromUrl {
   cook_time_min: number | null
   total_time_min: number | null
   ingredient_lines: string[]
+  ingredient_sections?: Array<{ heading: string | null; lines: string[] }>
   steps: string[]
+  notes?: string[]
   image_urls: string[]
 }
 

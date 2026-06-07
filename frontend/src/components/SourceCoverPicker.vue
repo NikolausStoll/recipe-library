@@ -69,7 +69,16 @@
       />
 
       <div v-if="mobileCameraStream" class="cover-upload__camera">
-        <video ref="mobileVideoRef" class="cover-upload__camera-video" autoplay playsinline muted />
+        <div class="cover-upload__camera-viewport" :style="mobileCameraViewportStyle">
+          <video
+            ref="mobileVideoRef"
+            class="cover-upload__camera-video"
+            autoplay
+            playsinline
+            muted
+            @loadedmetadata="onMobileCameraVideoMetadata"
+          />
+        </div>
         <div class="cover-upload__camera-actions">
           <button type="button" class="btn btn--primary" :disabled="disabled" @click="captureMobilePhoto">Aufnehmen</button>
           <button type="button" class="btn btn--secondary" :disabled="disabled" @click="stopMobileCamera">Schließen</button>
@@ -180,6 +189,10 @@ const processingPreview = ref(false)
 
 const coverChangePickerOpen = ref(false)
 const mobileCameraStream = ref<MediaStream | null>(null)
+/** Matches native stream dimensions; fallback ~ phone portrait 3472×4624 (3:4) */
+const mobileCameraViewportStyle = ref<Record<string, string>>({
+  aspectRatio: '3472 / 4624',
+})
 const cameraSupported = ref(false)
 const localPending = ref<boolean | null>(null)
 
@@ -405,6 +418,24 @@ function hasCover(): boolean {
   return hasPreview.value
 }
 
+function onMobileCameraVideoMetadata() {
+  const video = mobileVideoRef.value
+  if (!video?.videoWidth || !video?.videoHeight) return
+  mobileCameraViewportStyle.value = {
+    aspectRatio: `${video.videoWidth} / ${video.videoHeight}`,
+  }
+}
+
+function attachMobileCameraStream(stream: MediaStream) {
+  mobileCameraStream.value = stream
+  void nextTick().then(() => {
+    if (mobileVideoRef.value) {
+      mobileVideoRef.value.srcObject = stream
+      queueMicrotask(() => onMobileCameraVideoMetadata())
+    }
+  })
+}
+
 async function startMobileCamera() {
   errorText.value = ''
   if (mobileCameraStream.value) return
@@ -412,14 +443,25 @@ async function startMobileCamera() {
     errorText.value = 'Kamera nicht verfügbar'
     return
   }
+  const w = 3472
+  const h = 4624
+  const ar = w / h
+  const preferred: MediaStreamConstraints = {
+    audio: false,
+    video: {
+      facingMode: 'environment',
+      width: { ideal: w },
+      height: { ideal: h },
+      aspectRatio: { ideal: ar },
+    },
+  }
+  const fallback: MediaStreamConstraints = { audio: false, video: { facingMode: 'environment' } }
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: 'environment' },
-    })
-    mobileCameraStream.value = stream
-    await nextTick()
-    if (mobileVideoRef.value) mobileVideoRef.value.srcObject = stream
+    const stream = await navigator.mediaDevices
+      .getUserMedia(preferred)
+      .catch(() => navigator.mediaDevices.getUserMedia(fallback))
+    attachMobileCameraStream(stream)
   } catch {
     errorText.value = 'Kamera nicht verfügbar'
   }
@@ -429,6 +471,7 @@ function stopMobileCamera() {
   mobileCameraStream.value?.getTracks().forEach((t) => t.stop())
   mobileCameraStream.value = null
   if (mobileVideoRef.value) mobileVideoRef.value.srcObject = null
+  mobileCameraViewportStyle.value = { aspectRatio: '3472 / 4624' }
 }
 
 function captureMobilePhoto() {
@@ -640,15 +683,26 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: var(--spacing-sm);
   width: 100%;
-  max-width: 320px;
+  max-width: min(100%, 22rem);
+}
+
+.cover-upload__camera-viewport {
+  width: 100%;
+  max-height: min(85vh, 52rem);
+  background: #000;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cover-upload__camera-video {
+  display: block;
   width: 100%;
-  border-radius: var(--radius-md);
-  background: #000;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  height: auto;
+  max-height: min(85vh, 52rem);
+  object-fit: contain;
 }
 
 .cover-upload__camera-actions {

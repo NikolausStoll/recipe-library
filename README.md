@@ -226,8 +226,8 @@ The backend automatically uses `backend/venv/bin/python3` if available. Otherwis
 #### URL (raw extraction, no LLM)
 - **`POST /api/recipes/extract-from-url`** – Fetch a public recipe page and return raw extracted fields
   - Body: `{ url: string, normalize?: boolean }` (http/https only; localhost and private IPs are rejected). Set `normalize: true` to run LLM normalization after scraping (requires `OPENAI_API_KEY`).
-  - Parses `application/ld+json` for schema.org `Recipe`, then fills gaps from HTML heuristics (e.g. WP Recipe Maker, common heading + list patterns)
-  - Response (scrape only): `{ source, warnings, fetched_url, recipe }` with stable empty fields when nothing is found
+  - Parses `application/ld+json` for schema.org `Recipe`, then enriches from the recipe-card HTML (WP Recipe Maker, Tasty Recipes, Mediavine Create, schema.org microdata, heading + list fallbacks): **ingredient groups** (`ingredient_sections`), **notes** (`notes`), instructions when JSON-LD is missing. HTML groups replace flat JSON-LD ingredients only when line counts are plausible (≥75% of JSON-LD count). `source: jsonld+html` when HTML fills gaps or adds groups/notes.
+  - Raw `recipe` fields include `ingredient_lines`, optional `ingredient_sections` (`{ heading, lines }[]`), `steps`, optional `notes`, times, `image_urls`
   - Response (with `normalize: true`): same fields plus `structured` (same shape as vision extract: `status`, `confidence`, `warnings`, `missingFields`, `recipe`), `normalize_model`, `normalize_usage` (`OPENAI_NORMALIZE_MODEL_PRIMARY`, default `gpt-4o-mini`). No DB write; no nutrition in this step
 
 - **`POST /api/recipes/import-from-url`** – End-to-end URL import (same as app “Import from URL”)

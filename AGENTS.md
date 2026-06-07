@@ -46,7 +46,7 @@
 
 ## AI Integration
 
-- Raw recipe URL extraction (`recipeUrlExtractService.js`) uses JSON-LD and HTML only; optional LLM normalization (`recipeNormalizationService.js`, `normalizeRecipeWithLLM`) when `POST /api/recipes/extract-from-url` includes `normalize: true`.
+- Raw recipe URL extraction (`recipeUrlExtractService.js` + `recipeHtmlEnrichment.js`) uses JSON-LD first, then recipe-card HTML enrichment (ingredient groups, notes, instructions); optional LLM normalization (`recipeNormalizationService.js`, `normalizeRecipeWithLLM`) when `POST /api/recipes/extract-from-url` includes `normalize: true`. Normalization LLM input uses **`ingredient_sections` only** (flat `ingredient_lines` converted to one null-heading section when needed; never both). After normalization, `finalizeNormalizedTips` strips tips that exactly match raw scraped `notes` (untranslated echoes), dedupes tips, and only merges raw notes when the LLM returned no tips at all.
 - Post-extract import pipeline (`recipeImportPipelineService.js`): after normalization or vision extract, `finalizeImportedRecipe` runs: (1) cup conversion (`cupConversionService.js`) — sends only cup-unit ingredient rows to a separate LLM call; merges by `${sectionIndex}:${itemIndex}` id; (2) `setRecipeParsedRecipe`; (3) await tagging. Failures at each stage add a warning and are non-fatal. Cup conversion model: `AI_CUP_CONVERSION_MODEL` (default: `gpt-4o-mini`).
 - OpenAI vision API used for recipe extraction
 - Token usage logged to `ai_token_usage` table
