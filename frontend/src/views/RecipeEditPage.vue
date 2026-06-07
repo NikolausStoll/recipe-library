@@ -533,7 +533,9 @@ watch(() => route.params.id, initFromRoute, { immediate: true })
   width: 100%;
   max-width: 920px;
   margin: 0 auto;
-  padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom, 0px));
+  --recipe-edit-action-bar-reserve: calc(
+    var(--spacing-md) * 2 + var(--spacing-lg) + 7.5rem + var(--spacing-sm) * 2
+  );
 }
 
 .recipe-edit-page__header {
@@ -543,6 +545,8 @@ watch(() => route.params.id, initFromRoute, { immediate: true })
 .recipe-edit-page__nav.recipe-detail-nav {
   flex-wrap: wrap;
   margin-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .recipe-edit-page__nav .recipe-detail-nav__btn--back {
@@ -605,22 +609,42 @@ watch(() => route.params.id, initFromRoute, { immediate: true })
   overflow: visible;
 }
 
-.recipe-edit-page__body :deep(.form-content) {
-  padding-bottom: var(--spacing-md);
-}
-
 .recipe-edit-page__body :deep(.form-actions) {
-  position: sticky;
-  bottom: 0;
   z-index: 5;
   margin-top: var(--spacing-lg);
-  padding: var(--spacing-md) 0 calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px));
+  padding: var(--spacing-md) 0;
   background: linear-gradient(
     to top,
     var(--color-bg) 88%,
     color-mix(in srgb, var(--color-bg) 92%, transparent)
   );
   border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 767px) {
+  .recipe-edit-page__body :deep(.form-content) {
+    padding-bottom: calc(var(--recipe-edit-action-bar-reserve) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .recipe-edit-page__body :deep(.form-actions) {
+    position: fixed;
+    left: var(--content-padding-mobile);
+    right: var(--content-padding-mobile);
+    bottom: 0;
+    z-index: 45;
+    margin-top: 0;
+    padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (min-width: 768px) {
+  .recipe-edit-page {
+    padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .recipe-edit-page__body :deep(.form-content) {
+    padding-bottom: var(--spacing-md);
+  }
 }
 
 .extraction-details-overlay {
