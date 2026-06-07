@@ -337,42 +337,6 @@
           </template>
         </div>
 
-        <div
-          v-if="editingId != null && (hasHealthScore || estimateHints.health)"
-          class="form-section document-section editor-health-section"
-        >
-          <div class="form-section__head">
-            <h4 class="form-section__title">Gesundheitscheck</h4>
-            <button
-              v-if="hasHealthScore"
-              type="button"
-              class="editor-estimate-refresh"
-              :disabled="healthEstimateLoading"
-              title="Gesundheitscheck neu berechnen"
-              aria-label="Gesundheitscheck neu berechnen"
-              @click="emit('estimateHealth')"
-            >
-              ↻
-            </button>
-          </div>
-          <div v-if="hasHealthScore" class="editor-health-summary">
-            <span class="editor-health-score">{{ healthScoreValue }}</span>
-            <span class="editor-health-score-max">/ 100</span>
-            <p v-if="healthScoreSummary" class="editor-health-summary__text meta-text">{{ healthScoreSummary }}</p>
-          </div>
-          <p v-if="estimateHints.health" class="editor-estimate-hint" role="status">
-            {{ estimateHints.health }}
-            <button
-              type="button"
-              class="btn btn--ghost btn--tiny editor-estimate-retry"
-              :disabled="healthEstimateLoading"
-              @click="emit('estimateHealth')"
-            >
-              Erneut versuchen
-            </button>
-          </p>
-        </div>
-
         <!-- Source -->
         <div class="form-section document-section source-section">
           <h4 class="form-section__title">Quelle</h4>
@@ -1163,7 +1127,6 @@ import {
   perServingNutrition,
   recipeHasNutrition,
 } from '../utils/recipeEstimateNeeds'
-import type { RecipeHealthScoreResponse } from '../api/recipes'
 
 interface IngredientRow {
   amount: string
@@ -1206,7 +1169,6 @@ const props = defineProps<{
     nutrition_protein?: number | null
     nutrition_carbs?: number | null
     nutrition_fat?: number | null
-    health_score?: RecipeHealthScoreResponse | null
     prep_time_min?: number | null
     cook_time_min?: number | null
     prep_time_source?: 'original' | 'estimated' | null
@@ -1220,8 +1182,7 @@ const props = defineProps<{
   editingStatus?: 'draft' | 'confirmed' | null
   timeEstimateLoading?: boolean
   nutritionEstimateLoading?: boolean
-  healthEstimateLoading?: boolean
-  estimateHints?: { nutrition: string; health: string; times: string }
+  estimateHints?: { nutrition: string; times: string }
   tagGenerateLoading?: boolean
 }>()
 
@@ -1236,7 +1197,6 @@ const emit = defineEmits<{
   cancel: []
   estimateTimes: []
   estimateNutrition: []
-  estimateHealth: []
   generateTags: []
 }>()
 
@@ -1555,7 +1515,7 @@ function formatTagLabel(t: string) {
 
 const tagGenerateLoading = computed(() => props.tagGenerateLoading === true)
 
-const estimateHints = computed(() => props.estimateHints ?? { nutrition: '', health: '', times: '' })
+const estimateHints = computed(() => props.estimateHints ?? { nutrition: '', times: '' })
 
 const hasNutrition = computed(() => recipeHasNutrition(props.initial))
 const nutritionPerServing = computed(() =>
@@ -1571,13 +1531,6 @@ const nutritionPerServing = computed(() =>
     form.servings
   )
 )
-
-const hasHealthScore = computed(() => {
-  const score = props.initial?.health_score?.estimate?.healthScore
-  return score != null && !Number.isNaN(Number(score))
-})
-const healthScoreValue = computed(() => props.initial?.health_score?.estimate?.healthScore ?? null)
-const healthScoreSummary = computed(() => props.initial?.health_score?.estimate?.summary?.trim() ?? '')
 
 const hasAnyOriginalText = computed(() =>
   form.ingredients.some((i) => (i.original_text || '').trim())
@@ -4403,29 +4356,6 @@ function handleSubmit(options?: { processImageLater?: boolean }) {
 .editor-nutrition-value {
   font-size: 0.9rem;
   font-weight: 600;
-}
-
-.editor-health-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.2rem 0.5rem;
-}
-
-.editor-health-score {
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--color-success);
-}
-
-.editor-health-score-max {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-
-.editor-health-summary__text {
-  flex: 1 1 100%;
-  margin: 0.25rem 0 0;
 }
 
 .btn-icon {

@@ -97,14 +97,12 @@
         :editing-status="editingStatus"
         :time-estimate-loading="timeEstimateLoading"
         :nutrition-estimate-loading="nutritionEstimateLoading"
-        :health-estimate-loading="healthEstimateLoading"
         :estimate-hints="estimateHints"
         :tag-generate-loading="tagGenerateLoading"
         @submit="onFormSubmit"
         @confirm="onConfirmRecipe"
         @estimate-times="onFormEstimateTimes"
         @estimate-nutrition="onFormEstimateNutrition"
-        @estimate-health="onFormEstimateHealth"
         @generate-tags="onFormGenerateTags"
       />
     </div>
@@ -155,9 +153,8 @@ const nutritionEstimateLoading = ref(false)
 const healthEstimateLoading = ref(false)
 const tagGenerateLoading = ref(false)
 const confirmAfterNextSave = ref(false)
-const estimateHints = ref<{ nutrition: string; health: string; times: string }>({
+const estimateHints = ref<{ nutrition: string; times: string }>({
   nutrition: '',
-  health: '',
   times: '',
 })
 
@@ -309,34 +306,27 @@ async function runNutritionEstimate(recipeId: number, options?: { auto?: boolean
   }
 }
 
-async function runHealthEstimate(recipeId: number, options?: { auto?: boolean }) {
+async function runHealthEstimate(recipeId: number) {
   if (healthEstimateLoading.value) return
   healthEstimateLoading.value = true
-  if (!options?.auto) error.value = ''
   try {
     await postRecipeHealthScore(recipeId)
     await loadRecipe(recipeId, { silent: true })
-    estimateHints.value.health = ''
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Gesundheitscheck fehlgeschlagen'
-    if (options?.auto) {
-      estimateHints.value.health = msg
-    } else {
-      error.value = msg
-    }
+  } catch {
+    // Silent on edit page; health score is shown and can be retried on the recipe detail view.
   } finally {
     healthEstimateLoading.value = false
   }
 }
 
 async function runPostReviewAutoEstimates(recipeId: number) {
-  estimateHints.value = { nutrition: '', health: '', times: '' }
+  estimateHints.value = { nutrition: '', times: '' }
   const base = formInitial.value
   if (recipeNeedsNutritionEstimate(base)) {
     await runNutritionEstimate(recipeId, { auto: true })
   }
   if (recipeNeedsHealthScoreEstimate(base?.health_score)) {
-    await runHealthEstimate(recipeId, { auto: true })
+    await runHealthEstimate(recipeId)
   }
   if (recipeNeedsTimeEstimate(base)) {
     await runEstimateTimesFlow(recipeId, { auto: true })
@@ -370,13 +360,6 @@ async function onFormEstimateNutrition() {
   if (id == null) return
   estimateHints.value.nutrition = ''
   await runNutritionEstimate(id)
-}
-
-async function onFormEstimateHealth() {
-  const id = editingId.value
-  if (id == null) return
-  estimateHints.value.health = ''
-  await runHealthEstimate(id)
 }
 
 async function onFormGenerateTags() {

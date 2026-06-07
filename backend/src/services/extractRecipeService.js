@@ -248,7 +248,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
 
   const translateToGerman = options.translateToGerman === true
   const systemPrompt = buildImageExtractionPrompt(translateToGerman)
-console.log('systemPrompt:', systemPrompt)
+
   const client = new OpenAI({ apiKey })
   const imageContents = imageBuffers.map((buf) => ({
     type: 'image_url',
