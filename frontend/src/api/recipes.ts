@@ -336,12 +336,16 @@ export type CropPoints = Array<{ x: number; y: number }> | null
 export function extractRecipeFromImages(
   recipeId: number,
   imageFiles: File[],
-  pointsPerImage?: CropPoints[]
+  pointsPerImage?: CropPoints[],
+  options?: { translateToGerman?: boolean }
 ): Promise<ExtractRecipeResult> {
   const form = new FormData()
   imageFiles.forEach((file) => form.append('images', file))
   if (pointsPerImage && pointsPerImage.length === imageFiles.length) {
     form.append('points', JSON.stringify(pointsPerImage))
+  }
+  if (options?.translateToGerman === true) {
+    form.append('translateToGerman', 'true')
   }
   return fetch(`${API_BASE}/recipes/${recipeId}/extract-from-images`, {
     method: 'POST',

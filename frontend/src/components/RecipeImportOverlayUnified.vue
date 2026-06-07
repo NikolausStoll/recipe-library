@@ -127,6 +127,11 @@
               </div>
             </div>
 
+            <label v-if="!busy && !importFailed" class="import-translate-option">
+              <input v-model="translateToGerman" type="checkbox" />
+              Auf Deutsch übersetzen
+            </label>
+
             <div class="import-footer__actions">
               <button type="button" class="btn btn--secondary" :disabled="busy" @click="clearAll">Leeren</button>
               <button
@@ -187,6 +192,7 @@ const errorText = ref('')
 const busy = ref(false)
 const importFailed = ref(false)
 const importPhase = ref<'idle' | 'creating' | 'analyzing' | 'extracting'>('idle')
+const translateToGerman = ref(false)
 const processingFiles = ref(false)
 const isMobile = ref(false)
 const mobileCameraStream = ref<MediaStream | null>(null)
@@ -438,7 +444,9 @@ async function runImport() {
     const filesForExtract = photosForExtract.map((p) => p.file)
     const pointsPerImage = photosForExtract.map((p) => buildCropPointsForPhoto(p))
     importPhase.value = 'extracting'
-    const result = await extractRecipeFromImages(draft.id, filesForExtract, pointsPerImage)
+    const result = await extractRecipeFromImages(draft.id, filesForExtract, pointsPerImage, {
+      translateToGerman: translateToGerman.value,
+    })
     emit('done', result.recipe)
   } catch (e) {
     errorText.value = e instanceof Error ? e.message : 'Import fehlgeschlagen'
@@ -621,6 +629,19 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 0.65rem;
   margin-top: 0.25rem;
+}
+
+.import-translate-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.import-translate-option input {
+  margin: 0;
 }
 
 .import-footer__actions {

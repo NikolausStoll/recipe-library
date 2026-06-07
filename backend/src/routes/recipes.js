@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import sharp from 'sharp'
 import * as recipeService from '../services/recipeService.js'
-import { extractRecipeFromImages, logAiTokenUsage } from '../services/extractRecipeService.js'
+import { extractRecipeFromImages, logAiTokenUsage, parseTranslateToGerman } from '../services/extractRecipeService.js'
 import { prepareTextImage, writeResizedWebp } from '../services/imageProcessingService.js'
 import { cropPerspective, cropPerspectiveBuffer } from '../services/cropPerspectiveService.js'
 import { estimateRecipeNutrition } from '../services/nutritionService.js'
@@ -766,7 +766,7 @@ router.post('/:id/image', (req, res, next) => {
 
 /**
  * POST /api/recipes/:id/extract-from-images – Step 2: extract recipe text from image(s) via OpenAI.
- * Body: multipart form with "images" (one or more files) and optional "points" (JSON array: for each image, null or [ {x,y}, {x,y}, {x,y}, {x,y} ] in original coords). If points[i] has 4 points, that image is perspective-cropped, then scaled; then send to AI.
+ * Body: multipart form with "images" (one or more files), optional "points" (JSON array: for each image, null or [ {x,y}, {x,y}, {x,y}, {x,y} ] in original coords), and optional "translateToGerman" ("true" to append German translation instructions to the vision prompt).
  * Unlike POST /api/upload + processImageLater: files are never written to pending/; multer uses memory only. prepareTextImage runs immediately; buffers are not persisted as recipe assets.
  * Returns { recipe, usage?: { ... } }. Token usage is logged to ai_token_usage.
  */
@@ -829,7 +829,8 @@ router.post('/:id/extract-from-images', (req, res, next) => {
       '| total:',
       sizeFmt(totalBytes)
     )
-    const { recipe: parsedRecipe, usage } = await extractRecipeFromImages(buffers)
+    const translateToGerman = parseTranslateToGerman(req.body?.translateToGerman)
+    const { recipe: parsedRecipe, usage } = await extractRecipeFromImages(buffers, { translateToGerman })
     const visionModel = process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini'
     if (usage || parsedRecipe) {
       logAiTokenUsage(id, usage, parsedRecipe, { model: visionModel, usage_kind: 'recipe_image_extract' })

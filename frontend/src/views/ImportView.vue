@@ -246,6 +246,10 @@
             <button type="button" class="btn btn--secondary step2-crop-item__reset" :disabled="extracting" @click="rotateStep2Image(idx)">90° drehen</button>
           </div>
         </div>
+        <label class="import-translate-option">
+          <input v-model="translateToGerman" type="checkbox" :disabled="extracting" />
+          Auf Deutsch übersetzen
+        </label>
         <div class="import-preview__actions">
           <button
             type="button"
@@ -328,6 +332,7 @@ const step2CropImageRefs = ref<(HTMLImageElement | null)[]>([])
 const step2CropWrapRefs = ref<(HTMLDivElement | null)[]>([])
 let step2DragState: { unsubscribe: () => void } | null = null
 const extracting = ref(false)
+const translateToGerman = ref(false)
 const extractError = ref('')
 const extractUsage = ref<{ prompt_tokens: number; completion_tokens: number; total_tokens: number } | null>(null)
 const cameraStream = ref<MediaStream | null>(null)
@@ -882,7 +887,9 @@ async function runExtract() {
   extracting.value = true
   extractError.value = ''
   try {
-    const result = await extractRecipeFromImages(currentRecipe.value.id, step2Files.value, pointsPerImage)
+    const result = await extractRecipeFromImages(currentRecipe.value.id, step2Files.value, pointsPerImage, {
+      translateToGerman: translateToGerman.value,
+    })
     currentRecipe.value = result.recipe
     extractUsage.value = result.usage
   } catch (e) {
@@ -986,7 +993,17 @@ onBeforeUnmount(() => {
   margin-bottom: 0.75rem;
   object-fit: contain;
 }
-.import-preview__actions { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.import-preview__actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.import-translate-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.import-translate-option input { margin: 0; }
 .import-preview__meta { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--color-text-muted); }
 .import-preview__error { margin: 0; color: var(--color-error); font-size: 0.9rem; }
 

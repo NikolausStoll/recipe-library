@@ -157,6 +157,10 @@
                 </div>
               </div>
               <div class="import-preview__actions">
+                <label class="import-translate-option">
+                  <input v-model="translateToGerman" type="checkbox" :disabled="extracting" />
+                  Auf Deutsch übersetzen
+                </label>
                 <button type="button" class="btn btn--primary" :disabled="extracting" @click="runExtract">
                   {{ extracting ? 'Extracting Text…' : 'Extract Text (OpenAI)' }}
                 </button>
@@ -196,8 +200,9 @@ const step2CropPoints = ref<Array<Array<{ x: number; y: number }>>>([])
 const step2DisplaySize = ref<Array<{ w: number; h: number }>>([])
 const step2CropImageRefs = ref<(HTMLImageElement | null)[]>([])
 const step2CropWrapRefs = ref<(HTMLDivElement | null)[]>([])
-let step2DragState: { imageIdx: number; pointIdx: number; unsubscribe: () => void } | null = null
+let step2DragUnsubscribe: (() => void) | null = null
 const extracting = ref(false)
+const translateToGerman = ref(false)
 const extractError = ref('')
 const cameraStream = ref<MediaStream | null>(null)
 const cameraBusy = ref(false)
@@ -648,7 +653,7 @@ function onStep2PointPointerDown(e: PointerEvent, imageIdx: number, pointIdx: nu
       step2CropPoints.value = next
     },
     onActiveCleanup: (fn) => {
-      step2DragState = fn ? { unsubscribe: fn } : null
+      step2DragUnsubscribe = fn
     },
   })
 }
@@ -731,7 +736,9 @@ async function runExtract() {
   extracting.value = true
   extractError.value = ''
   try {
-    const result = await extractRecipeFromImages(currentRecipe.value.id, step2Files.value, pointsPerImage)
+    const result = await extractRecipeFromImages(currentRecipe.value.id, step2Files.value, pointsPerImage, {
+      translateToGerman: translateToGerman.value,
+    })
     currentRecipe.value = result.recipe
     emit('done', result.recipe)
   } catch (e) {
@@ -747,7 +754,7 @@ onBeforeUnmount(() => {
   if (step1Preview.value) URL.revokeObjectURL(step1Preview.value)
   cropDragUnsubscribe?.()
   step2Previews.value.forEach((url) => URL.revokeObjectURL(url))
-  step2DragState?.unsubscribe()
+  step2DragUnsubscribe?.()
 })
 </script>
 
@@ -863,7 +870,17 @@ onBeforeUnmount(() => {
   margin-bottom: 0.5rem;
   object-fit: contain;
 }
-.import-preview__actions { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.import-preview__actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.import-translate-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: auto;
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.import-translate-option input { margin: 0; }
 .import-preview__meta { margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--color-text-muted); }
 .import-preview__error { margin: 0; color: var(--color-error); font-size: 0.9rem; }
 .crop-editor { margin-top: 0.75rem; }

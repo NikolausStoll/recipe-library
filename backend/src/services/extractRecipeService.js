@@ -10,7 +10,7 @@ import {
   CANONICAL_INGREDIENT_CATEGORY_ENUM,
 } from '../constants/ingredientCategories.js'
 
-export const EXTRACT_PROMPT = `You are a recipe extractor. The user will provide one or more images containing recipe text.
+const EXTRACT_PROMPT_BODY = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
 Rules:
 - Extract only information that is actually visible in the image.
@@ -59,7 +59,81 @@ Rules for categorization:
 
 - Return JSON only. No markdown, no explanations, no code fences.
 
-Use the exact keys above. If the image has multiple pages, merge the content into one coherent recipe. Preserve the original language of the recipe.`
+Use the exact keys above. If the image has multiple pages, merge the content into one coherent recipe. `
+
+const ORIGINAL_LANGUAGE_INSTRUCTION =
+  'Preserve the original language of the recipe.'
+
+const GERMAN_OUTPUT_INSTRUCTION =
+  'The user requested German output; translate the extracted recipe fields according to the additional translation mode below.'
+
+export const EXTRACT_PROMPT = EXTRACT_PROMPT_BODY + ORIGINAL_LANGUAGE_INSTRUCTION
+
+export const GERMAN_TRANSLATION_ADDON = `Additional translation mode:
+
+The user requested German output.
+
+After extracting the visible recipe content, translate the extracted recipe fields to German.
+
+Translate:
+- recipe.description
+- ingredientsSections.heading when present
+- ingredient
+- additionalInfo
+- steps
+- tips
+
+Do not translate:
+- recipe.title, unless it is clearly descriptive and not a proper recipe name
+- ingredient originalText
+
+German translation style:
+- Use natural German recipe language for home cooks.
+- Use informal "du" only when directly addressing the cook.
+- Do not use formal "Sie".
+- Preserve meaning and cooking intent.
+- Do not translate word-for-word if it sounds unnatural.
+- It is okay if German text becomes slightly longer for clarity.
+- Keep concise, but not at the cost of awkward wording.
+- Avoid literal translations of English food terms when they sound awkward.
+- Translate cooking terms contextually, e.g. "broil" as "kurz unter dem Grill bräunen", or similar when appropriate.
+- For serving/enjoy instructions, use natural German recipe phrasing.
+- Do not translate "Enjoy with..." literally as "Genießen mit...".
+- Prefer phrases like:
+  - "Mit ... servieren."
+  - "Zum Servieren ... darübergeben."
+  - "Nach Belieben mit ... garnieren."
+  - "Nach Belieben noch etwas ... hinzufügen."
+- Translate "as desired" naturally as "nach Belieben", not mechanically at the end if another wording sounds better.
+
+Important:
+- ingredient originalText must always preserve the visible source line exactly as read from the image.
+- Do not include both translated and original versions of steps or tips.
+- Tips do not have an originalText field.
+- Preserve ingredient section order and ingredient order.`
+
+/**
+ * @param {boolean} [translateToGerman=false]
+ * @returns {string}
+ */
+export function buildImageExtractionPrompt(translateToGerman = false) {
+  const finalLanguageInstruction = translateToGerman
+    ? GERMAN_OUTPUT_INSTRUCTION
+    : ORIGINAL_LANGUAGE_INSTRUCTION
+  const base = EXTRACT_PROMPT_BODY + finalLanguageInstruction
+  if (translateToGerman) {
+    return `${base}\n\n${GERMAN_TRANSLATION_ADDON}`
+  }
+  return base
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function parseTranslateToGerman(value) {
+  return value === true || value === 'true'
+}
 
 export const RECIPE_JSON_SCHEMA = {
   type: 'object',
@@ -165,12 +239,16 @@ export const RECIPE_JSON_SCHEMA = {
 
 /**
  * @param {Buffer[]} imageBuffers - One or more images (recipe text)
+ * @param {{ translateToGerman?: boolean }} [options]
  * @returns {Promise<{ recipe: { status: string, confidence: number, warnings: string[], missingFields: string[], recipe: object|null }, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number } }>}
  */
-export async function extractRecipeFromImages(imageBuffers) {
+export async function extractRecipeFromImages(imageBuffers, options = {}) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
 
+  const translateToGerman = options.translateToGerman === true
+  const systemPrompt = buildImageExtractionPrompt(translateToGerman)
+console.log('systemPrompt:', systemPrompt)
   const client = new OpenAI({ apiKey })
   const imageContents = imageBuffers.map((buf) => ({
     type: 'image_url',
@@ -183,7 +261,7 @@ export async function extractRecipeFromImages(imageBuffers) {
   const response = await client.chat.completions.create({
     model: process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini',
     messages: [
-      { role: 'system', content: EXTRACT_PROMPT },
+      { role: 'system', content: systemPrompt },
       {
         role: 'user',
         content: [
