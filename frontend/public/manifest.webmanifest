@@ -24,16 +24,16 @@
   ],
   "screenshots": [
     {
-      "src": "/screenshots/mobile.png",
-      "sizes": "390x844",
-      "type": "image/png",
+      "src": "/screenshots/mobile.webp",
+      "sizes": "720×1520",
+      "type": "image/webp",
       "form_factor": "narrow",
       "label": "Recipe Library on mobile"
     },
     {
-      "src": "/screenshots/desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
+      "src": "/screenshots/desktop.webp",
+      "sizes": "2400×1652",
+      "type": "image/webp",
       "form_factor": "wide",
       "label": "Recipe Library on desktop"
     }

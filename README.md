@@ -1,442 +1,56 @@
 # Recipe Library
 
-A full-stack recipe management application with AI-powered recipe extraction from images.
-
-**Stack**: Vue 3 + Vite + TypeScript frontend, Node.js + Express backend, SQLite database (better-sqlite3), OpenAI gpt-4.1-mini vision API.
+Recipe Library is a personal recipe-management workspace that keeps edits, imports, and cookbooks in one place. The Vue + Express app lets you add recipes manually, scrape websites, or import from photos, then polish the results before cooking.
 
 ## Features
 
-- **Manual Recipe Entry**: Full-featured recipe form with ingredients, steps, tips, nutrition
-- **AI Recipe Import**: Two-step overlay workflow
-  1. Optional: Upload recipe photo
-  2. Upload recipe text image(s) → OpenAI vision extraction with structured JSON schema
-- **Recipe URL scrape**: `POST /api/recipes/extract-from-url` fetches HTML and extracts raw fields (JSON-LD + HTML heuristics). Optional `normalize: true` chains OpenAI (`gpt-4o-mini` by default) to structured JSON matching the vision-extract schema (German, metric-friendly units)
-- **Recipe URL import (full flow)**: `POST /api/recipes/import-from-url` creates a draft recipe linked to a `recipe_sources` row (`type: url`, clickable `source_url` in the UI), scrapes + normalizes with OpenAI, writes each LLM call to `ai_token_usage` (with `model` and `usage_kind`), then returns the recipe for editing
-- **Book Source Management**: Track recipes from cookbooks with metadata and cover images
-- **4-Point Perspective Crop**: Optional Python-based image perspective correction; UI uses a shared **Crop** button (next to rotate) that opens a full-screen crop dialog—corner points are kept in memory until you save, import, or upload
-- **Admin · Extract usage**: Table of OpenAI token usage with per-request cost estimate (¢) for supported models
-- **Personal cookbook UI**: Image-led redesign with violet accent, desktop top nav, mobile bottom nav (Recipes · Plan · Add · Shopping · More), unified recipe search, filter chips, and **Needs review** (UI label for `draft` status)
-- **Refined recipe overview layout**: Compact mobile/tablet list rows (thumbnail, title, concise meta, optional `Prüfen` chip) and contained desktop card grid (`>=1100px`) with consistent smaller image frames
-- **Website sources by domain**: URL imports deduplicate `recipe_sources` by normalized domain (`plantyou.com`); each recipe keeps `original_url` for “Original öffnen”; Sources page splits **Kochbücher** and **Websites**
-- **Light/Dark Mode**: Semantic design tokens (`data-theme` on `<html>`), Work Sans typography
-- **Installable PWA shell**: `frontend/public/manifest.webmanifest` + `frontend/public/sw.js` (registered in `frontend/src/main.ts`) with correctly sized icons (`/icons/icon-192.png`, `/icons/icon-512.png`), optional install screenshots, and `display: standalone`
-- **Token Usage Tracking**: Monitor OpenAI API costs via `ai_token_usage` table
+- Multi-step recipe form with ingredients, steps, tips, tags, nutrition, and linked source metadata.
+- Recipe detail view with cooking mode, favorites, “would cook again,” and “Needs review” badges for drafts.
+- Website imports that scrape JSON-LD/HTML, optionally normalize via the LLM pipeline, and dedupe sources by domain.
+- Image/photo import backed by OpenAI vision, deferred uploads (`processImageLater`), optional 4-point crop, and Sharp/WebP resizing.
+- Cookbook/source management with cover upload, cover cropping, and separate book vs. website listings.
+- Tags, health-score, and time-estimate APIs that append structured AI usage to `ai_token_usage`.
+- Cooking-mode layout for step-by-step guidance and ingredients panels.
+- Responsive PWA shell (manifest + `sw.js`), top/bottom navigation, and consistent light/dark theming.
+- Backend pipeline that includes cup-conversion normalization plus image optimization flags.
 
-## Project Structure
+## Installation
 
-```
-recipe-library/
-├── frontend/          # Vue 3 + Vite + TypeScript
-│   ├── src/
-│   │   ├── views/           # Recipes, Plan, Add, Shopping, Sources, More, Admin
-│   │   ├── components/      # RecipeFormMultiStep, import overlays, ui (TagInput, nav)
-│   │   ├── layouts/         # AppShell (top + bottom nav)
-│   │   ├── router/          # Vue Router configuration
-│   │   └── api/             # API client functions
-│   └── package.json
-├── backend/           # Node.js + Express + SQLite
-│   ├── src/
-│   │   ├── routes/          # API route handlers
-│   │   ├── services/        # Business logic (extract, recipe, source, image)
-│   │   ├── db/              # Database schema and initialization
-│   │   └── server.js        # Express app entry point
-│   ├── scripts/             # Utility scripts (crop_perspective.py, evaluate-vision-quality.js)
-│   ├── requirements.txt     # Python dependencies (opencv, numpy)
-│   └── package.json
-├── .env.example       # Environment variables template
-├── Dockerfile         # Multi-stage production build
-├── run-local.sh       # Docker local development script
-├── recipe-library/    # Home Assistant add-on metadata (config.yaml, docs)
-│   ├── README.md
-│   └── DOCS.md        # Add-on options ↔ env mapping
-└── package.json       # Root workspace configuration
-```
+### Prerequisites
 
-### Database Schema
+- Node.js 20+
+- `OPENAI_API_KEY` (required for AI extraction/import paths)
 
-- **recipe_sources**: Book/URL/manual sources (type, name, author, year, image_path)
-- **recipes**: Main recipe table (title, description, servings, nutrition, extract metadata, status: draft|confirmed)
-- **recipe_ingredient_sections**: Ingredient groupings with headings
-- **ingredients**: Individual ingredients (amount, unit, ingredient, additional_info, optional **category** – must be one of the canonical keys in `backend/src/constants/ingredientCategories.js`; the recipe form uses German labels mapped to those keys)
-- **recipe_steps**: Preparation steps
-- **recipe_tips**: Cooking tips and variations
-- **ai_token_usage**: OpenAI token usage log (`response_json`, optional `request_json` for JSON-in requests, `model`, `usage_kind`)
-
-## Quick Start
-
-### Local Development
+### Local development
 
 ```bash
-# 1. Install dependencies
 npm run install:all
-
-# 2. Create .env file (see Environment section below)
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-
-# 3. Start development servers
+# Add your OPENAI_API_KEY to .env
 npm run dev
 ```
 
-App available at [http://localhost:8097](http://localhost:8097)
+`npm run dev` starts the Express backend (`:8097`) and waits for it before launching the Vite frontend.
 
-### Docker (Recommended for Production)
+## Environment
 
-```bash
-# Create .env file
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
+Copy `.env.example` into `.env` in the workspace root. Supply `OPENAI_API_KEY` and only override `DB_PATH`, `UPLOAD_DIR`, or image-size values if you need to run outside the defaults. The example includes optional OpenAI tuning and crop-related variables.
 
-# Build and run
-./run-local.sh
-```
+## Useful commands
 
-App available at [http://localhost:8097](http://localhost:8097)
+- `npm run install:all`
+- `npm run dev`
+- `npm run dev:frontend`
+- `npm run dev:backend`
+- `npm run build`
+- `npm run start`
+- `npm --prefix backend run test`
+- `npm --prefix backend run evaluate-vision`
+- `npm --prefix frontend run preview`
 
-## Available Scripts
+## Next
 
-| Command | Description |
-|---------|-------------|
-| `npm run install:all` | Install all dependencies (root + workspaces) |
-| `npm run dev` | Start frontend (Vite) and backend (Express) in parallel |
-| `npm run dev:frontend` | Start frontend only (Vite dev server) |
-| `npm run dev:backend` | Start backend only (Express on port 8097) |
-| `npm run build` | Build frontend for production |
-| `npm run start` | Start production server (requires built frontend) |
-
-## Environment Variables
-
-Create a `.env` file in the **project root** based on [.env.example](.env.example):
-
-### Required
-- `OPENAI_API_KEY` – OpenAI API key for recipe extraction (**required** for AI import feature)
-
-### Optional
-- `DB_PATH` – SQLite database path (default: `recipe-library.db`)
-- `UPLOAD_DIR` – Base directory for uploads (default: `data/uploads`); recipe images in `UPLOAD_DIR/recipe/`, source covers in `UPLOAD_DIR/source/`
-- `STATIC_DIR` – Static files directory (default: `/app/public`)
-- `IMAGE_QUALITY` – WebP quality 0–100 for recipe and source images (default: `80`)
-- `IMAGE_MAX_DIMENSION` – Max longest-side dimension for recipe and source images; images are only downscaled, never upscaled (default: `2400`)
-- `THUMBNAIL_MAX_DIMENSION` – Max longest-side dimension for thumbnails shown on overview lists (default: `600`)
-- `TEXT_IMAGE_MAX_DIMENSION` – Max dimension for OpenAI text images (default: `1400`)
-- `OPENAI_EXTRACT_MODEL` – OpenAI model for extraction (default: `gpt-4.1-mini`)
-- `OPENAI_EXTRACT_DETAIL` – Vision API detail level: `low` | `high` | `auto` (default: `high`)
-- `OPENAI_NUTRITION_MODEL` – Model for nutrition estimation (default: `gpt-4o-mini`)
-- `OPENAI_NUTRITION_MODEL_TEMPERATURE` – Optional; clamped to 0–0.3 (default: `0.2`)
-- `OPENAI_HEALTH_SCORE_MODEL` – Model for health score estimation (`POST .../estimate-health-score`, default: `gpt-4o-mini`)
-- `OPENAI_HEALTH_SCORE_TEMPERATURE` – Optional, clamped 0–0.3 (default: `0.2`)
-- `OPENAI_TIME_ESTIMATE_MODEL` – Model for prep/cook time estimate (`POST .../estimate-times`, default: `gpt-4o-mini`)
-- `OPENAI_RECIPE_TAG_MODEL` / `OPENAI_RECIPE_TAG_TEMPERATURE` – Optional; recipe tag assignment (`POST .../generate-tags`, defaults: `gpt-4o-mini`, `0.2`)
-- `OPENAI_TIME_ESTIMATE_TEMPERATURE` – Optional, clamped 0–0.3 (default: `0.2`)
-- `CROP_PYTHON` – Python executable path for perspective crop (optional)
-- `RECIPE_URL_FETCH_TIMEOUT_MS` – Max wait for URL fetch (default: `25000`)
-- `RECIPE_URL_MAX_BYTES` – Max HTML response size for URL extraction (default: `2000000`)
-- `RECIPE_URL_USER_AGENT` – `User-Agent` header for URL fetch (optional)
-- `OPENAI_NORMALIZE_MODEL_PRIMARY` – URL normalization LLM (default: `gpt-4o-mini`)
-- `OPENAI_NORMALIZE_TEMPERATURE` – 0–0.3 (default: `0.2`)
-
-### Python Setup (Optional 4-Point Crop)
-
-The perspective crop feature requires Python 3 with OpenCV and NumPy:
-
-```bash
-cd backend
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
-```
-
-The backend automatically uses `backend/venv/bin/python3` if available. Otherwise, set `CROP_PYTHON` in `.env`.
-
-## Technology Stack
-
-### Frontend
-- **Vue 3** – Composition API with `<script setup>`
-- **TypeScript** – Type-safe component development
-- **Vite** – Fast development server and build tool
-- **Vue Router** – Client-side routing
-- **CSS Custom Properties** – Theme-able light/dark mode
-
-### Backend
-- **Node.js 20+** – JavaScript runtime
-- **Express** – Web framework
-- **better-sqlite3** – Fast, synchronous SQLite driver
-- **Sharp** – High-performance image processing
-- **Multer** – File upload handling
-- **OpenAI SDK** – gpt-4.1-mini vision API integration
-
-### Optional
-- **Python 3** – For perspective crop feature
-- **OpenCV** – Computer vision (4-point crop)
-- **NumPy** – Numerical computing
-
-## API Reference
-
-### Health Check
-- **`GET /api/health`** – Server health status
-
-### Admin
-- **`GET /api/admin/extract-usage`** – All `ai_token_usage` rows with joined recipe title, token counts, `response_json`, optional **`request_json`** (input JSON sent to the model where applicable: e.g. URL normalization, health score payload, time-estimate input, recipe tags), `model`, `usage_kind`, plus estimated **`cost_usd`** / **`cost_cents`** (US cents) from built-in pricing in `extractUsagePricing.js` (GPT-4.1, GPT-4o, GPT-5 families); unknown models return `cost_cents: null`. Used by **Admin → AI token usage** in the web UI.
-
-### Recipes
-
-#### List & Retrieve
-- **`GET /api/recipes`** – List all recipes (excludes ingredients/steps for performance)
-  - Response: `[{ id, title, subtitle, image_path, status, favorite, would_cook_again, ... }]`
-
-- **`GET /api/recipes/:id`** – Get single recipe with full details
-  - Response: `{ id, title, ..., favorite, would_cook_again, ingredients: [...], recipe_steps: [...], recipe_tips: [...] }`
-
-#### Favorites
-- **`POST /api/recipes/:id/favorite`** – Mark/unmark a recipe as favorite
-  - Body: `{ favorite: boolean }`
-  - Response: `{ recipe: { ..., favorite } }`
-
-- **`GET /api/recipes/with-ingredients?favorite=1`** – List recipes including flattened ingredients for filtering
-  - When `favorite=1`, returns only favorite recipes
-  - Response: `[{ ..., ingredients: [...], favorite }]`
-
-#### Create & Update
-- **`POST /api/recipes`** – Create new recipe (stored as `draft`)
-  - Body: `{ title: string (required), description?, servings?, ingredients?, recipe_steps?, ... }`
-  - Response: `{ id, title, status: 'draft', ... }`
-
-- **`PUT /api/recipes/:id`** – Update existing recipe
-  - Body: Any recipe fields, `ingredients[]`, `recipe_steps[]` (replace existing)
-  - Ingredients are **replaced** (sections and ingredient rows deleted and re-inserted; IDs change). When each line includes `section_id` from `GET`, sections are grouped in list order by that id so multiple sections are not collapsed. Without `section_id`, grouping follows consecutive `section_heading` changes.
-  - Set `would_cook_again` to one of `yes` | `maybe` | `no`
-  - Set `status: 'confirmed'` to mark as final
-  - Response: Updated recipe object
-
-- **`DELETE /api/recipes/:id`** – Delete recipe
-  - Cascades to ingredients, steps, tips, sections, `recipe_health_scores`, `recipe_tags`, history
-
-#### Recipe tags (controlled vocabulary)
-- **`GET /api/recipes/tag-options`** – Returns `{ groups: { meal_type, cuisine, dish_type, diet, context }, all_allowed }` for UI validation (no AI).
-- **`POST /api/recipes/:id/generate-tags`** – Assigns tags with OpenAI from **structured** recipe data only (title, ingredients, steps, tips, times, etc.). Does **not** run inside vision extract or URL import; call separately when the recipe is saved. Persists validated tags to `recipe_tags`; logs to `ai_token_usage` with `usage_kind: recipe_tag`. Response: `{ recipe, tags, warnings, fallbacks }`.
-- **`POST /api/recipes`** / **`PUT /api/recipes/:id`** – Optional body field `tags: string[]` (only allowed tag strings; server sanitizes to group rules). Omit `tags` on update to leave tags unchanged.
-
-#### AI helpers (structured recipe only; not part of OCR/URL extract)
-- **`POST /api/recipes/:id/estimate-nutrition`** – Estimate kcal/macros from structured ingredients (persists `nutrition_*` on the recipe)
-- **`POST /api/recipes/:id/estimate-health-score`** – Practical **health score** (0–100), summary, positives, concerns, tips, confidence (0–1). LLM text fields are always in **German**. **Persists** the latest estimate in `recipe_health_scores` (one row per recipe); **model** and **token usage** are appended to `ai_token_usage` with `usage_kind: health_score`. `GET /api/recipes/:id` includes `health_score` (estimate fields only; not model/tokens from DB). Not medical advice.
-- **`POST /api/recipes/:id/estimate-times`** – Runs the time model (`gpt-4o-mini` by default) unless `use_client_estimate: true` with a prior `estimate` (confirmation step). Applies AI values immediately for non-`original` fields; `original` prep/cook stay until the client confirms with `replace_*` and the same `estimate`. Response includes `pendingOriginalReplace` when originals still block an overwrite. Body: `replace_prep_if_original`, `replace_cook_if_original`, optional `apply_prep` / `apply_cook`, optional `use_client_estimate` + `estimate`. Logged to `ai_token_usage` with `usage_kind: recipe_time_estimate` (LLM calls only).
-  - On failure (missing API key, model error): **HTTP 503** (no key) or **502** with `{ error: string }`.
-- **`POST /api/recipes/estimate-health-score`** – Same model as by id, but with a structured recipe in the body (no DB id, no persist). Same **200** vs **502**/**503** behavior as above.
-  - Body: `{ recipe: object }` — same fields as a full recipe payload (title, ingredients, recipe_steps, tips, optional nutrition_* , …)
-
-#### URL (raw extraction, no LLM)
-- **`POST /api/recipes/extract-from-url`** – Fetch a public recipe page and return raw extracted fields
-  - Body: `{ url: string, normalize?: boolean }` (http/https only; localhost and private IPs are rejected). Set `normalize: true` to run LLM normalization after scraping (requires `OPENAI_API_KEY`).
-  - Parses `application/ld+json` for schema.org `Recipe`, then enriches from the recipe-card HTML (WP Recipe Maker, Tasty Recipes, Mediavine Create, schema.org microdata, heading + list fallbacks): **ingredient groups** (`ingredient_sections`), **notes** (`notes`), instructions when JSON-LD is missing. HTML groups replace flat JSON-LD ingredients only when line counts are plausible (≥75% of JSON-LD count). `source: jsonld+html` when HTML fills gaps or adds groups/notes.
-  - Raw `recipe` fields include `ingredient_lines`, optional `ingredient_sections` (`{ heading, lines }[]`), `steps`, optional `notes`, times, `image_urls`
-  - Response (with `normalize: true`): same fields plus `structured` (same shape as vision extract: `status`, `confidence`, `warnings`, `missingFields`, `recipe`), `normalize_model`, `normalize_usage` (`OPENAI_NORMALIZE_MODEL_PRIMARY`, default `gpt-4o-mini`). No DB write; no nutrition in this step
-
-- **`POST /api/recipes/import-from-url`** – End-to-end URL import (same as app “Import from URL”)
-  - Body: `{ url: string }` (requires `OPENAI_API_KEY`)
-  - Creates a draft recipe (`import_method: url`), scrapes the page, normalizes with OpenAI; the normalization call is appended to `ai_token_usage` with `model` and `usage_kind: url_recipe_normalize`
-  - Image URLs from JSON-LD / HTML are **deduplicated** when they look like the same asset at different resolutions (WordPress-style `-WxH`, query `w`/`h`, etc.); the **largest** resolution is kept per group and listed first in `image_urls_json` for the UI
-  - Response: `{ recipe, scrape: { source, warnings, fetched_url } }` with HTTP 201
-
-### AI Import (Unified Image Flow)
-
-#### Create Draft With Optional Cover Image
-- **`POST /api/upload`** – Upload recipe image
-  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point perspective crop), optional **`processImageLater`** (`true` / `1`) to **defer** resize/WebP
-  - **Immediate processing** (default): optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/recipe/`
-  - **Defer** (`processImageLater`): stores the **original bytes** under `data/uploads/recipe/pending/` (JPEG/PNG/WebP/GIF as uploaded), sets `recipe.image_processing_pending = 1`. Finalize later via `POST /api/recipes/:id/crop-perspective` (same endpoint as processed images; for pending, omit `points` for full-frame resize or send 4 points for perspective crop, then WebP + thumbnail are written and the raw file is removed).
-  - Creates draft recipe with `image_path` (and `image_processing_pending` when deferring)
-  - Response: `{ url: string, recipe: { id, image_path, image_processing_pending, ... }, thumbUrl? }` (`thumbUrl` is null when deferred)
-
-#### Extract Recipe from Selected Images
-- **`POST /api/recipes/:id/extract-from-images`** – AI extraction via OpenAI
-  - Body: `multipart/form-data` with `images` field (one or more text images)
-  - OCR/extract uploads are read into **memory** only (`multer.memoryStorage()`), then **`prepareTextImage`** downscales (longest side ≤ `TEXT_IMAGE_MAX_DIMENSION`, default 1400) and optional perspective crop runs **before** the vision call. Nothing is stored under `pending/` and **`image_processing_pending` is not used** for these extract images—they are discarded after extraction (only structured recipe data is saved).
-  - Response: `{ recipe: { status, confidence, warnings, missingFields, recipe: {...} }, usage?: { prompt_tokens, completion_tokens, total_tokens } }`
-  - Token usage logged to `ai_token_usage` table
-
-### Sources (Cookbooks, URLs, etc.)
-
-- **`GET /api/sources`** – List all sources
-  - Response: `[{ id, type, name, author, year, image_path, ... }]`
-
-- **`GET /api/sources/:id`** – Get single source
-  - Response: `{ id, type, name, ... }`
-
-- **`POST /api/sources`** – Create new source
-  - Body: `{ type: 'book'|'url'|'manual'|'other', name: string (required), subtitle?, author?, year?, ... }`
-  - Response: Created source object
-
-- **`PUT /api/sources/:id`** – Update source
-  - Body: Any source fields
-  - Response: Updated source object
-
-- **`DELETE /api/sources/:id`** – Delete source (fails with **409** if recipes reference it). Query **`unlink_recipes=1`**: for website sources (`type: url`), sets `recipes.source_id` to `NULL` (keeps `original_url`) then deletes the source.
-  - Fails if recipes reference this source (foreign key constraint)
-
-- **`POST /api/sources/:id/cover`** – Upload book cover image
-  - Body: `multipart/form-data` with `image` field, optional `points` (JSON array of 4 `{x,y}` for 4-point crop), optional **`processImageLater`** to store raw under `data/uploads/source/pending/` and set `image_processing_pending` on the source (same semantics as recipe upload)
-  - **Immediate processing** (default): optional 4-point crop, then resize only down (longest side ≤ `IMAGE_MAX_DIMENSION`), saved as WebP in `data/uploads/source/`
-  - Response: `{ source, url, thumbUrl? }`
-
-- **`POST /api/sources/:id/crop-perspective`** – Finalize deferred cover or crop an existing WebP cover (same behavior as recipe crop endpoint: pending = optional `points`; processed = exactly 4 `points`)
-
-- **`POST /api/recipes/:id/image`** – Upload or replace recipe image
-  - Body: `multipart/form-data` with `image` field, optional `points`, optional **`processImageLater`**
-  - **Immediate processing** (default): optional 4-point crop, then resize only down, saved as WebP in `data/uploads/recipe/`
-  - Response: `{ recipe, url, thumbUrl? }`
-
-### Static Files
-- **`GET /uploads/*`** – Serve uploaded images; recipe images under `/uploads/recipe/`, source covers under `/uploads/source/`
-
-## Development
-
-### Project Layout
-- **Monorepo**: Single repository with `frontend` and `backend` workspaces
-- **ES Modules**: Both frontend and backend use `import`/`export` (not CommonJS)
-- **Database**: SQLite with better-sqlite3 (synchronous API)
-- **Image Processing**: Sharp for resize/format conversion, optional OpenCV for perspective crop
-
-### Adding Features
-
-1. **Database Changes**: Update the `CREATE TABLE` definitions in `backend/src/db/index.js` (`initDb()`). There is no separate migration layer; existing deployments need a DB backup and schema alignment when you change tables.
-2. **Backend**: Service layer (`backend/src/services/`) → Route handler (`backend/src/routes/`)
-3. **Frontend**: API function (`frontend/src/api/`) → Component → View
-4. **Documentation**: Update README.md, AGENTS.md, CLAUDE.md
-
-### Code Style
-- **English Only**: All code, comments, UI text, and documentation in English
-- **TypeScript**: Use for all new frontend code
-- **Composition API**: Prefer `<script setup>` syntax in Vue components
-- **Prepared Statements**: Always use for database queries (SQL injection prevention)
-- **Error Handling**: Catch errors at route level, return meaningful messages
-
-## Deployment
-
-### Docker Production
-
-The image installs **Python 3**, **pip**, and **`backend/requirements.txt`** (`opencv-python-headless`, `numpy`) so perspective crop works without a local venv. Rebuild the image after changing Python deps.
-
-```bash
-# Build image
-docker build -t recipe-library .
-
-# Run with persistent data
-docker run -d \
-  --name recipe-library \
-  -p 8097:8097 \
-  --env-file .env \
-  -v $(pwd)/data:/data \
-  recipe-library
-```
-
-### Manual Deployment
-
-```bash
-# 1. Install dependencies
-npm run install:all
-
-# 2. Build frontend
-npm run build
-
-# 3. Set environment variables
-export DB_PATH=/path/to/recipe-library.db
-export UPLOAD_DIR=/path/to/uploads
-export OPENAI_API_KEY=sk-...
-
-# 4. Start server
-npm run start
-```
-
-### Requirements
-- Node.js 20+
-- OpenAI API key (for AI import feature)
-- Python 3 + OpenCV (optional, for perspective crop)
-- Writable directory for uploads and database
-
-## Troubleshooting
-
-### OpenAI API Errors
-
-**Problem**: Recipe extraction fails with API error
-
-**Solutions**:
-- Verify `OPENAI_API_KEY` is set correctly in `.env`
-- Check OpenAI account has credits/active subscription
-- Review `ai_token_usage` table for error details
-- Ensure images don't exceed OpenAI size limits (currently 20MB per image)
-- Try different `OPENAI_EXTRACT_MODEL` (e.g., `gpt-4o` vs `gpt-4o-mini` vs `gpt-4.1-mini`)
-
-### Database Errors
-
-**Problem**: Foreign key constraint violation
-
-**Solutions**:
-- Check `PRAGMA foreign_keys = ON` is set (automatic in `initDb()`)
-- Cannot delete source if recipes reference it – delete recipes first
-- Use transactions for multi-step operations
-
-**Problem**: Database locked
-
-**Solutions**:
-- SQLite doesn't handle concurrent writes well – use connection pooling or queue
-- Check no other process has the database open
-- For `:memory:` database, data is lost on restart (use file path)
-
-### Prep / cook time estimate shows HTTP 409 (Conflict)
-
-**Problem**: After the AI returns prep/cook estimates, the browser shows **409 Conflict** (or error text "Conflict") instead of overwrite prompts.
-
-**Solutions**:
-- **Restart the Node backend** (or **rebuild/restart Docker**) so it runs the current `POST /api/recipes/:id/estimate-times` handler. The current API returns **200** with `pendingOriginalReplace` when imported "original" times need confirmation; older builds used **409** for that case.
-- If the response JSON includes an `estimate` object, the frontend can still open the confirmation flow from that legacy shape; otherwise update the server.
-
-### Image Upload Issues
-
-**Problem**: Upload fails or image not displayed
-
-**Solutions**:
-- Check `UPLOAD_DIR` exists and is writable
-- Verify Sharp can process the image format (supports JPEG, PNG, WebP, TIFF, GIF, SVG)
-- Check image file size isn't too large
-- Ensure `IMAGE_MAX_DIMENSION` setting is reasonable (default: 2400px)
-
-**Problem**: Perspective crop fails
-
-**Solutions**:
-- Ensure Python venv is set up: `cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt`
-- Set `CROP_PYTHON` in `.env` if not using venv
-- Verify opencv-python and numpy are installed
-- Check 4 points are provided in correct format
-
-### Performance
-
-**Problem**: Slow recipe list loading
-
-**Solutions**:
-- Recipe list endpoint excludes ingredients/steps by design
-- Add database indexes if filtering/sorting by custom fields
-- Consider pagination for large recipe collections
-
-**Problem**: High OpenAI costs
-
-**Solutions**:
-- Monitor `ai_token_usage` table regularly
-- Use `gpt-4.1-mini` instead of pricier models like `gpt-4o` (set `OPENAI_EXTRACT_MODEL`)
-- Reduce `TEXT_IMAGE_MAX_DIMENSION` to lower token usage
-- Set `OPENAI_EXTRACT_DETAIL=low` for lower quality but cheaper extraction
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make changes and test thoroughly
-4. Update documentation (README.md, AGENTS.md, CLAUDE.md)
-5. Commit with descriptive messages: `git commit -m "Add feature description"`
-6. Push and create a pull request
-
-## License
-
-[Add your license here]
-
-## Support
-
-For issues, questions, or feature requests, please open an issue on the repository.
+- Recipe overview overhaul
+- Shopping
+- Planning
+- Further large-screen optimizations

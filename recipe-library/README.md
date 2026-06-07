@@ -1,37 +1,36 @@
 # Recipe Library — Home Assistant Add-on
 
-This directory contains the **Home Assistant add-on** metadata for [Recipe Library](https://github.com/NikolausStoll/recipe-library): a self-hosted recipe app (Vue frontend + Node.js API + SQLite).
+This folder holds the Home Assistant add-on metadata and docs for [Recipe Library](https://github.com/NikolausStoll/recipe-library), the self-hosted recipe workspace (Vue frontend + Node API + SQLite). The container exposes the same Vue UI + `/api` routes as the upstream project but packaged for HA with persistent `/data`.
 
-## What you get
+## Features
 
-- Web UI and API on port **8097** (configurable)
-- Ingress support for access via the Home Assistant sidebar
-- Persistent **`/data`** volume for the SQLite database and uploaded images
-- All runtime settings exposed as **add-on options** (mapped to the same environment variables as the main project’s `.env.example`)
+- Full recipe library view: list, detail, favorites, “would cook again”, cooking mode, and draft badges.
+- Multi-step recipe editing with ingredients, steps, tips, tags, nutrition, and source metadata.
+- AI-assisted imports (URL + image/photo) that scrape JSON-LD/HTML, call OpenAI for normalization, cup conversion, tagging, nutrition, health score, and time estimates, and log usage.
+- Source management (cookbooks and websites) with cover upload/crop, deferred processing, and per-domain deduplication.
+- Responsive PWA shell with top/bottom navigation, search/chips, and ingress-friendly UIs.
+- Image handling via Sharp + perspective crop; uploads stored under `/data/uploads` with `image_processing_pending` support.
+
+## Add-on specifics
+
+- **Port**: 8097 by default; can be changed via the `port` option.
+- **Ingress**: enabled so the UI appears in the HA sidebar when you use “Open web UI.”
+- **Persistent storage**: bind `/data` for the SQLite database (`recipe-library.db`) and all uploaded media.
+- **Environment parity**: every option becomes the equivalent environment variable the downstream app expects (see `DOCS.md` for the full mapping).
+
+## Configuration & quick start
+
+1. Add the Recipe Library repository (or your local copy) to Home Assistant and install the add-on.
+2. In the add-on **Configuration** tab, supply at least `openai_api_key` if you want AI imports (images, URL normalization, nutrition, tags, etc.). Adjust `db_path`, `upload_dir`, or port if you use a custom storage layout.
+3. Start the add-on, then click **Open web UI** (or use ingress) to begin browsing, editing, or importing recipes.
+
+## Storage & backup guidance
+
+- `db_path` and `upload_dir` default to `/data/recipe-library.db` and `/data/uploads`. Keep those directories mounted to preserve recipes, images, and pending uploads across updates.
+- Back up the `.db` file together with `/data/uploads` to capture recipes, cover photos, and AI extraction history.
 
 ## Documentation
 
-- **[DOCS.md](./DOCS.md)** — Option reference, environment mapping, data paths, and OpenAI-related settings
-
-## Main repository
-
-Development, issues, and the full application source live in the monorepo root:
-
-- [../README.md](../README.md)
-
-## Files in this folder
-
-| File        | Purpose                                      |
-| ----------- | -------------------------------------------- |
-| `config.yaml` | Add-on manifest, default options, UI schema |
-| `icon.png`  | Add-on icon in the Home Assistant UI         |
-| `DOCS.md`   | Detailed configuration reference             |
-| `README.md` | This file                                    |
-
-## Quick start
-
-1. Install the add-on (repository or local copy as required by your setup).
-2. Open the add-on **Configuration** tab and set at least **`openai_api_key`** if you use AI import (image extraction, URL import, nutrition, tags, etc.).
-3. Start the add-on and open the web UI or use **Open web UI** / Ingress.
-
-For every option, see [DOCS.md](./DOCS.md).
+- **`DOCS.md`** — Detailed option ↔ environment mapping plus notes on OpenAI, cropping, and persistence.
+- **`config.yaml`** — Add-on manifest, defaults, and UI schema used by Home Assistant.
+- **`docker/entrypoint.js`** — Reads `/data/options.json`, maps options to env vars, and starts the Node server.
