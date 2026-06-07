@@ -57,8 +57,9 @@
           :key="chip.id"
           type="button"
           class="chip"
-          :class="{ 'chip--selected': activeFilter === chip.id }"
-          @click="activeFilter = chip.id"
+          :class="{ 'chip--selected': isFilterChipSelected(chip.id) }"
+          :aria-pressed="chip.id === 'all' ? activeFilters.size === 0 : activeFilters.has(chip.id)"
+          @click="toggleFilterChip(chip.id)"
         >
           {{ chip.label }}
         </button>
@@ -117,7 +118,12 @@
         <div class="recipe-card__body">
           <h3 class="recipe-card__title">{{ recipe.title }}</h3>
           <p v-if="formatRecipeCardMeta(recipe)" class="recipe-card__meta-line meta-text">{{ formatRecipeCardMeta(recipe) }}</p>
-          <span v-if="recipeNeedsReview(recipe.status)" class="recipe-card__review status-chip-review">Prüfen</span>
+          <p v-if="formatRecipeCardTags(recipe)" class="recipe-card__tags meta-text">{{ formatRecipeCardTags(recipe) }}</p>
+          <span
+            v-if="recipeNeedsReview(recipe.status)"
+            class="recipe-card__review status-chip-review"
+            aria-label="Prüfen"
+          >Prüfen</span>
         </div>
       </article>
       </div>
@@ -843,7 +849,7 @@ import type {
 import { getPerServingValue } from '../utils/nutrition'
 import { getRecipeCardImageUrl, getRecipeHeroImageUrl } from '../utils/recipeDisplayImage'
 import { recipeNeedsReview } from '../utils/recipeStatusLabel'
-import { formatRecipeCardMeta, recipeTotalMinutes } from '../utils/recipeCardMeta'
+import { formatRecipeCardMeta, formatRecipeCardTags, recipeTotalMinutes } from '../utils/recipeCardMeta'
 import {
   formatRecipeSourceMeta,
   getRecipeOriginalPageUrl,
@@ -896,9 +902,20 @@ type RecipeSortOption =
   | 'duration-desc'
 
 const sortBy = ref<RecipeSortOption>('created-desc')
-const activeFilter = ref(
-  props.favoritesOnly ? 'favorites' : (typeof route.query.filter === 'string' ? route.query.filter : 'all')
-)
+type RecipeFilterId = 'favorites' | 'quick' | 'healthy' | 'dinner' | 'baking'
+
+const VALID_FILTER_IDS = new Set<RecipeFilterId>(['favorites', 'quick', 'healthy', 'dinner', 'baking'])
+
+function parseInitialFilters(): Set<RecipeFilterId> {
+  if (props.favoritesOnly) return new Set(['favorites'])
+  const q = route.query.filter
+  if (typeof q === 'string' && VALID_FILTER_IDS.has(q as RecipeFilterId)) {
+    return new Set([q as RecipeFilterId])
+  }
+  return new Set()
+}
+
+const activeFilters = ref<Set<RecipeFilterId>>(parseInitialFilters())
 const cookingStepIndex = ref(0)
 const detailDescriptionEl = ref<HTMLElement | null>(null)
 const descriptionClampable = ref<boolean | null>(null)
@@ -923,9 +940,23 @@ const filterChips = [
   { id: 'dinner', label: 'Abendessen' },
   { id: 'baking', label: 'Backen' },
   { id: 'healthy', label: 'Gesund' },
-  { id: 'books', label: 'Aus Büchern' },
-  { id: 'review', label: 'Prüfen' },
 ] as const
+
+function isFilterChipSelected(chipId: (typeof filterChips)[number]['id']) {
+  if (chipId === 'all') return activeFilters.value.size === 0
+  return activeFilters.value.has(chipId)
+}
+
+function toggleFilterChip(chipId: (typeof filterChips)[number]['id']) {
+  if (chipId === 'all') {
+    activeFilters.value = new Set()
+    return
+  }
+  const next = new Set(activeFilters.value)
+  if (next.has(chipId)) next.delete(chipId)
+  else next.add(chipId)
+  activeFilters.value = next
+}
 
 const isCookingMode = computed(() => route.query.cook === '1' && viewingRecipe.value != null)
 
@@ -1301,8 +1332,11 @@ const ingredientSections = computed(() => {
   return sections
 })
 
-function recipeMatchesFilter(recipe: RecipeListItemWithIngredients): boolean {
-  switch (activeFilter.value) {
+function recipeMatchesSingleFilter(
+  recipe: RecipeListItemWithIngredients,
+  filterId: RecipeFilterId
+): boolean {
+  switch (filterId) {
     case 'favorites':
       return recipe.favorite
     case 'quick': {
@@ -1318,13 +1352,17 @@ function recipeMatchesFilter(recipe: RecipeListItemWithIngredients): boolean {
       return (recipe.tags ?? []).includes('dinner')
     case 'baking':
       return (recipe.tags ?? []).some((t) => ['baked', 'bread', 'dessert'].includes(t))
-    case 'books':
-      return isManagedBookSource(recipe)
-    case 'review':
-      return recipe.status === 'draft'
     default:
       return true
   }
+}
+
+function recipeMatchesFilter(recipe: RecipeListItemWithIngredients): boolean {
+  if (activeFilters.value.size === 0) return true
+  for (const filterId of activeFilters.value) {
+    if (!recipeMatchesSingleFilter(recipe, filterId)) return false
+  }
+  return true
 }
 
 const filteredAndSortedRecipes = computed(() => {
@@ -1800,7 +1838,7 @@ watch(
 watch(
   () => props.favoritesOnly,
   (fav) => {
-    if (fav) activeFilter.value = 'favorites'
+    if (fav) activeFilters.value = new Set(['favorites'])
   },
   { immediate: true },
 )

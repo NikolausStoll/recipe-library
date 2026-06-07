@@ -24,3 +24,14 @@ export function formatRecipeCardMeta(recipe: RecipeListItem): string {
 
   return parts.join(' · ')
 }
+
+function formatTagLabel(tag: string): string {
+  return tag.replace(/_/g, ' ')
+}
+
+/** Tag line for recipe overview cards. */
+export function formatRecipeCardTags(recipe: RecipeListItem): string | null {
+  const tags = recipe.tags ?? []
+  if (!tags.length) return null
+  return tags.map(formatTagLabel).join(' · ')
+}
