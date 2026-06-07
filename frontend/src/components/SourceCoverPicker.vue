@@ -178,6 +178,7 @@ const coverPreview = ref<string | null>(null)
 const serverCoverUrl = ref<string | null>(null)
 const removeCoverRequested = ref(false)
 const newImageCropNaturalPoints = ref<Point[] | null>(null)
+const newImageCropReviewed = ref(false)
 const existingCropNaturalPoints = ref<Point[] | null>(null)
 
 const cropModalOpen = ref(false)
@@ -217,7 +218,7 @@ const previewImageSrc = computed(() => {
 const hasPreview = computed(() => !!previewImageSrc.value)
 
 const showPendingOverlay = computed(() => {
-  if (hasUnsavedNewCover.value) return true
+  if (hasUnsavedNewCover.value) return !newImageCropReviewed.value
   return showImagePending.value && !!serverCoverUrl.value && !coverPreview.value
 })
 
@@ -226,7 +227,7 @@ const cropModalInitialPoints = computed(() =>
 )
 
 const cropModalShowFullFrame = computed(
-  () => cropModalMode.value === 'existing' && showImagePending.value && !coverFile.value
+  () => cropModalMode.value === 'new' || (showImagePending.value && !coverFile.value)
 )
 
 const cropModalConfirmLabel = computed(() => {
@@ -237,7 +238,7 @@ const cropModalConfirmLabel = computed(() => {
 
 const cropModalHint = computed(() => {
   if (cropModalMode.value === 'new') {
-    return 'Vier Ecken optional. Mit „Übernehmen“ ohne Ecken wird das ganze Cover übernommen.'
+    return 'Vier Ecken optional. „Ohne Zuschnitt übernehmen“ oder „Übernehmen“ ohne Ecken für Vollbild.'
   }
   if (cropModalMode.value === 'existing' && props.sourceId != null) {
     if (showImagePending.value) {
@@ -280,6 +281,7 @@ async function setPreviewFromFile(file: File) {
     processingPreview.value = false
   }
   newImageCropNaturalPoints.value = null
+  newImageCropReviewed.value = false
 }
 
 function openCoverChangePicker() {
@@ -324,6 +326,7 @@ function removeCover() {
   coverPreview.value = null
   newImageCropNaturalPoints.value = null
   existingCropNaturalPoints.value = null
+  newImageCropReviewed.value = false
   errorText.value = ''
   cropError.value = ''
   if (serverCoverUrl.value) removeCoverRequested.value = true
@@ -360,6 +363,7 @@ function closeCropModal() {
 function onCropModalConfirm(points: Point[] | null) {
   if (cropModalMode.value === 'new') {
     newImageCropNaturalPoints.value = points
+    newImageCropReviewed.value = true
     closeCropModal()
     return
   }

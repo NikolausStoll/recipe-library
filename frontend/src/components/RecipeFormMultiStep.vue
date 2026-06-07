@@ -1357,6 +1357,7 @@ const cropModalOpen = ref(false)
 const cropModalSrc = ref('')
 const cropModalMode = ref<'new' | 'existing'>('new')
 const newImageCropNaturalPoints = ref<CropPoint[] | null>(null)
+const newImageCropReviewed = ref(false)
 const existingCropNaturalPoints = ref<CropPoint[] | null>(null)
 const cropping = ref(false)
 const cropError = ref('')
@@ -1382,7 +1383,7 @@ const previewImageSrc = computed(() => {
 })
 
 const showPendingOverlay = computed(() => {
-  if (hasUnsavedNewImage.value) return true
+  if (hasUnsavedNewImage.value) return !newImageCropReviewed.value
   return (
     showImagePending.value &&
     !!currentImageUrl.value &&
@@ -1391,9 +1392,7 @@ const showPendingOverlay = computed(() => {
   )
 })
 
-const cropModalShowFullFrame = computed(
-  () => cropModalMode.value === 'existing' && showImagePending.value
-)
+const cropModalShowFullFrame = computed(() => cropModalMode.value === 'new' || showImagePending.value)
 
 const cropModalFullFrameLabel = computed(() => 'Ohne Zuschnitt übernehmen')
 
@@ -1405,7 +1404,7 @@ const cropModalConfirmLabel = computed(() => {
 
 const cropModalHint = computed(() => {
   if (cropModalMode.value === 'new') {
-    return 'Vier Ecken optional. Mit „Übernehmen“ ohne Ecken wird das ganze Bild übernommen.'
+    return 'Vier Ecken optional. „Ohne Zuschnitt übernehmen“ oder „Übernehmen“ ohne Ecken für Vollbild.'
   }
   if (cropModalMode.value === 'existing' && props.editingId != null) {
     if (showImagePending.value) {
@@ -1439,6 +1438,7 @@ async function setImageFromFile(file: File) {
   imageFile.value = file
   imagePreview.value = URL.createObjectURL(file)
   newImageCropNaturalPoints.value = null
+  newImageCropReviewed.value = false
   localImagePending.value = null
   if (currentImageUrl.value) currentImageUrl.value = '__DELETE__'
 }
@@ -1471,6 +1471,7 @@ function closeCropModal() {
 function onCropModalConfirm(points: CropPoint[] | null) {
   if (cropModalMode.value === 'new') {
     newImageCropNaturalPoints.value = points
+    newImageCropReviewed.value = true
     closeCropModal()
     return
   }
@@ -2298,6 +2299,7 @@ function assignFromInitial() {
     })
     imagePreview.value = null
     imageFile.value = null
+    newImageCropReviewed.value = false
     localImagePending.value = null
     form.ingredients = (props.initial.ingredients ?? []).map((ing) =>
       createIngredientRow({
@@ -2431,6 +2433,7 @@ async function rotateNewImage() {
   imageFile.value = rotated
   imagePreview.value = URL.createObjectURL(rotated)
   newImageCropNaturalPoints.value = null
+  newImageCropReviewed.value = false
 }
 
 function removeImage() {
@@ -2440,6 +2443,7 @@ function removeImage() {
   imagePreview.value = null
   imageFile.value = null
   newImageCropNaturalPoints.value = null
+  newImageCropReviewed.value = false
   // Set a marker that we want to delete the image
   if (currentImageUrl.value) {
     currentImageUrl.value = '__DELETE__'
