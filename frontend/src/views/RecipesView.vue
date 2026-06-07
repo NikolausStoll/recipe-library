@@ -1,13 +1,43 @@
 <template>
   <div class="recipes-view">
     <template v-if="!isDetailRoute">
-    <header class="recipes-header page-header">
-      <h1 class="recipes-title h2">{{ favoritesOnly ? 'Favoriten' : 'Rezepte' }}</h1>
-      <router-link to="/add" class="btn btn--primary recipes-header__add-desktop">Rezept hinzufügen</router-link>
-    </header>
+    <header class="recipes-overview">
+      <div class="recipes-overview__title-row">
+        <h1 class="recipes-title h2">{{ favoritesOnly ? 'Favoriten' : 'Rezepte' }}</h1>
+        <button
+          type="button"
+          class="icon-btn recipes-overview__search-toggle"
+          :class="{ 'recipes-overview__search-toggle--active': searchExpanded || searchQuery.trim() }"
+          :aria-expanded="searchExpanded"
+          aria-label="Rezepte suchen"
+          @click="toggleMobileSearch"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
+            <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+        <router-link to="/add" class="btn btn--primary recipes-header__add-desktop">Rezept hinzufügen</router-link>
+      </div>
 
-    <div class="recipes-toolbar">
-      <div class="search-field">
+      <div v-if="searchExpanded" class="recipes-overview__search-row recipes-overview__search-row--mobile">
+        <div class="search-field">
+          <svg class="search-field__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
+            <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <input
+            ref="mobileSearchInputRef"
+            v-model="searchQuery"
+            type="search"
+            class="search-field__input"
+            placeholder="Rezepte, Zutaten, Tags suchen…"
+            aria-label="Rezepte suchen"
+          />
+        </div>
+      </div>
+
+      <div class="search-field recipes-overview__search-row recipes-overview__search-row--desktop">
         <svg class="search-field__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
           <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -20,35 +50,38 @@
           aria-label="Rezepte suchen"
         />
       </div>
-      <div class="recipes-toolbar__filters">
-        <div class="chip-row recipes-filter-chips" role="group" aria-label="Rezepte filtern">
-          <button
-            v-for="chip in filterChips"
-            :key="chip.id"
-            type="button"
-            class="chip"
-            :class="{ 'chip--selected': activeFilter === chip.id }"
-            @click="activeFilter = chip.id"
-          >
-            {{ chip.label }}
-          </button>
-        </div>
-        <div class="recipes-toolbar__meta">
-          <span class="meta-text recipes-toolbar__count" aria-live="polite">
-            {{ filteredAndSortedRecipes.length }} Rezept{{ filteredAndSortedRecipes.length !== 1 ? 'e' : '' }}
-          </span>
-          <label class="recipes-sort">
-            <span class="recipes-sort__visible meta-text">{{ sortByLabel }}</span>
-            <select v-model="sortBy" class="recipes-sort__select" aria-label="Sortieren nach">
-              <option value="updated-desc">Zuletzt aktualisiert</option>
-              <option value="updated-asc">Älteste Aktualisierung</option>
-              <option value="title-asc">Name (A–Z)</option>
-              <option value="title-desc">Name (Z–A)</option>
-            </select>
-          </label>
-        </div>
+
+      <div class="chip-row recipes-filter-chips recipes-filter-chips--scroll" role="group" aria-label="Rezepte filtern">
+        <button
+          v-for="chip in filterChips"
+          :key="chip.id"
+          type="button"
+          class="chip"
+          :class="{ 'chip--selected': activeFilter === chip.id }"
+          @click="activeFilter = chip.id"
+        >
+          {{ chip.label }}
+        </button>
       </div>
-    </div>
+
+      <div class="recipes-overview__meta">
+        <span class="meta-text recipes-toolbar__count" aria-live="polite">
+          {{ filteredAndSortedRecipes.length }} Rezept{{ filteredAndSortedRecipes.length !== 1 ? 'e' : '' }}
+        </span>
+        <label class="recipes-sort">
+          <span class="recipes-sort__visible meta-text">{{ sortByLabel }}</span>
+          <select v-model="sortBy" class="recipes-sort__select" aria-label="Sortieren nach">
+            <option value="created-desc">Zuletzt hinzugefügt</option>
+            <option value="title-asc">Name A–Z</option>
+            <option value="title-desc">Name Z–A</option>
+            <option value="cooked-desc">Zuletzt gekocht</option>
+            <option value="cooked-count-desc">Am häufigsten gekocht</option>
+            <option value="duration-asc">Kürzeste Dauer</option>
+            <option value="duration-desc">Längste Dauer</option>
+          </select>
+        </label>
+      </div>
+    </header>
 
     <p v-if="error" class="error-message">{{ error }}</p>
     <p v-if="loading && !recipes.length" class="loading-message">Rezepte werden geladen…</p>
@@ -84,7 +117,6 @@
         <div class="recipe-card__body">
           <h3 class="recipe-card__title">{{ recipe.title }}</h3>
           <p v-if="formatRecipeCardMeta(recipe)" class="recipe-card__meta-line meta-text">{{ formatRecipeCardMeta(recipe) }}</p>
-          <p v-if="recipeCardDescription(recipe)" class="recipe-card__desc meta-text">{{ recipeCardDescription(recipe) }}</p>
           <span v-if="recipeNeedsReview(recipe.status)" class="recipe-card__review status-chip-review">Prüfen</span>
         </div>
       </article>
@@ -811,7 +843,7 @@ import type {
 import { getPerServingValue } from '../utils/nutrition'
 import { getRecipeCardImageUrl, getRecipeHeroImageUrl } from '../utils/recipeDisplayImage'
 import { recipeNeedsReview } from '../utils/recipeStatusLabel'
-import { formatRecipeCardMeta } from '../utils/recipeCardMeta'
+import { formatRecipeCardMeta, recipeTotalMinutes } from '../utils/recipeCardMeta'
 import {
   formatRecipeSourceMeta,
   getRecipeOriginalPageUrl,
@@ -844,7 +876,26 @@ const recipes = ref<RecipeListItemWithIngredients[]>([])
 const loading = ref(true)
 const error = ref('')
 const searchQuery = ref('')
-const sortBy = ref<'title-asc' | 'title-desc' | 'updated-desc' | 'updated-asc'>('updated-desc')
+const searchExpanded = ref(false)
+const mobileSearchInputRef = ref<HTMLInputElement | null>(null)
+
+async function toggleMobileSearch() {
+  searchExpanded.value = !searchExpanded.value
+  if (searchExpanded.value) {
+    await nextTick()
+    mobileSearchInputRef.value?.focus()
+  }
+}
+type RecipeSortOption =
+  | 'title-asc'
+  | 'title-desc'
+  | 'created-desc'
+  | 'cooked-desc'
+  | 'cooked-count-desc'
+  | 'duration-asc'
+  | 'duration-desc'
+
+const sortBy = ref<RecipeSortOption>('created-desc')
 const activeFilter = ref(
   props.favoritesOnly ? 'favorites' : (typeof route.query.filter === 'string' ? route.query.filter : 'all')
 )
@@ -853,11 +904,14 @@ const detailDescriptionEl = ref<HTMLElement | null>(null)
 const descriptionClampable = ref<boolean | null>(null)
 const descriptionExpanded = ref(false)
 
-const sortByLabels: Record<typeof sortBy.value, string> = {
-  'updated-desc': 'Zuletzt aktualisiert',
-  'updated-asc': 'Älteste Aktualisierung',
-  'title-asc': 'Name (A–Z)',
-  'title-desc': 'Name (Z–A)',
+const sortByLabels: Record<RecipeSortOption, string> = {
+  'created-desc': 'Zuletzt hinzugefügt',
+  'title-asc': 'Name A–Z',
+  'title-desc': 'Name Z–A',
+  'cooked-desc': 'Zuletzt gekocht',
+  'cooked-count-desc': 'Am häufigsten gekocht',
+  'duration-asc': 'Kürzeste Dauer',
+  'duration-desc': 'Längste Dauer',
 }
 
 const sortByLabel = computed(() => sortByLabels[sortBy.value])
@@ -866,8 +920,9 @@ const filterChips = [
   { id: 'all', label: 'Alle' },
   { id: 'favorites', label: 'Favoriten' },
   { id: 'quick', label: 'Schnell' },
-  { id: 'healthy', label: 'Gesund' },
   { id: 'dinner', label: 'Abendessen' },
+  { id: 'baking', label: 'Backen' },
+  { id: 'healthy', label: 'Gesund' },
   { id: 'books', label: 'Aus Büchern' },
   { id: 'review', label: 'Prüfen' },
 ] as const
@@ -1261,6 +1316,8 @@ function recipeMatchesFilter(recipe: RecipeListItemWithIngredients): boolean {
     }
     case 'dinner':
       return (recipe.tags ?? []).includes('dinner')
+    case 'baking':
+      return (recipe.tags ?? []).some((t) => ['baked', 'bread', 'dessert'].includes(t))
     case 'books':
       return isManagedBookSource(recipe)
     case 'review':
@@ -1282,6 +1339,12 @@ const filteredAndSortedRecipes = computed(() => {
   list = list.filter(recipeMatchesFilter)
 
   const sorted = [...list]
+  const histories = recipeHistories.value
+
+  const lastCooked = (id: number) => histories[id]?.[0] ?? ''
+  const cookCount = (id: number) => histories[id]?.length ?? 0
+  const duration = (recipe: RecipeListItemWithIngredients) => recipeTotalMinutes(recipe) ?? Number.POSITIVE_INFINITY
+
   switch (sortBy.value) {
     case 'title-asc':
       sorted.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
@@ -1289,11 +1352,36 @@ const filteredAndSortedRecipes = computed(() => {
     case 'title-desc':
       sorted.sort((a, b) => b.title.localeCompare(a.title, undefined, { sensitivity: 'base' }))
       break
-    case 'updated-desc':
-      sorted.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))
+    case 'created-desc':
+      sorted.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
       break
-    case 'updated-asc':
-      sorted.sort((a, b) => (a.updated_at || '').localeCompare(b.updated_at || ''))
+    case 'cooked-desc':
+      sorted.sort((a, b) => {
+        const diff = lastCooked(b.id).localeCompare(lastCooked(a.id))
+        return diff !== 0 ? diff : a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+      })
+      break
+    case 'cooked-count-desc':
+      sorted.sort((a, b) => {
+        const diff = cookCount(b.id) - cookCount(a.id)
+        return diff !== 0 ? diff : a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+      })
+      break
+    case 'duration-asc':
+      sorted.sort((a, b) => {
+        const diff = duration(a) - duration(b)
+        return diff !== 0 ? diff : a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+      })
+      break
+    case 'duration-desc':
+      sorted.sort((a, b) => {
+        const da = recipeTotalMinutes(a)
+        const db = recipeTotalMinutes(b)
+        const av = da ?? -1
+        const bv = db ?? -1
+        const diff = bv - av
+        return diff !== 0 ? diff : a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+      })
       break
   }
   return sorted
@@ -1430,11 +1518,6 @@ function formatRecipeMinutes(
   if (v == null || Number.isNaN(Number(v)) || Number(v) <= 0) return '−'
   const n = Math.round(Number(v))
   return `${n} Min.`
-}
-
-function recipeCardDescription(recipe: RecipeListItemWithIngredients): string | null {
-  const text = (recipe.subtitle || recipe.description || '').trim()
-  return text || null
 }
 
 function jumpDetailSection(tab: DetailTabId, elementId: string) {
@@ -1782,106 +1865,16 @@ onBeforeUnmount(() => {
   overflow-x: clip;
 }
 
-.recipes-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--spacing-md);
-  gap: var(--spacing-md);
-}
-
-.recipes-header__main {
-  flex: 1;
-  min-width: 250px;
-}
-
 .recipes-title {
   margin: 0;
-  font-size: 1.5rem;
+  flex-shrink: 0;
+  font-size: 1.375rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
-.recipes-subtitle {
-  font-size: 1rem;
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.recipes-header__add {
-  position: relative;
+.recipes-header__add-desktop {
   flex-shrink: 0;
-}
-
-.recipes-add-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: #fff;
-  cursor: pointer;
-  box-shadow: var(--shadow-md);
-  transition: transform var(--transition-fast), background var(--transition-fast);
-}
-
-.recipes-add-btn:hover {
-  transform: scale(1.05);
-  background: var(--color-primary-hover, var(--color-primary));
-}
-
-.recipes-add-btn svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.add-recipe-menu {
-  position: absolute;
-  top: calc(100% + var(--spacing-sm));
-  right: 0;
-  z-index: 50;
-  min-width: 11rem;
-  padding: var(--spacing-xs);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.add-recipe-menu__item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.add-recipe-menu__item:hover {
-  background: var(--color-bg-muted, rgba(0, 0, 0, 0.05));
-}
-
-.add-recipe-menu__item svg {
-  width: 1.125rem;
-  height: 1.125rem;
-  flex-shrink: 0;
-  color: var(--color-text-muted);
 }
 
 .btn:not(.recipe-detail-action) {
@@ -1898,6 +1891,21 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
+}
+
+.btn.recipes-header__add-desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .recipes-title {
+    font-size: 1.5rem;
+  }
+
+  .btn.recipes-header__add-desktop {
+    display: inline-flex;
+    margin-left: auto;
+  }
 }
 
 .btn--primary:not(.recipe-detail-action) {
@@ -1918,79 +1926,6 @@ onBeforeUnmount(() => {
   stroke-width: 2;
 }
 
-.recipes-header__add-desktop {
-  display: none;
-}
-@media (min-width: 1024px) and (orientation: landscape), (min-width: 1200px) {
-  .recipes-header__add-desktop {
-    display: inline-flex;
-  }
-}
-
-.recipes-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-lg);
-}
-
-.recipes-toolbar__searches {
-  display: flex;
-  gap: var(--spacing-md);
-  flex: 1;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.recipes-toolbar__meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--spacing-sm);
-}
-
-.recipes-toolbar__count {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-}
-
-.search-box {
-  position: relative;
-  flex: 1;
-  min-width: 220px;
-  max-width: 420px;
-}
-
-.search-box__icon {
-  position: absolute;
-  left: var(--spacing-md);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
-  color: var(--color-text-muted);
-  pointer-events: none;
-}
-
-.search-box__input {
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-sm) 3rem;
-  border: 1px solid var(--color-input-border);
-  border-radius: var(--radius-md);
-  font: inherit;
-  font-size: 0.95rem;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-  transition: all var(--transition-fast);
-}
-
-.search-box__input:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
-}
-
 .filter-group {
   display: flex;
   gap: var(--spacing-sm);
@@ -2006,16 +1941,6 @@ onBeforeUnmount(() => {
   color: var(--color-text);
   cursor: pointer;
   transition: all var(--transition-fast);
-}
-
-.recipes-toolbar__filters {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.recipes-filter-chips {
-  min-width: 0;
 }
 
 /* Recipe detail — image-first, document layout */
