@@ -92,7 +92,16 @@ router.post('/', ensureUploadDir, (req, res, next) => {
   }
   if (Array.isArray(points) && points.length === 4) {
     const ext = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg'
-    buf = await cropPerspectiveBuffer(buf, points, ext)
+    try {
+      buf = await cropPerspectiveBuffer(buf, points, ext)
+    } catch (err) {
+      console.error('Perspective crop failed:', err)
+      const message = err instanceof Error ? err.message : 'Perspective crop failed'
+      const hint = message.includes('cv2') || message.includes('crop_perspective.py')
+        ? 'Perspective crop requires Python OpenCV in backend/venv (pip install -r backend/requirements.txt).'
+        : 'Perspective crop failed'
+      return res.status(503).json({ error: hint })
+    }
   }
 
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.webp`
