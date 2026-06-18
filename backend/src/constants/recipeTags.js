@@ -37,7 +37,7 @@ export const DISH_TYPES = new Set([
 
 export const DIET_TYPES = new Set(['vegetarian', 'vegan', 'meat', 'fish'])
 
-export const CONTEXT_TYPES = new Set(['quick', 'easy', 'comfort_food', 'family'])
+export const CONTEXT_TYPES = new Set(['quick', 'easy', 'comfort_food'])
 
 /** Every allowed tag string (unique). */
 export const ALL_ALLOWED_TAGS = Array.from(

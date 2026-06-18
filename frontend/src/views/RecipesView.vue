@@ -2085,7 +2085,7 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-side-panel {
-  order: 4;
+  order: 3;
   min-width: 0;
 }
 
@@ -2113,7 +2113,7 @@ onBeforeUnmount(() => {
 }
 
 .recipe-detail-main {
-  order: 3;
+  order: 4;
   min-width: 0;
   padding: 0 var(--content-padding-mobile);
 }
@@ -2186,7 +2186,7 @@ onBeforeUnmount(() => {
 
   .recipe-detail-ingredients-panel {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
     padding: 0;
     margin-top: var(--spacing-sm);
   }
@@ -2198,7 +2198,7 @@ onBeforeUnmount(() => {
 
   .recipe-detail-main {
     grid-column: 1 / -1;
-    grid-row: 2;
+    grid-row: 3;
     order: unset;
     padding: 0;
     margin-top: var(--spacing-md);

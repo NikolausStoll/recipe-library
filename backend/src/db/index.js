@@ -171,6 +171,8 @@ export function initDb() {
   database.exec('DROP TABLE IF EXISTS cup_gram_references')
 
   runWebsiteSourceMigrations(database)
+
+  database.prepare(`DELETE FROM recipe_tags WHERE tag = 'family'`).run()
 }
 
 export { dbPath }

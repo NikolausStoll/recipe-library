@@ -42,7 +42,8 @@ Rules:
 - Keep the tone practical and helpful
 - Do not give medical advice
 - Do not invent hidden ingredients
-- Base the score primarily on visible ingredients and optional nutrition data
+- Base the score primarily on the structured ingredient list (ingredient, amount, unit, category) and optional nutrition data
+- additional_info, if present, is only preparation context for that same ingredient (for example "gekocht", "geröstet"); do not treat it as extra ingredients, substitutes, or alternatives to score
 - Tips should be realistic and easy to apply
 - Prefer 2 to 4 improvement tips
 - confidence must be between 0 and 1
@@ -111,7 +112,6 @@ export function buildHealthScorePayload(recipe) {
           ingredient: ing.ingredient ?? ing.name ?? null,
           category: ing.category ?? null,
           additional_info: ing.additional_info ?? null,
-          original_text: ing.original_text ?? null,
           section_heading: ing.section_heading ?? null,
         }))
       : [],
