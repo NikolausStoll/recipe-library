@@ -73,12 +73,14 @@ export const GERMAN_TRANSLATION_ADDON = `Additional translation mode:
 
 The user requested German output.
 
-After extracting the visible recipe content, translate the extracted recipe fields to German.
+These rules override any conflicting extraction rules above when German output is requested.
 
-Translate:
-- recipe.description
+Set recipe.language to "de".
+
+Translate to German:
+- recipe.introText
 - ingredientsSections.heading when present
-- ingredient
+- ingredient (required: always German)
 - additionalInfo
 - steps
 - tips
@@ -86,6 +88,32 @@ Translate:
 Do not translate:
 - recipe.title, unless it is clearly descriptive and not a proper recipe name
 - ingredient originalText
+
+Ingredient field split (required):
+- originalText: the exact visible source line from the image, unchanged, in the source language.
+- ingredient: a clean German ingredient name. Never leave ingredient in English when translation was requested.
+- additionalInfo: translated preparation notes, alternatives, or modifiers in German.
+
+Ingredient sections:
+- Preserve section order and ingredient order within each section.
+- If a section heading is null, keep it null.
+- If a section heading is present, translate it naturally and keep it short.
+- Examples:
+  - "dressing" → "Dressing"
+  - "herb oil" → "Kräuteröl"
+  - "for serving" → "Zum Servieren"
+
+Units (when visible in the image):
+- Translate tsp → TL.
+- Translate tbsp → EL.
+- Keep cup/cups as unit "cup".
+- Do not translate cup/cups to "Tasse".
+
+Ingredient translation examples:
+- Visible line "2 cups fresh spinach" → originalText: "2 cups fresh spinach", ingredient: "Spinat"
+- Visible line "1/2 red onion, diced" → originalText: "1/2 red onion, diced", ingredient: "rote Zwiebel", additionalInfo: "gewürfelt"
+- Visible line "2 cloves garlic" → originalText: "2 cloves garlic", amount: 2, unit: "Zehen", ingredient: "Knoblauch"
+- Visible line "1 tbsp olive oil" → originalText: "1 tbsp olive oil", unit: "EL", ingredient: "Olivenöl"
 
 German translation style:
 - Use natural German recipe language for home cooks.
@@ -106,11 +134,14 @@ German translation style:
   - "Nach Belieben noch etwas ... hinzufügen."
 - Translate "as desired" naturally as "nach Belieben", not mechanically at the end if another wording sounds better.
 
+Translation example (steps/tips):
+"Enjoy with more thyme and flaky salt as desired."
+→ "Zum Servieren nach Belieben noch etwas Thymian und Meersalzflocken darübergeben."
+
 Important:
 - ingredient originalText must always preserve the visible source line exactly as read from the image.
 - Do not include both translated and original versions of steps or tips.
-- Tips do not have an originalText field.
-- Preserve ingredient section order and ingredient order.`
+- Tips do not have an originalText field.`
 
 /**
  * @param {boolean} [translateToGerman=false]
@@ -125,6 +156,22 @@ export function buildImageExtractionPrompt(translateToGerman = false) {
     return `${base}\n\n${GERMAN_TRANSLATION_ADDON}`
   }
   return base
+}
+
+/**
+ * @param {boolean} [translateToGerman=false]
+ * @returns {string}
+ */
+export function buildImageExtractionUserMessage(translateToGerman = false) {
+  if (translateToGerman) {
+    return (
+      'Extract the recipe from the following image(s). ' +
+      'Translate translatable fields to German per the system instructions ' +
+      '(ingredient and additionalInfo in German; originalText stays the exact visible source line). ' +
+      'Set recipe.language to "de". Return valid JSON matching the schema.'
+    )
+  }
+  return 'Extract the recipe from the following image(s). Return valid JSON matching the schema.'
 }
 
 /**
@@ -248,6 +295,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
 
   const translateToGerman = options.translateToGerman === true
   const systemPrompt = buildImageExtractionPrompt(translateToGerman)
+  const userMessage = buildImageExtractionUserMessage(translateToGerman)
 
   const client = new OpenAI({ apiKey })
   const imageContents = imageBuffers.map((buf) => ({
@@ -265,7 +313,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Extract the recipe from the following image(s). Return valid JSON matching the schema.' },
+          { type: 'text', text: userMessage },
           ...imageContents,
         ],
       },
