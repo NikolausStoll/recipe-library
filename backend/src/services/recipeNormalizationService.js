@@ -6,6 +6,7 @@
 import OpenAI from 'openai'
 import { RECIPE_JSON_SCHEMA } from './extractRecipeService.js'
 import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
+import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
 // Cup-to-gram conversion moved to cupConversionService (post-normalization stage).
 // TODO: Remove the "Cup conversion:" prompt block below once normalization prompt is updated.
@@ -86,13 +87,7 @@ Ingredient sections:
   - "herb oil" → "Kräuteröl"
   - "for serving" → "Zum Servieren"
 
-Ingredient parsing:
-- For single amounts, amountMax must equal amount. Do not use null for amountMax unless amount itself is null.
-- unit is German or null.
-- ingredient is a clean German name.
-- additionalInfo contains translated preparation notes, alternatives, or modifiers.
-- ingredient originalText preserves the original ingredient source line.
-- category must be exactly one allowed category.
+${buildIngredientParsingPromptBlock({ unitLanguage: 'de', includeCupHandling: true })}
 
 Allowed categories:
 ${formatCategoryListForPrompt()}
@@ -102,54 +97,6 @@ Categorization:
 - Use only the allowed categories.
 - Choose the most practical category from the ingredient name.
 - If uncertain, use "other".
-
-Units:
-- Translate tsp → TL.
-- Translate tbsp → EL.
-- Keep cup/cups as unit "cup".
-- Do not translate cup/cups to "Tasse".
-- Do not convert cup/cups to grams or milliliters.
-- Never convert tbsp/tsp/EL/TL to grams or ml.
-- tablespoon/tbsp always becomes unit: "EL" with the same amount.
-- teaspoon/tsp always becomes unit: "TL" with the same amount.
-- Do not convert small spoon amounts like tahini, dijon, salt, garlic powder, oil, vinegar, spices, or similar into grams/ml.
-- Count-based whole ingredients usually keep their count and unit = null.
-- Do not use generic units like "piece" or "Stück".
-- Use specific culinary count units when they are part of the source and meaningful in German:
-  - clove/cloves garlic → Zehe/Zehen Knoblauch
-  - pinch/pinches salt/spices → Prise/Prisen
-  - dash/dashes spices/seasoning → Prise/Prisen, if appropriate
-  - sprig/sprigs herbs → Zweig/Zweige
-  - handful/handfuls → Handvoll
-  - bunch/bunches herbs/greens → Bund
-  - slice/slices → Scheibe/Scheiben
-- Use "Handvoll" only when the source explicitly says handful/handfuls.
-- Do not convert these specific culinary count units to grams.
-- Do not estimate piece-to-gram conversions for vegetables, fruit, eggs, onions, garlic cloves, herb sprigs, pinches, handfuls, or similar count-based ingredients.
-
-Cup handling:
-- This normalization step must not convert cup-based ingredients.
-- Keep cup amounts as cup.
-- Keep cup ranges as cup ranges.
-- Do not estimate grams or ml for cup ingredients in this step.
-- Cup conversion is handled by a separate pipeline step after normalization.
-
-Ingredient examples:
-- "1/2 red onion" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "rote Zwiebel"
-- "2 carrots" → amount: 2, amountMax: 2, unit: null, ingredient: "Karotten"
-- "3 eggs" → amount: 3, amountMax: 3, unit: null, ingredient: "Eier"
-- "2 cloves garlic" → amount: 2, amountMax: 2, unit: "Zehen", ingredient: "Knoblauch"
-- "1 pinch salt" → amount: 1, amountMax: 1, unit: "Prise", ingredient: "Salz"
-- "dash of pepper" → amount: 1, amountMax: 1, unit: "Prise", ingredient: "Pfeffer"
-- "12 sprigs thyme" → amount: 12, amountMax: 12, unit: "Zweige", ingredient: "Thymian"
-- "1 handful spinach" → amount: 1, amountMax: 1, unit: "Handvoll", ingredient: "Spinat"
-- "1 cup milk" → amount: 1, amountMax: 1, unit: "cup", ingredient: "Milch"
-- "1/4 cup olive oil" → amount: 0.25, amountMax: 0.25, unit: "cup", ingredient: "Olivenöl"
-- "3 cups tortellini (cooked)" → amount: 3, amountMax: 3, unit: "cup", ingredient: "Tortellini", additionalInfo: "gekocht"
-- "1-2 cups sweet potato (roasted)" → amount: 1, amountMax: 2, unit: "cup", ingredient: "Süßkartoffel", additionalInfo: "geröstet"
-- "1 tbsp tahini" → amount: 1, amountMax: 1, unit: "EL", ingredient: "Tahini"; do not convert to grams
-- "1 tsp dijon" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Dijon-Senf"; do not convert to grams
-- "1 tsp salt" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Salz"; do not convert to grams
 
 Steps:
 - Translate to natural German recipe language for home cooks.

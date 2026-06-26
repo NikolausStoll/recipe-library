@@ -31,10 +31,13 @@ describe('parseTranslateToGerman', () => {
 })
 
 describe('buildImageExtractionPrompt', () => {
-  it('returns the base prompt unchanged when translateToGerman is false', () => {
-    assert.equal(buildImageExtractionPrompt(false), EXTRACT_PROMPT)
-    assert.equal(buildImageExtractionPrompt(), EXTRACT_PROMPT)
-    assert.ok(EXTRACT_PROMPT.includes('Preserve the original language of the recipe.'))
+  it('includes base extract prompt and English parsing rules when translateToGerman is false', () => {
+    const prompt = buildImageExtractionPrompt(false)
+    assert.equal(buildImageExtractionPrompt(), prompt)
+    assert.ok(prompt.includes('Preserve the original language of the recipe.'))
+    assert.ok(prompt.includes('never put quantity phrases in additionalInfo'))
+    assert.ok(prompt.includes('unit: "handful"'))
+    assert.ok(prompt.includes('unit: "splash"'))
   })
 
   it('uses German output instruction and add-on when translateToGerman is true', () => {
@@ -49,7 +52,9 @@ describe('buildImageExtractionPrompt', () => {
     assert.ok(!prompt.includes('recipe.description'))
     assert.ok(prompt.includes('Never leave ingredient in English when translation was requested'))
     assert.ok(prompt.includes('Set recipe.language to "de"'))
-    assert.ok(prompt.includes('originalText: "2 cups fresh spinach", ingredient: "Spinat"'))
+    assert.ok(prompt.includes('unit: "Schuss"'))
+    assert.ok(prompt.includes('a pinch of sea salt'))
+    assert.ok(!prompt.includes('Put preparation notes, alternatives, ranges, and qualifiers into additionalInfo'))
   })
 
   it('does not modify the base prompt constant', () => {
@@ -71,6 +76,7 @@ describe('buildImageExtractionUserMessage', () => {
     const message = buildImageExtractionUserMessage(true)
     assert.ok(message.includes('Translate translatable fields to German'))
     assert.ok(message.includes('ingredient and additionalInfo in German'))
+    assert.ok(message.includes('parse pinch/handful/drizzle into amount and unit'))
     assert.ok(message.includes('originalText stays the exact visible source line'))
     assert.ok(message.includes('Set recipe.language to "de"'))
   })

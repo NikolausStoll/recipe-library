@@ -9,6 +9,10 @@ import {
   formatCategoryListForPrompt,
   CANONICAL_INGREDIENT_CATEGORY_ENUM,
 } from '../constants/ingredientCategories.js'
+import {
+  INGREDIENT_EXTRACT_SUMMARY_RULES,
+  buildIngredientParsingPromptBlock,
+} from '../constants/ingredientParsingPrompt.js'
 
 const EXTRACT_PROMPT_BODY = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
@@ -18,8 +22,7 @@ Rules:
 - If a value is not clearly visible, use null.
 - If something is missing, cut off, or uncertain, add an entry to warnings and/or missingFields.
 
-- Keep ingredient names clean and normalized, but preserve the visible ingredient line in originalText.
-- Put preparation notes, alternatives, ranges, and qualifiers into additionalInfo.
+${INGREDIENT_EXTRACT_SUMMARY_RULES}
 
 - Ingredient section headings may contain serving information.
 - If a heading includes serving or people information, extract that information into recipe.servings as well.
@@ -92,7 +95,7 @@ Do not translate:
 Ingredient field split (required):
 - originalText: the exact visible source line from the image, unchanged, in the source language.
 - ingredient: a clean German ingredient name. Never leave ingredient in English when translation was requested.
-- additionalInfo: translated preparation notes, alternatives, or modifiers in German.
+- additionalInfo: translated preparation notes or modifiers only — never quantity phrases (see ingredient parsing rules above).
 
 Ingredient sections:
 - Preserve section order and ingredient order within each section.
@@ -102,18 +105,6 @@ Ingredient sections:
   - "dressing" → "Dressing"
   - "herb oil" → "Kräuteröl"
   - "for serving" → "Zum Servieren"
-
-Units (when visible in the image):
-- Translate tsp → TL.
-- Translate tbsp → EL.
-- Keep cup/cups as unit "cup".
-- Do not translate cup/cups to "Tasse".
-
-Ingredient translation examples:
-- Visible line "2 cups fresh spinach" → originalText: "2 cups fresh spinach", ingredient: "Spinat"
-- Visible line "1/2 red onion, diced" → originalText: "1/2 red onion, diced", ingredient: "rote Zwiebel", additionalInfo: "gewürfelt"
-- Visible line "2 cloves garlic" → originalText: "2 cloves garlic", amount: 2, unit: "Zehen", ingredient: "Knoblauch"
-- Visible line "1 tbsp olive oil" → originalText: "1 tbsp olive oil", unit: "EL", ingredient: "Olivenöl"
 
 German translation style:
 - Use natural German recipe language for home cooks.
@@ -148,10 +139,15 @@ Important:
  * @returns {string}
  */
 export function buildImageExtractionPrompt(translateToGerman = false) {
+  const parsingBlock = buildIngredientParsingPromptBlock({
+    unitLanguage: translateToGerman ? 'de' : 'en',
+    includeAmountMaxRule: true,
+    germanIngredientNames: translateToGerman,
+  })
   const finalLanguageInstruction = translateToGerman
     ? GERMAN_OUTPUT_INSTRUCTION
     : ORIGINAL_LANGUAGE_INSTRUCTION
-  const base = EXTRACT_PROMPT_BODY + finalLanguageInstruction
+  const base = EXTRACT_PROMPT_BODY + parsingBlock + finalLanguageInstruction
   if (translateToGerman) {
     return `${base}\n\n${GERMAN_TRANSLATION_ADDON}`
   }
@@ -167,7 +163,8 @@ export function buildImageExtractionUserMessage(translateToGerman = false) {
     return (
       'Extract the recipe from the following image(s). ' +
       'Translate translatable fields to German per the system instructions ' +
-      '(ingredient and additionalInfo in German; originalText stays the exact visible source line). ' +
+      '(ingredient and additionalInfo in German; originalText stays the exact visible source line; ' +
+      'parse pinch/handful/drizzle into amount and unit, not additionalInfo). ' +
       'Set recipe.language to "de". Return valid JSON matching the schema.'
     )
   }
@@ -250,7 +247,11 @@ export const RECIPE_JSON_SCHEMA = {
                     originalText: { type: ['string', 'null'] },
                     amount: { type: ['number', 'null'] },
                     amountMax: { type: ['number', 'null'] },
-                    unit: { type: ['string', 'null'], description: 'Unit of the ingredient, e.g. "g", "ml", "pcs", "pinch".' },
+                    unit: {
+                      type: ['string', 'null'],
+                      description:
+                        'Unit of the ingredient, e.g. "g", "ml", "TL", "EL", "cup", "Prise", "Handvoll", "Schuss", "Zehen".',
+                    },
                     ingredient: { type: ['string', 'null'] },
                     additionalInfo: { type: ['string', 'null'] },
                     category: { type: ['string', 'null'], enum: CANONICAL_INGREDIENT_CATEGORY_ENUM },

@@ -15,7 +15,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
-import { EXTRACT_PROMPT, RECIPE_JSON_SCHEMA } from '../src/services/extractRecipeService.js'
+import { buildImageExtractionPrompt, RECIPE_JSON_SCHEMA } from '../src/services/extractRecipeService.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // .env can be in backend/ or project root (parent of backend)
@@ -75,7 +75,7 @@ async function run() {
       const response = await client.chat.completions.create({
         model: config.model,
         messages: [
-          { role: 'system', content: EXTRACT_PROMPT },
+          { role: 'system', content: buildImageExtractionPrompt(false) },
           {
             role: 'user',
             content: [
