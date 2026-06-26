@@ -1,6 +1,6 @@
 /**
  * Unit tests for recipeHtmlEnrichment (no network).
- * Run: node --test src/services/recipeHtmlEnrichment.test.js
+ * Run: node --test tests/services/recipeHtmlEnrichment.test.js
  */
 
 import assert from 'node:assert/strict'
@@ -17,7 +17,7 @@ import {
   flattenIngredientSections,
   normalizeHeadingText,
   shouldAcceptHtmlIngredientSections,
-} from './recipeHtmlEnrichment.js'
+} from '../../src/services/recipeHtmlEnrichment.js'
 
 function loadHtml(html) {
   return cheerio.load(html)

@@ -6,7 +6,7 @@ import {
   resolvePricingKey,
   computeRequestCostUsd,
   computeRequestCostCents,
-} from './extractUsagePricing.js'
+} from '../../src/utils/extractUsagePricing.js'
 
 describe('resolvePricingKey', () => {
   it('resolves exact model ids', () => {
@@ -41,6 +41,10 @@ describe('computeRequestCostUsd', () => {
     assert.equal(usd, 0.15 + 0.6)
   })
 
+  it('returns zero cost when token counts are zero', () => {
+    assert.equal(computeRequestCostUsd(0, 0, 'gpt-4o-mini'), 0)
+  })
+
   it('computes gpt-5.2 pricing', () => {
     const usd = computeRequestCostUsd(1_000_000, 1_000_000, 'gpt-5.2')
     assert.equal(usd, 1.75 + 14.0)
@@ -55,5 +59,10 @@ describe('computeRequestCostCents', () => {
   it('converts USD to cents', () => {
     const cents = computeRequestCostCents(0, 1_000_000, 'gpt-4o-mini')
     assert.equal(cents, 60)
+  })
+
+  it('rounds fractional cents', () => {
+    const cents = computeRequestCostCents(1, 0, 'gpt-4o-mini')
+    assert.equal(cents, 0.000015)
   })
 })

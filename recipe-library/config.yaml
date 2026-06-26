@@ -1,7 +1,7 @@
 name: "Recipe Library"
 slug: "recipe-library"
 description: "Personal recipe tracker frontend and backend"
-version: "1.4.0"
+version: "1.4.3"
 repository: "https://github.com/NikolausStoll/recipe-library"
 arch:
   - amd64

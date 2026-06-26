@@ -1,6 +1,6 @@
 /**
  * Tests for linking website sources from recipes.original_url.
- * Run: node --test src/services/recipeSourceLink.test.js
+ * Run: node --test tests/services/recipeSourceLink.test.js
  */
 
 import assert from 'node:assert/strict'
@@ -8,9 +8,9 @@ import { after, before, describe, it } from 'node:test'
 
 process.env.DB_PATH = ':memory:'
 
-const { initDb } = await import('../db/index.js')
-const { createRecipe, updateRecipe, getRecipeById } = await import('./recipeService.js')
-const { listSources } = await import('./sourceService.js')
+const { initDb } = await import('../../src/db/index.js')
+const { createRecipe, updateRecipe, getRecipeById } = await import('../../src/services/recipeService.js')
+const { listSources } = await import('../../src/services/sourceService.js')
 
 before(() => {
   initDb()

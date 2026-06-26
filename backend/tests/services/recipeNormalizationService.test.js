@@ -1,6 +1,6 @@
 /**
  * Unit tests for recipeNormalizationService payload shaping (no OpenAI).
- * Run: node --test src/services/recipeNormalizationService.test.js
+ * Run: node --test tests/services/recipeNormalizationService.test.js
  */
 
 import assert from 'node:assert/strict'
@@ -12,7 +12,7 @@ import {
   finalizeNormalizedTips,
   mergeScrapedNotesIntoEnvelope,
   sanitizeNormalizedTips,
-} from './recipeNormalizationService.js'
+} from '../../src/services/recipeNormalizationService.js'
 
 describe('buildCanonicalIngredientSections', () => {
   it('prefers ingredient_sections when sections have lines', () => {
@@ -182,5 +182,19 @@ describe('finalizeNormalizedTips', () => {
       notes: ['Store leftovers in an airtight container for up to 3 days.'],
     })
     assert.deepEqual(structured.recipe.tips, ['Reste bis zu 3 Tage aufbewahren.'])
+  })
+})
+
+describe('normalization prompt wiring', () => {
+  it('uses shared ingredient parsing prompt module', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { fileURLToPath } = await import('node:url')
+    const src = readFileSync(
+      fileURLToPath(new URL('../../src/services/recipeNormalizationService.js', import.meta.url)),
+      'utf8',
+    )
+    assert.ok(src.includes('buildIngredientParsingPromptBlock'))
+    assert.ok(src.includes("unitLanguage: 'de'"))
+    assert.ok(src.includes('includeCupHandling: true'))
   })
 })

@@ -1,6 +1,6 @@
 /**
  * Unit tests for cupConversionService (no DB, no OpenAI).
- * Run: node --test src/services/cupConversionService.test.js
+ * Run: node --test tests/services/cupConversionService.test.js
  */
 
 import assert from 'node:assert/strict'
@@ -9,12 +9,13 @@ import { describe, it } from 'node:test'
 import {
   isCupUnit,
   CUP_UNIT_VARIANTS,
+  normalizeCupUnit,
   extractCupIngredientRows,
   buildCupConversionRequest,
   mergeCupConversionResponse,
   cupIngredientId,
   convertCupIngredients,
-} from './cupConversionService.js'
+} from '../../src/services/cupConversionService.js'
 
 // ---------------------------------------------------------------------------
 // isCupUnit
@@ -32,6 +33,23 @@ describe('isCupUnit', () => {
     for (const v of ['g', 'ml', 'EL', 'TL', 'Zehen', null, undefined, '']) {
       assert.equal(isCupUnit(v), false, `expected "${v}" not to be cup unit`)
     }
+  })
+})
+
+describe('normalizeCupUnit', () => {
+  it('normalizes English cup variants to cup', () => {
+    assert.equal(normalizeCupUnit('cups'), 'cup')
+    assert.equal(normalizeCupUnit('CUP'), 'cup')
+  })
+
+  it('normalizes German tasse variants to Tasse', () => {
+    assert.equal(normalizeCupUnit('tasse'), 'Tasse')
+    assert.equal(normalizeCupUnit('Tassen'), 'Tasse')
+  })
+
+  it('returns non-cup units unchanged', () => {
+    assert.equal(normalizeCupUnit('EL'), 'EL')
+    assert.equal(normalizeCupUnit(null), null)
   })
 })
 

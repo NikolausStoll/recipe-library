@@ -5,7 +5,7 @@ import {
   modelSupportsCustomTemperature,
   clampOpenAiTemperature,
   buildOpenAiChatTemperature,
-} from './openaiChatParams.js'
+} from '../../src/utils/openaiChatParams.js'
 
 describe('modelSupportsCustomTemperature', () => {
   it('returns false only for gpt-5-nano variants', () => {
@@ -14,10 +14,15 @@ describe('modelSupportsCustomTemperature', () => {
     }
   })
 
+  it('returns false for gpt-5-mini variants', () => {
+    for (const model of ['gpt-5-mini', 'gpt-5-mini-2025-08-07']) {
+      assert.equal(modelSupportsCustomTemperature(model), false, model)
+    }
+  })
+
   it('returns true for other models including other gpt-5 variants', () => {
     for (const model of [
       'gpt-5',
-      'gpt-5-mini',
       'gpt-5.4-nano',
       'gpt-5-chat-latest',
       'gpt-4o-mini',
@@ -38,8 +43,8 @@ describe('buildOpenAiChatTemperature', () => {
     assert.deepEqual(buildOpenAiChatTemperature('gpt-4o-mini', 0.2), { temperature: 0.2 })
   })
 
-  it('includes temperature for gpt-5-mini', () => {
-    assert.deepEqual(buildOpenAiChatTemperature('gpt-5-mini', 0.2), { temperature: 0.2 })
+  it('omits temperature for gpt-5-mini', () => {
+    assert.deepEqual(buildOpenAiChatTemperature('gpt-5-mini', 0.2), {})
   })
 
   it('clamps temperature to max 0.3 by default', () => {

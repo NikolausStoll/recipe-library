@@ -1,12 +1,12 @@
 /**
  * Unit tests for recipeUrlExtractService merge/enrichment (no network).
- * Run: node --test src/services/recipeUrlExtractService.test.js
+ * Run: node --test tests/services/recipeUrlExtractService.test.js
  */
 
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { scrapeRecipeFromHtmlForTest } from './recipeUrlExtractService.js'
+import { scrapeRecipeFromHtmlForTest } from '../../src/services/recipeUrlExtractService.js'
 
 const WPRM_WITH_JSONLD = `<!DOCTYPE html>
 <html><body>

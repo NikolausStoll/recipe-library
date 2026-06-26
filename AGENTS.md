@@ -53,7 +53,7 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 | `npm run dev:backend` | Run only the backend (`node backend/src/server.js`). |
 | `npm run build` | Build the frontend bundle. |
 | `npm run start` | Run the production backend server (expects built frontend + env). |
-| `npm --prefix backend run test` | Run backend test suite (`node --test src/**/*.test.js`). |
+| `npm --prefix backend run test` | Run backend test suite (`node --test tests/**/*.test.js`). |
 | `npm --prefix backend run evaluate-vision` | Run the backend vision-evaluation helper. |
 | `npm --prefix frontend run preview` | Serve the built frontend for manual verification. |
 

@@ -1,6 +1,6 @@
 /**
  * Unit tests for image extraction prompt building (no OpenAI).
- * Run: node --test src/services/extractRecipeService.test.js
+ * Run: node --test tests/services/extractRecipeService.test.js
  */
 
 import assert from 'node:assert/strict'
@@ -9,10 +9,11 @@ import { describe, it } from 'node:test'
 import {
   EXTRACT_PROMPT,
   GERMAN_TRANSLATION_ADDON,
+  RECIPE_JSON_SCHEMA,
   buildImageExtractionPrompt,
   buildImageExtractionUserMessage,
   parseTranslateToGerman,
-} from './extractRecipeService.js'
+} from '../../src/services/extractRecipeService.js'
 
 describe('parseTranslateToGerman', () => {
   it('defaults to false for missing or falsy values', () => {
@@ -62,6 +63,55 @@ describe('buildImageExtractionPrompt', () => {
     buildImageExtractionPrompt(true)
     assert.equal(EXTRACT_PROMPT, baseBefore)
     assert.ok(!EXTRACT_PROMPT.includes('Additional translation mode:'))
+    assert.ok(!EXTRACT_PROMPT.includes('Ingredient parsing:'))
+  })
+
+  it('places ingredient parsing block before the language instruction', () => {
+    const prompt = buildImageExtractionPrompt(false)
+    const parsingIdx = prompt.indexOf('Ingredient parsing:')
+    const languageIdx = prompt.indexOf('Preserve the original language of the recipe.')
+    assert.ok(parsingIdx >= 0)
+    assert.ok(languageIdx > parsingIdx)
+  })
+})
+
+describe('RECIPE_JSON_SCHEMA', () => {
+  it('requires structured ingredient fields including unit and originalText', () => {
+    const itemSchema =
+      RECIPE_JSON_SCHEMA.properties.recipe.properties.ingredientsSections.items.properties.items.items
+    assert.deepEqual(itemSchema.required, [
+      'originalText',
+      'amount',
+      'amountMax',
+      'unit',
+      'ingredient',
+      'additionalInfo',
+      'category',
+    ])
+    assert.ok(itemSchema.properties.unit.description.includes('Prise'))
+  })
+})
+
+describe('logAiTokenUsage', () => {
+  it('inserts a row into ai_token_usage', async () => {
+    process.env.DB_PATH = ':memory:'
+    const { initDb, getDb } = await import('../../src/db/index.js')
+    initDb()
+    const { logAiTokenUsage } = await import('../../src/services/extractRecipeService.js')
+
+    logAiTokenUsage(null, { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }, { ok: true }, {
+      model: 'gpt-4.1-mini',
+      usage_kind: 'test',
+    })
+
+    const row = getDb()
+      .prepare('SELECT recipe_id, total_tokens, model, usage_kind FROM ai_token_usage ORDER BY id DESC LIMIT 1')
+      .get()
+    assert.equal(row.recipe_id, null)
+    assert.equal(row.total_tokens, 15)
+    assert.equal(row.model, 'gpt-4.1-mini')
+    assert.equal(row.usage_kind, 'test')
+    delete process.env.DB_PATH
   })
 })
 
@@ -79,5 +129,10 @@ describe('buildImageExtractionUserMessage', () => {
     assert.ok(message.includes('parse pinch/handful/drizzle into amount and unit'))
     assert.ok(message.includes('originalText stays the exact visible source line'))
     assert.ok(message.includes('Set recipe.language to "de"'))
+  })
+
+  it('does not mention German parsing hints when translateToGerman is false', () => {
+    const message = buildImageExtractionUserMessage(false)
+    assert.ok(!message.includes('parse pinch/handful/drizzle'))
   })
 })
