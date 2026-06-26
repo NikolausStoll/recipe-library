@@ -211,18 +211,29 @@
         </div>
         <aside class="cooking-mode__aside" aria-label="Zutaten">
           <div class="cooking-mode__aside-head">
-            <h2 class="cooking-mode__aside-title">Zutaten</h2>
+            <h2 class="cooking-mode__aside-title recipe-detail-ingredients-panel__title-row">
+              <span>Zutaten</span>
+              <button
+                v-if="detailHasAnyOriginalText"
+                type="button"
+                class="ingredients-icon-btn cooking-mode__original-toggle"
+                :class="{ 'ingredients-icon-btn--active': showDetailOriginalLines }"
+                :aria-pressed="showDetailOriginalLines"
+                :title="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                :aria-label="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
+                @click="showDetailOriginalLines = !showDetailOriginalLines"
+              >
+                <OriginalLanguageIcon />
+              </button>
+            </h2>
             <button
-              v-if="detailHasAnyOriginalText"
               type="button"
               class="ingredients-icon-btn cooking-mode__original-toggle"
-              :class="{ 'ingredients-icon-btn--active': showDetailOriginalLines }"
-              :aria-pressed="showDetailOriginalLines"
-              :title="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
-              :aria-label="showDetailOriginalLines ? 'Originale ausblenden' : 'Originale anzeigen'"
-              @click="showDetailOriginalLines = !showDetailOriginalLines"
+              title="Zum Einkauf hinzufügen"
+              aria-label="Zum Einkauf hinzufügen"
+              @click="openAddToShopping"
             >
-              <OriginalLanguageIcon />
+              <ShoppingListIcon />
             </button>
           </div>
           <div class="cooking-mode__ingredient-groups">
@@ -291,6 +302,15 @@
         >
           <OriginalLanguageIcon />
         </button>
+        <button
+          type="button"
+          class="ingredients-icon-btn cooking-mode__original-toggle"
+          title="Zum Einkauf hinzufügen"
+          aria-label="Zum Einkauf hinzufügen"
+          @click="openAddToShopping"
+        >
+          <ShoppingListIcon />
+        </button>
       </div>
     </article>
 
@@ -327,6 +347,13 @@
           <div v-if="detailMenuOpen" class="recipe-detail-nav__menu" @click.stop>
             <button type="button" class="recipe-detail-nav__menu-item recipe-detail-nav__menu-edit-non-desktop" @click="detailMenuOpen = false; editFromDetail()">
               Rezept bearbeiten
+            </button>
+            <button
+              type="button"
+              class="recipe-detail-nav__menu-item"
+              @click="detailMenuOpen = false; openAddToShopping()"
+            >
+              Zum Einkauf hinzufügen
             </button>
             <button
               v-if="hasRecipeUrlSource(viewingRecipe)"
@@ -780,11 +807,22 @@
                   <OriginalLanguageIcon />
                 </button>
               </div>
-              <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
-                <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
-                <span class="servings-value">{{ displayServings }}</span>
-                <button type="button" class="servings-btn" @click="adjustServings(1)">+</button>
-                <span class="servings-label">Portionen</span>
+              <div class="recipe-detail-ingredients-panel__servings-row">
+                <button
+                  type="button"
+                  class="ingredients-icon-btn"
+                  title="Zum Einkauf hinzufügen"
+                  aria-label="Zum Einkauf hinzufügen"
+                  @click="openAddToShopping"
+                >
+                  <ShoppingListIcon />
+                </button>
+                <div v-if="viewingRecipe.servings" class="recipe-detail-servings">
+                  <button type="button" class="servings-btn" @click="adjustServings(-1)" :disabled="displayServings <= 1">−</button>
+                  <span class="servings-value">{{ displayServings }}</span>
+                  <button type="button" class="servings-btn" @click="adjustServings(1)">+</button>
+                  <span class="servings-label">Portionen</span>
+                </div>
               </div>
             </div>
             <div class="recipe-detail-ingredients-scroll">
@@ -850,12 +888,30 @@
     </div>
   </div>
 
+  <AddToShoppingSheet
+    :open="addToShoppingOpen"
+    :recipe="viewingRecipe"
+    :servings="Math.max(1, displayServings)"
+    @close="addToShoppingOpen = false"
+    @added="onShoppingAdded"
+  />
+
+  <div v-if="shoppingAddNotice" class="shopping-add-notice no-print" role="status">
+    <span>{{ shoppingAddNotice }}</span>
+    <router-link to="/shopping" class="shopping-add-notice__link">Zur Liste</router-link>
+    <button type="button" class="shopping-add-notice__close" aria-label="Schließen" @click="shoppingAddNotice = null">
+      ×
+    </button>
+  </div>
+
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import AiSparkleIcon from '../components/icons/AiSparkleIcon.vue'
 import OriginalLanguageIcon from '../components/icons/OriginalLanguageIcon.vue'
+import ShoppingListIcon from '../components/icons/ShoppingListIcon.vue'
+import AddToShoppingSheet from '../components/AddToShoppingSheet.vue'
 import { useRoute, useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
 import type { IFuseOptions } from 'fuse.js'
@@ -1146,6 +1202,9 @@ const cookingIngredientSections = computed(() => {
   return sections
 })
 const showAddMenu = ref(false)
+const addToShoppingOpen = ref(false)
+const shoppingAddNotice = ref<string | null>(null)
+let shoppingAddNoticeTimer: ReturnType<typeof setTimeout> | null = null
 const addMenuAnchorRef = ref<HTMLElement | null>(null)
 const viewingRecipe = ref<Recipe | null>(null)
 const displayServings = ref<number>(1)
@@ -1839,6 +1898,20 @@ function adjustServings(delta: number) {
   displayServings.value = Math.max(1, displayServings.value + delta)
 }
 
+function openAddToShopping() {
+  if (!viewingRecipe.value) return
+  addToShoppingOpen.value = true
+}
+
+function onShoppingAdded(count: number) {
+  shoppingAddNotice.value =
+    count === 1 ? '1 Zutat zur Einkaufsliste hinzugefügt.' : `${count} Zutaten zur Einkaufsliste hinzugefügt.`
+  if (shoppingAddNoticeTimer) clearTimeout(shoppingAddNoticeTimer)
+  shoppingAddNoticeTimer = setTimeout(() => {
+    shoppingAddNotice.value = null
+  }, 5000)
+}
+
 async function advanceCookingStep() {
   if (!viewingRecipe.value) return
   if (isFinalCookingStep.value) {
@@ -2459,6 +2532,21 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
+}
+
+.recipe-detail-ingredients-panel__icon-actions,
+.recipe-detail-ingredients-panel__servings-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.cooking-mode__aside-title.recipe-detail-ingredients-panel__title-row {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--color-text);
 }
 
 .recipe-detail-ingredients-panel__title {
@@ -3706,6 +3794,45 @@ onBeforeUnmount(() => {
 @media (max-width: 480px) {
   .recipe-nutrition {
     grid-template-columns: 1fr;
+  }
+}
+
+.shopping-add-notice {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--mobile-bottom-nav-height, 4rem) + var(--spacing-md));
+  transform: translateX(-50%);
+  z-index: calc(var(--z-modal) - 1);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-card);
+  max-width: min(92vw, 24rem);
+}
+
+.shopping-add-notice__link {
+  color: var(--color-accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shopping-add-notice__close {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .shopping-add-notice {
+    bottom: var(--spacing-lg);
   }
 }
 </style>

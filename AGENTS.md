@@ -4,7 +4,7 @@
 
 Recipe Library is a personal recipe-management monorepo. It covers:
 
-- A curated library view (list, detail, favorites, “would cook again”, cooking mode) plus placeholders for Plan and Shopping.
+- A curated library view (list, detail, favorites, “would cook again”, cooking mode) plus placeholders for Plan and a **shopping list** (add ingredients from recipes, `localStorage`, print).
 - Manual editing via the multi-step `RecipeFormMultiStep` system that keeps ingredients, steps, tips, nutrition, tags, and source info in sync.
 - Website import and AI-powered image/photo import with enrichment, normalization, cup conversion, tagging, and optional estimates (health/time).
 - Source tracking for cookbooks and URLs, including cover upload/crop and image-processing queues.
