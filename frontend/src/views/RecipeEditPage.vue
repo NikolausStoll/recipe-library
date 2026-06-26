@@ -428,12 +428,13 @@ async function onFormSubmit(
       }
     }
 
-    await loadRecipe(recipeId, { silent: true })
-
     if (shouldConfirmAfter) {
       confirmAfterNextSave.value = false
       await finalizeConfirmAfterSave(recipeId)
+      if (error.value) return
     }
+
+    goBackToRecipe()
   } catch (e) {
     confirmAfterNextSave.value = false
     error.value = e instanceof Error ? e.message : 'Rezept konnte nicht gespeichert werden'
