@@ -69,18 +69,51 @@
         <span class="meta-text recipes-toolbar__count" aria-live="polite">
           {{ filteredAndSortedRecipes.length }} Rezept{{ filteredAndSortedRecipes.length !== 1 ? 'e' : '' }}
         </span>
-        <label class="recipes-sort">
-          <span class="recipes-sort__visible meta-text">{{ sortByLabel }}</span>
-          <select v-model="sortBy" class="recipes-sort__select" aria-label="Sortieren nach">
-            <option value="created-desc">Zuletzt hinzugefügt</option>
-            <option value="title-asc">Name A–Z</option>
-            <option value="title-desc">Name Z–A</option>
-            <option value="cooked-desc">Zuletzt gekocht</option>
-            <option value="cooked-count-desc">Am häufigsten gekocht</option>
-            <option value="duration-asc">Kürzeste Dauer</option>
-            <option value="duration-desc">Längste Dauer</option>
-          </select>
-        </label>
+        <div class="recipes-overview__controls">
+          <label class="recipes-sort recipes-source-filter">
+            <span class="recipes-sort__visible meta-text">{{ sourceFilterLabel }}</span>
+            <select
+              v-model="sourceFilter"
+              class="recipes-sort__select"
+              aria-label="Nach Quelle filtern"
+            >
+              <option value="">Alle Quellen</option>
+              <optgroup v-if="bookSourcesForFilter.length" label="Kochbücher">
+                <option
+                  v-for="s in bookSourcesForFilter"
+                  :key="`book-${s.id}`"
+                  :value="String(s.id)"
+                >
+                  {{ s.name }} ({{ s.recipe_count }})
+                </option>
+              </optgroup>
+              <optgroup v-if="websiteSourcesForFilter.length" label="Websites">
+                <option
+                  v-for="s in websiteSourcesForFilter"
+                  :key="`web-${s.id}`"
+                  :value="String(s.id)"
+                >
+                  {{ websiteSourceLabel(s) }} ({{ s.recipe_count }})
+                </option>
+              </optgroup>
+              <option v-if="unlinkedRecipeCount > 0" value="none">
+                Ohne Quelle ({{ unlinkedRecipeCount }})
+              </option>
+            </select>
+          </label>
+          <label class="recipes-sort">
+            <span class="recipes-sort__visible meta-text">{{ sortByLabel }}</span>
+            <select v-model="sortBy" class="recipes-sort__select" aria-label="Sortieren nach">
+              <option value="created-desc">Zuletzt hinzugefügt</option>
+              <option value="title-asc">Name A–Z</option>
+              <option value="title-desc">Name Z–A</option>
+              <option value="cooked-desc">Zuletzt gekocht</option>
+              <option value="cooked-count-desc">Am häufigsten gekocht</option>
+              <option value="duration-asc">Kürzeste Dauer</option>
+              <option value="duration-desc">Längste Dauer</option>
+            </select>
+          </label>
+        </div>
       </div>
     </header>
 
@@ -135,7 +168,8 @@
         <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <h3>Keine passenden Rezepte</h3>
-      <p>Versuche andere Suchbegriffe</p>
+      <p v-if="sourceFilter">{{ emptyStateSourceHint }}</p>
+      <p v-else>Versuche andere Suchbegriffe oder Filter</p>
     </div>
 
     <div v-if="!loading && !recipes.length" class="empty-state">
@@ -855,7 +889,10 @@ import {
   getRecipeOriginalPageUrl,
   isManagedBookSource,
   isRecipeWebsiteSource,
+  recipeHasNoManagedSource,
 } from '../utils/recipeSourceLabel'
+import { listSources } from '../api/sources'
+import type { RecipeSource } from '../api/sources'
 import {
   formatRecipeDetailSourceMeta,
   formatDetailServingsCount,
@@ -902,6 +939,63 @@ type RecipeSortOption =
   | 'duration-desc'
 
 const sortBy = ref<RecipeSortOption>('created-desc')
+
+function parseSourceFilterQuery(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw.trim()) return ''
+  const value = raw.trim()
+  if (value === 'none') return 'none'
+  const id = Number(value)
+  if (Number.isFinite(id) && id > 0) return String(id)
+  return ''
+}
+
+const sourceFilter = ref(parseSourceFilterQuery(route.query.source))
+const filterSources = ref<RecipeSource[]>([])
+
+function sourcesWithRecipes(list: RecipeSource[]) {
+  return list.filter((s) => (s.recipe_count ?? 0) > 0)
+}
+
+const bookSourcesForFilter = computed(() =>
+  sourcesWithRecipes(filterSources.value.filter((s) => s.type === 'book')),
+)
+
+const websiteSourcesForFilter = computed(() =>
+  sourcesWithRecipes(
+    filterSources.value.filter((s) => s.type === 'url' || s.source_kind === 'website'),
+  ),
+)
+
+const unlinkedRecipeCount = computed(
+  () => recipes.value.filter((r) => recipeHasNoManagedSource(r)).length,
+)
+
+function websiteSourceLabel(s: RecipeSource): string {
+  return (s.domain ?? s.name ?? '').trim() || 'Website'
+}
+
+const sourceFilterLabel = computed(() => {
+  if (sourceFilter.value === 'none') return 'Ohne Quelle'
+  if (sourceFilter.value) {
+    const id = Number(sourceFilter.value)
+    const fromList = filterSources.value.find((s) => s.id === id)
+    if (fromList) {
+      return fromList.type === 'book' ? fromList.name : websiteSourceLabel(fromList)
+    }
+  }
+  return 'Alle Quellen'
+})
+
+const emptyStateSourceHint = computed(() => {
+  if (sourceFilter.value === 'none') {
+    return 'Keine Rezepte ohne verknüpfte Quelle.'
+  }
+  if (sourceFilter.value) {
+    return `Keine Rezepte für „${sourceFilterLabel.value}“.`
+  }
+  return 'Versuche andere Suchbegriffe oder Filter'
+})
+
 type RecipeFilterId = 'favorites' | 'quick' | 'healthy' | 'dinner' | 'baking'
 
 const VALID_FILTER_IDS = new Set<RecipeFilterId>(['favorites', 'quick', 'healthy', 'dinner', 'baking'])
@@ -1358,11 +1452,20 @@ function recipeMatchesSingleFilter(
 }
 
 function recipeMatchesFilter(recipe: RecipeListItemWithIngredients): boolean {
-  if (activeFilters.value.size === 0) return true
-  for (const filterId of activeFilters.value) {
-    if (!recipeMatchesSingleFilter(recipe, filterId)) return false
+  if (activeFilters.value.size > 0) {
+    for (const filterId of activeFilters.value) {
+      if (!recipeMatchesSingleFilter(recipe, filterId)) return false
+    }
   }
-  return true
+  return recipeMatchesSourceFilter(recipe)
+}
+
+function recipeMatchesSourceFilter(recipe: RecipeListItemWithIngredients): boolean {
+  if (!sourceFilter.value) return true
+  if (sourceFilter.value === 'none') return recipeHasNoManagedSource(recipe)
+  const sourceId = Number(sourceFilter.value)
+  if (!Number.isFinite(sourceId) || sourceId <= 0) return true
+  return recipe.source_id === sourceId
 }
 
 const filteredAndSortedRecipes = computed(() => {
@@ -1424,6 +1527,19 @@ const filteredAndSortedRecipes = computed(() => {
   }
   return sorted
 })
+
+async function loadFilterSources() {
+  try {
+    filterSources.value = await listSources()
+    if (sourceFilter.value && sourceFilter.value !== 'none') {
+      const id = Number(sourceFilter.value)
+      const exists = filterSources.value.some((s) => s.id === id)
+      if (!exists) sourceFilter.value = ''
+    }
+  } catch {
+    filterSources.value = []
+  }
+}
 
 async function loadList() {
   loading.value = true
@@ -1807,6 +1923,24 @@ function onDocumentClickForAddMenu(event: MouseEvent) {
 }
 
 watch(
+  () => route.query.source,
+  (raw) => {
+    const parsed = parseSourceFilterQuery(raw)
+    if (parsed !== sourceFilter.value) sourceFilter.value = parsed
+  },
+)
+
+watch(sourceFilter, (value) => {
+  const current = typeof route.query.source === 'string' ? route.query.source : ''
+  const next = value || ''
+  if (current === next) return
+  const query = { ...route.query } as Record<string, string>
+  if (value) query.source = value
+  else delete query.source
+  router.replace({ path: route.path, query })
+})
+
+watch(
   () => route.params.id,
   async (raw) => {
     if (!raw) {
@@ -1844,6 +1978,7 @@ watch(
 )
 
 onMounted(() => {
+  void loadFilterSources()
   loadList()
   document.addEventListener('click', hideCoverOverlay)
   document.addEventListener('click', onDocumentClickForAddMenu)

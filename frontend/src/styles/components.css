@@ -891,6 +891,19 @@
   margin-top: var(--spacing-md);
 }
 
+.recipes-overview__controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.recipes-source-filter {
+  max-width: 42%;
+}
+
 .recipes-filter-chips--scroll {
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -1061,6 +1074,7 @@
     position: static;
     inset: auto;
     width: auto;
+    max-width: 11rem;
     height: auto;
     opacity: 1;
     padding: var(--spacing-xs) var(--spacing-md);
@@ -1071,6 +1085,10 @@
     background: var(--color-surface);
     color: var(--color-text);
     cursor: pointer;
+  }
+
+  .recipes-source-filter .recipes-sort__select {
+    max-width: 9.5rem;
   }
 }
 

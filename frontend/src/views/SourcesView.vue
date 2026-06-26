@@ -31,36 +31,40 @@
         </div>
 
         <div v-if="bookSources.length" class="source-grid">
-          <button
+          <article
             v-for="s in bookSources"
             :key="s.id"
-            type="button"
             class="source-card"
-            @click="openEditBook(s)"
           >
-            <div class="source-card__cover">
-              <div v-if="getSourceCoverImageUrl(s)" class="pending-media">
-                <img
-                  :src="getSourceCoverImageUrl(s)!"
-                  :alt="s.name"
-                  loading="lazy"
-                />
-                <div v-if="s.image_processing_pending" class="pending-media__overlay">
-                  <span class="pending-media__label">Noch nicht verarbeitet</span>
+            <button type="button" class="source-card__open" @click="openEditBook(s)">
+              <div class="source-card__cover">
+                <div v-if="getSourceCoverImageUrl(s)" class="pending-media">
+                  <img
+                    :src="getSourceCoverImageUrl(s)!"
+                    :alt="s.name"
+                    loading="lazy"
+                  />
+                  <div v-if="s.image_processing_pending" class="pending-media__overlay">
+                    <span class="pending-media__label">Noch nicht verarbeitet</span>
+                  </div>
                 </div>
+                <span v-else class="source-card__placeholder">Kein Cover</span>
               </div>
-              <span v-else class="source-card__placeholder">Kein Cover</span>
-            </div>
-            <div class="source-card__body">
-              <h3 class="source-card__title">{{ s.name }}</h3>
-              <p v-if="displayOptionalText(s.author)" class="source-card__author meta-text">
-                {{ displayOptionalText(s.author) }}
-              </p>
-              <p v-if="s.recipe_count != null && s.recipe_count > 0" class="source-card__count meta-text">
-                {{ s.recipe_count }} Rezept{{ s.recipe_count !== 1 ? 'e' : '' }}
-              </p>
-            </div>
-          </button>
+              <div class="source-card__body">
+                <h3 class="source-card__title">{{ s.name }}</h3>
+                <p v-if="displayOptionalText(s.author)" class="source-card__author meta-text">
+                  {{ displayOptionalText(s.author) }}
+                </p>
+              </div>
+            </button>
+            <router-link
+              v-if="s.recipe_count != null && s.recipe_count > 0"
+              :to="{ path: '/recipes', query: { source: String(s.id) } }"
+              class="source-card__recipes-link meta-text"
+            >
+              {{ s.recipe_count }} Rezept{{ s.recipe_count !== 1 ? 'e' : '' }} anzeigen
+            </router-link>
+          </article>
         </div>
         <p v-else class="sources-section__empty meta-text">
           Noch keine Kochbücher. Füge Bücher hinzu, aus denen du häufig kochst.
@@ -97,8 +101,24 @@
                 <path d="M3 12h18M12 3c2.5 2.8 4 6 4 9s-1.5 6.2-4 9M12 3c-2.5 2.8-4 6-4 9s1.5 6.2 4 9" stroke="currentColor" stroke-width="1.5" />
               </svg>
             </span>
-            <span class="website-source-row__domain">{{ websiteDisplayName(s) }}</span>
-            <span class="website-source-row__count meta-text">
+            <router-link
+              v-if="(s.recipe_count ?? 0) > 0"
+              :to="{ path: '/recipes', query: { source: String(s.id) } }"
+              class="website-source-row__domain website-source-row__domain--link"
+              @click.stop
+            >
+              {{ websiteDisplayName(s) }}
+            </router-link>
+            <span v-else class="website-source-row__domain">{{ websiteDisplayName(s) }}</span>
+            <router-link
+              v-if="(s.recipe_count ?? 0) > 0"
+              :to="{ path: '/recipes', query: { source: String(s.id) } }"
+              class="website-source-row__count meta-text website-source-row__count--link"
+              @click.stop
+            >
+              {{ s.recipe_count ?? 0 }} Rezept{{ (s.recipe_count ?? 0) !== 1 ? 'e' : '' }}
+            </router-link>
+            <span v-else class="website-source-row__count meta-text">
               {{ s.recipe_count ?? 0 }} Rezept{{ (s.recipe_count ?? 0) !== 1 ? 'e' : '' }}
             </span>
             <div class="website-source-row__menu-wrap">
@@ -122,6 +142,15 @@
                 role="menu"
                 @click.stop
               >
+                <router-link
+                  v-if="(s.recipe_count ?? 0) > 0"
+                  role="menuitem"
+                  :to="{ path: '/recipes', query: { source: String(s.id) } }"
+                  class="website-source-row__menu-item"
+                  @click="closeWebsiteMenu"
+                >
+                  Rezepte anzeigen
+                </router-link>
                 <button
                   type="button"
                   role="menuitem"
@@ -135,7 +164,7 @@
           </li>
         </ul>
         <p v-else class="sources-section__empty meta-text">
-          Websites werden automatisch angelegt, wenn du Rezepte per URL importierst.
+          Websites werden automatisch angelegt, wenn du Rezepte per URL importierst oder eine Original-URL an einem Rezept speicherst.
         </p>
       </section>
     </template>
@@ -391,7 +420,6 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   overflow: hidden;
-  cursor: pointer;
   text-align: left;
   box-shadow: var(--shadow-card);
   transition: box-shadow var(--transition-fast), transform var(--transition-fast);
@@ -400,6 +428,33 @@ onBeforeUnmount(() => {
 .source-card:hover {
   box-shadow: var(--shadow-soft);
   transform: translateY(-2px);
+}
+
+.source-card__open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: inherit;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.source-card__recipes-link {
+  display: block;
+  padding: 0.55rem var(--spacing-md) 0.75rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-accent);
+  text-decoration: none;
+  font-size: 0.8125rem;
+}
+
+.source-card__recipes-link:hover {
+  text-decoration: underline;
 }
 
 .source-card__cover {
@@ -553,6 +608,39 @@ onBeforeUnmount(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
+}
+
+.website-source-row__domain--link,
+.website-source-row__count--link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.website-source-row__domain--link:hover,
+.website-source-row__count--link:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.website-source-row__menu-item {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  color: var(--color-text);
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.website-source-row__menu-item:hover {
+  background: var(--color-surface-subtle);
 }
 
 .website-source-row__menu button {

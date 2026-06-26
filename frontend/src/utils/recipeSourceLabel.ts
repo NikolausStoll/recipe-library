@@ -75,3 +75,8 @@ export function isRecipeWebsiteSource(recipe: SourceFields): boolean {
   const label = getRecipeSourceDisplayLabel(recipe)
   return label === 'Website'
 }
+
+/** No cookbook or website source linked (manual / unknown). */
+export function recipeHasNoManagedSource(recipe: SourceFields): boolean {
+  return recipe.source_id == null && !isRecipeWebsiteSource(recipe)
+}

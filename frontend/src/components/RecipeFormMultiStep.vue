@@ -449,6 +449,24 @@
                 </svg>
               </button>
             </div>
+            <p class="meta-text source-block__hint">
+              <template v-if="editingId != null">
+                Diese URL ist noch nicht als Website-Quelle hinterlegt.
+              </template>
+              <template v-else>
+                Beim Speichern wird die URL automatisch mit der Website-Quelle verknüpft.
+              </template>
+            </p>
+            <button
+              v-if="editingId != null && !showBookPicker"
+              type="button"
+              class="btn btn--ghost btn--small source-block__action"
+              :disabled="linkWebsiteSourceLoading"
+              @click="linkWebsiteSourceFromUrl"
+            >
+              {{ linkWebsiteSourceLoading ? 'Wird verknüpft…' : 'Als Website-Quelle verknüpfen' }}
+            </button>
+            <p v-if="linkWebsiteSourceError" class="form__error" role="alert">{{ linkWebsiteSourceError }}</p>
             <button
               v-if="!showBookPicker"
               type="button"
@@ -477,6 +495,9 @@
               inputmode="url"
               class="form-input"
             />
+            <p v-if="sourceUiCase === 'manual' && originalPageUrl.trim()" class="meta-text source-block__hint">
+              Beim Speichern wird die URL automatisch mit der Website-Quelle verknüpft.
+            </p>
             <button type="button" class="btn btn--ghost btn--tiny" @click="showUrlEdit = false">Fertig</button>
           </div>
 
@@ -1111,8 +1132,9 @@ import type {
   IngredientInput,
   RecipeStepInput,
   ParsedRecipeFromOcr,
+  Recipe,
 } from '../api/recipes'
-import { getRecipeTagOptions } from '../api/recipes'
+import { getRecipeTagOptions, updateRecipe } from '../api/recipes'
 import { listSources } from '../api/sources'
 import type { RecipeSource } from '../api/sources'
 import { INGREDIENT_CATEGORY_OPTIONS, getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
@@ -1198,6 +1220,7 @@ const emit = defineEmits<{
   estimateTimes: []
   estimateNutrition: []
   generateTags: []
+  websiteSourceLinked: [recipe: Recipe]
 }>()
 
 const currentStep = ref(0)
@@ -1206,8 +1229,11 @@ const selectedSourceId = ref<number | null>(null)
 const originalPageUrl = ref('')
 const importMethod = ref<'manual' | 'url' | 'image'>('manual')
 const bookSources = ref<RecipeSource[]>([])
+const websiteSources = ref<RecipeSource[]>([])
 const showBookPicker = ref(false)
 const showUrlEdit = ref(false)
+const linkWebsiteSourceLoading = ref(false)
+const linkWebsiteSourceError = ref('')
 const showOriginalLines = ref(false)
 const showFullOcrText = ref(false)
 const tagsEditOpen = ref(false)
@@ -1216,11 +1242,10 @@ const cookbookSources = computed(() => bookSources.value.filter((s) => s.type ==
 
 function sourceTypeForId(id: number | null): 'book' | 'url' | null {
   if (id == null) return null
-  const fromList = bookSources.value.find((s) => s.id === id)
-  if (fromList) {
-    if (fromList.type === 'book') return 'book'
-    if (isWebsiteSourceType(fromList.type)) return 'url'
-  }
+  const fromBooks = bookSources.value.find((s) => s.id === id)
+  if (fromBooks) return 'book'
+  const fromWebsites = websiteSources.value.find((s) => s.id === id)
+  if (fromWebsites && isWebsiteSourceType(fromWebsites.type)) return 'url'
   if (props.initial?.source_id === id) {
     const t = (props.initial.source_type ?? '').toLowerCase()
     if (t === 'book') return 'book'
@@ -2138,6 +2163,31 @@ function unlinkBookSource() {
   showBookPicker.value = false
 }
 
+async function linkWebsiteSourceFromUrl() {
+  const url = originalPageUrl.value.trim()
+  if (!url || props.editingId == null || linkWebsiteSourceLoading.value) return
+  linkWebsiteSourceLoading.value = true
+  linkWebsiteSourceError.value = ''
+  try {
+    const recipe = await updateRecipe(props.editingId, { original_url: url })
+    if (recipe.source_id != null && isWebsiteSourceType(recipe.source_type)) {
+      selectedSourceId.value = recipe.source_id
+      try {
+        const all = await listSources()
+        websiteSources.value = all.filter((s) => isWebsiteSourceType(s.type))
+      } catch {
+        // Local selectedSourceId + parent reload are enough if list fails.
+      }
+    }
+    emit('websiteSourceLinked', recipe)
+  } catch (e) {
+    linkWebsiteSourceError.value =
+      e instanceof Error ? e.message : 'Website-Quelle konnte nicht verknüpft werden'
+  } finally {
+    linkWebsiteSourceLoading.value = false
+  }
+}
+
 function updateSectionHeading(sectionId: string, value: string) {
   if (sectionId === UNGROUPED_SECTION_ID) return
   const empty = emptyEditorGroups.value.find((g) => g.id === sectionId)
@@ -2230,6 +2280,7 @@ function assignFromInitial() {
   editorClientIdSeq = 0
   showBookPicker.value = false
   showUrlEdit.value = false
+  linkWebsiteSourceError.value = ''
   showOriginalLines.value = props.editingStatus === 'draft'
   showFullOcrText.value = false
   importMethod.value = 'manual'
@@ -2450,8 +2501,10 @@ onMounted(async () => {
   try {
     const all = await listSources()
     bookSources.value = all.filter((s) => s.type === 'book')
+    websiteSources.value = all.filter((s) => isWebsiteSourceType(s.type))
   } catch {
     bookSources.value = []
+    websiteSources.value = []
   }
   try {
     const opt = await getRecipeTagOptions()

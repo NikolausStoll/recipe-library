@@ -28,6 +28,33 @@ function normalizeTimeSource(v) {
   return null
 }
 
+function getSourceTypeById(db, sourceId) {
+  if (sourceId == null) return null
+  const row = db.prepare('SELECT type FROM recipe_sources WHERE id = ?').get(Number(sourceId))
+  return row?.type ?? null
+}
+
+function isBookSourceId(db, sourceId) {
+  return getSourceTypeById(db, sourceId) === 'book'
+}
+
+/**
+ * Link a per-recipe page URL to a website source (by domain), unless a cookbook is already linked.
+ * Clears a website source link when the page URL is removed.
+ */
+function linkUrlSourceFromOriginalUrl(db, sourceId, originalUrl) {
+  const url = originalUrl != null ? String(originalUrl).trim() : ''
+  if (isBookSourceId(db, sourceId)) return sourceId
+
+  if (!url) {
+    if (getSourceTypeById(db, sourceId) === 'url') return null
+    return sourceId
+  }
+
+  const urlSource = findOrCreateUrlSource(url)
+  return urlSource?.id ?? sourceId
+}
+
 function attachSourceFields(row) {
   const sourceType = row.source_type ?? 'manual'
   const originalUrl = row.original_url != null ? String(row.original_url).trim() || null : null
@@ -453,6 +480,12 @@ export function createRecipe(body) {
     sourceId = resolveSource(db, body)
   }
 
+  const originalUrl =
+    body && body.original_url != null ? String(body.original_url).trim() || null : null
+  if (originalUrl) {
+    sourceId = linkUrlSourceFromOriginalUrl(db, sourceId, originalUrl)
+  }
+
   const imageProcessingPending =
     body && (body.image_processing_pending === true || body.image_processing_pending === 1) ? 1 : 0
 
@@ -469,7 +502,7 @@ export function createRecipe(body) {
   `).run(
     sourceId,
     (recipe.source_page ?? '').trim() || null,
-    body && body.original_url != null ? String(body.original_url).trim() || null : null,
+    originalUrl,
     recipe.import_method ?? 'manual',
     recipe.extract_status ?? null,
     recipe.title ?? '',
@@ -570,16 +603,18 @@ export function updateRecipe(id, body) {
   if (body && 'source_url' in body) {
     const urlVal = body.source_url != null ? String(body.source_url).trim() : ''
     const linkedId = sourceId ?? existingRow.source_id ?? null
-    if (linkedId) {
-      const srcRow = db.prepare('SELECT type FROM recipe_sources WHERE id = ?').get(linkedId)
-      if (srcRow?.type === 'url') {
-        originalUrl = urlVal || null
-      }
-    } else if (urlVal) {
-      const urlSource = findOrCreateUrlSource(urlVal)
-      sourceId = urlSource?.id ?? sourceId
+    if (linkedId && getSourceTypeById(db, linkedId) === 'url') {
+      originalUrl = urlVal || null
+    } else if (urlVal && !isBookSourceId(db, sourceId)) {
+      sourceId = linkUrlSourceFromOriginalUrl(db, sourceId, urlVal)
       originalUrl = urlVal
     }
+  }
+
+  const originalUrlTouched =
+    body && ('original_url' in body || ('source_url' in body && !isBookSourceId(db, sourceId)))
+  if (originalUrlTouched && !isBookSourceId(db, sourceId)) {
+    sourceId = linkUrlSourceFromOriginalUrl(db, sourceId, originalUrl)
   }
 
   const status = (body && (body.status === 'draft' || body.status === 'confirmed')) ? body.status : (existingRow.status ?? 'draft')

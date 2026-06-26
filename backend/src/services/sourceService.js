@@ -93,6 +93,33 @@ export function findOrCreateUrlSource(url, options = {}) {
 }
 
 /**
+ * Link recipes that only have original_url (no source_id) to website sources by domain.
+ */
+export function backfillUrlSourcesFromOriginalUrl() {
+  const db = getDb()
+  const rows = db
+    .prepare(`
+      SELECT id, original_url FROM recipes
+      WHERE source_id IS NULL
+        AND original_url IS NOT NULL
+        AND TRIM(original_url) != ''
+    `)
+    .all()
+  if (!rows.length) return 0
+
+  const update = db.prepare('UPDATE recipes SET source_id = ? WHERE id = ?')
+  let linked = 0
+  for (const row of rows) {
+    const urlSource = findOrCreateUrlSource(row.original_url)
+    if (urlSource?.id) {
+      update.run(urlSource.id, row.id)
+      linked += 1
+    }
+  }
+  return linked
+}
+
+/**
  * Create a recipe source. Body: type, name (title), subtitle?, author?, year?, image_path?, url?, book_title? (alias for name when type=book).
  */
 export function createSource(body) {

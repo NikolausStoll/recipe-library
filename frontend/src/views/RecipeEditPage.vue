@@ -104,6 +104,7 @@
         @estimate-times="onFormEstimateTimes"
         @estimate-nutrition="onFormEstimateNutrition"
         @generate-tags="onFormGenerateTags"
+        @website-source-linked="onWebsiteSourceLinked"
       />
     </div>
   </div>
@@ -375,6 +376,10 @@ async function onFormGenerateTags() {
   } finally {
     tagGenerateLoading.value = false
   }
+}
+
+async function onWebsiteSourceLinked(recipe: Recipe) {
+  formInitial.value = buildFormInitialFromRecipe(recipe)
 }
 
 async function onFormSubmit(

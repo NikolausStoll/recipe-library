@@ -3,6 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import Database from 'better-sqlite3'
 import { runWebsiteSourceMigrations } from './migrateWebsiteSources.js'
+import { backfillUrlSourcesFromOriginalUrl } from '../services/sourceService.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dbPath = process.env.DB_PATH || ':memory:'
@@ -171,6 +172,7 @@ export function initDb() {
   database.exec('DROP TABLE IF EXISTS cup_gram_references')
 
   runWebsiteSourceMigrations(database)
+  backfillUrlSourcesFromOriginalUrl()
 
   database.prepare(`DELETE FROM recipe_tags WHERE tag = 'family'`).run()
 }
