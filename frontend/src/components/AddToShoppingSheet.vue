@@ -106,7 +106,7 @@ function rebuildRows() {
       key: `${index}-${input.ingredientName}-${input.category ?? ''}`,
       label: preview ? formatShoppingLine(preview) : input.ingredientName,
       input,
-      selected: isIngredientSelectedByDefault(input.category),
+      selected: isIngredientSelectedByDefault(input.category, input.ingredientName),
     }
   })
 }

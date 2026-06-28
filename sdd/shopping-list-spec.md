@@ -28,16 +28,18 @@ Personal grocery list generated from recipe ingredients. Frontend-only (`localSt
 | `localStorage` persistence | ✅ | Key `recipe-library-shopping-list-v1` |
 | Toast + link after add | ✅ | |
 | “Rezepte auf dieser Liste” (screen only) | ✅ | Links to recipes; hidden when printing |
+| Per-item check-off (strikethrough) | ✅ | Screen only; checked rows omitted from print |
+| Remove single ingredient line | ✅ | × per row |
+| Remove recipe from list | ✅ | × on recipe chip; contribution model (`v2` storage) |
+| Default unchecked: tap water | ✅ | `Wasser`, `kochendes Wasser`, etc. |
 | Unit tests | ✅ | `frontend/tests/utils/shoppingList.test.ts` |
 
 ### Not yet implemented
 
 | Feature | Planned phase |
 |---------|----------------|
-| Per-item check-off / strikethrough | Phase 2 |
-| Remove single ingredient line | Phase 2+ |
-| Remove all contributions from one recipe | Phase 2+ (see below) |
 | Configurable aisle order (settings UI) | Phase 2 |
+| Nav badge (open item count) | Phase 2 (optional) |
 | Merge suggestions (manual confirm) | Phase 3 |
 | Backend / multi-device sync | Phase 3 |
 | Batch add from Plan | Phase 4 |
@@ -52,13 +54,13 @@ Core flow: recipe → picker → merged list → print → clear all.
 
 See [UI components](#ui-components-implemented) and [Confirmed product decisions](#confirmed-product-decisions).
 
-### Phase 2 — In-store ergonomics
+### Phase 2 — In-store ergonomics (mostly done)
 
-- **Per-item check-off** while shopping (strikethrough or hide); evaluate whether print view should stay unaffected.
-- **Remove by recipe** — see [Remove recipe from list](#remove-recipe-from-list-phase-2-design-notes); extends the existing “Rezepte auf dieser Liste” block with remove (×).
-- **Remove single line** — delete one merged row without clearing the whole list.
-- **Configurable category order** — UI to reorder aisles (persist in `localStorage`); code default remains `shoppingCategoryOrder.ts`.
-- Optional: badge on nav showing open list item count.
+- ✅ **Per-item check-off** — strikethrough on screen; checked rows hidden when printing.
+- ✅ **Remove by recipe** — × on recipe chips; uses per-recipe `contributions` (`localStorage` key `recipe-library-shopping-list-v2`, migrates from v1).
+- ✅ **Remove single line** — × per ingredient row.
+- ✅ **Default unchecked** — `pantry`, `spices`, and tap water (`Wasser`, `kochendes Wasser`, …).
+- Remaining: **configurable category order** (settings UI), optional nav badge.
 
 ### Phase 3 — Intelligence & sync
 
@@ -100,9 +102,9 @@ flowchart LR
 | Topic | Decision |
 |-------|----------|
 | Portions | Use the servings shown on the recipe detail when adding (scaled amounts). |
-| Default unchecked | Categories `pantry` (Vorratsschrank) and `spices` (Gewürze). |
-| Persistence | `localStorage` only for MVP (`recipe-library-shopping-list-v1`). |
-| Item check-off | **Not in MVP** — list is print-first; per-item handling in Phase 2. |
+| Default unchecked | Categories `pantry`, `spices` (Gewürze), and tap water by name (`Wasser`, `kochendes Wasser`, …). |
+| Persistence | `localStorage` (`recipe-library-shopping-list-v2`; migrates from v1). |
+| Item check-off | Strikethrough on screen; checked rows not printed. |
 | Clear | Whole list only (`Liste leeren`) in MVP. |
 | Name merge | Exact ingredient name + category key; no fuzzy merge (e.g. Tomaten ≠ Rispentomaten). |
 | Display format | `Tomaten (400g)` — name first, amounts in parentheses as a rough hint. |
@@ -139,18 +141,31 @@ interface ShoppingAmountPart {
   unit: string | null
 }
 
+interface ShoppingContribution {
+  recipeId: number
+  recipeTitle: string
+  amountParts: ShoppingAmountPart[]
+}
+
 interface ShoppingListItem {
   id: string
   ingredientName: string
   category: string | null
   amountParts: ShoppingAmountPart[]
+  contributions: ShoppingContribution[]
   sourceRecipes: { id: number; title: string }[]
+  checked: boolean
 }
 ```
 
 Merge key: `normalize(ingredientName) + "|" + (category ?? "other")`.
 
-**Limitation today:** `sourceRecipes` records *which* recipes contributed to a row, but **not how much** each recipe added. That makes precise “remove recipe X” impossible without a model change.
+**Limitation:** v1 lists migrated with multiple source recipes may not split amounts perfectly when removing a single recipe (see migration in `shoppingListStorage.ts`). New adds use full contribution tracking.
+
+**UI (shipped):**
+
+- On `/shopping`, section **“Rezepte auf dieser Liste”** with links and × to remove a recipe (screen only, not printed).
+- Each ingredient row: checkbox (check-off), × (remove line).
 
 ## Amount merge rules
 

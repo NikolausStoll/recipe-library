@@ -1,4 +1,9 @@
-import type { ShoppingAmountPart, ShoppingIngredientInput, ShoppingListItem } from './shoppingListTypes'
+import type {
+  ShoppingAmountPart,
+  ShoppingContribution,
+  ShoppingIngredientInput,
+  ShoppingListItem,
+} from './shoppingListTypes'
 
 type UnitFamily = 'mass' | 'volume' | 'count' | 'other'
 
@@ -122,33 +127,71 @@ export function ingredientInputToAmountPart(input: ShoppingIngredientInput): Sho
   }
 }
 
+export function deriveSourceRecipes(contributions: ShoppingContribution[]): { id: number; title: string }[] {
+  const byId = new Map<number, string>()
+  for (const contribution of contributions) {
+    if (!byId.has(contribution.recipeId)) {
+      byId.set(contribution.recipeId, contribution.recipeTitle)
+    }
+  }
+  return [...byId.entries()].map(([id, title]) => ({ id, title }))
+}
+
+export function recomputeAmountPartsFromContributions(
+  contributions: ShoppingContribution[],
+): ShoppingAmountPart[] {
+  return contributions.reduce(
+    (acc, contribution) => mergeAmountParts(acc, contribution.amountParts),
+    [] as ShoppingAmountPart[],
+  )
+}
+
+export function finalizeShoppingItem(
+  item: Pick<ShoppingListItem, 'id' | 'ingredientName' | 'category' | 'contributions' | 'checked'>,
+): ShoppingListItem {
+  return {
+    ...item,
+    amountParts: recomputeAmountPartsFromContributions(item.contributions),
+    sourceRecipes: deriveSourceRecipes(item.contributions),
+  }
+}
+
+function cloneItem(item: ShoppingListItem): ShoppingListItem {
+  return {
+    ...item,
+    amountParts: [...item.amountParts],
+    contributions: item.contributions.map((c) => ({
+      ...c,
+      amountParts: c.amountParts.map((p) => ({ ...p })),
+    })),
+    sourceRecipes: [...item.sourceRecipes],
+  }
+}
+
 export function mergeShoppingItems(
   existing: ShoppingListItem[],
   additions: ShoppingListItem[],
 ): ShoppingListItem[] {
   const byKey = new Map<string, ShoppingListItem>()
   for (const item of existing) {
-    byKey.set(shoppingItemMergeKey(item.ingredientName, item.category), { ...item, amountParts: [...item.amountParts], sourceRecipes: [...item.sourceRecipes] })
+    byKey.set(shoppingItemMergeKey(item.ingredientName, item.category), cloneItem(item))
   }
 
   for (const addition of additions) {
     const key = shoppingItemMergeKey(addition.ingredientName, addition.category)
     const current = byKey.get(key)
     if (!current) {
-      byKey.set(key, {
-        ...addition,
-        amountParts: [...addition.amountParts],
-        sourceRecipes: [...addition.sourceRecipes],
-      })
+      byKey.set(key, cloneItem(addition))
       continue
     }
 
-    current.amountParts = mergeAmountParts(current.amountParts, addition.amountParts)
-    for (const source of addition.sourceRecipes) {
-      if (!current.sourceRecipes.some((s) => s.id === source.id)) {
-        current.sourceRecipes.push(source)
-      }
-    }
+    current.contributions = [...current.contributions, ...addition.contributions.map((c) => ({
+      ...c,
+      amountParts: c.amountParts.map((p) => ({ ...p })),
+    }))]
+    const finalized = finalizeShoppingItem(current)
+    current.amountParts = finalized.amountParts
+    current.sourceRecipes = finalized.sourceRecipes
   }
 
   return [...byKey.values()]
@@ -163,19 +206,56 @@ export function buildShoppingListItemsFromInputs(
   for (const input of inputs) {
     const key = shoppingItemMergeKey(input.ingredientName, input.category)
     const part = ingredientInputToAmountPart(input)
+    const contribution: ShoppingContribution = {
+      recipeId: sourceRecipe.id,
+      recipeTitle: sourceRecipe.title,
+      amountParts: [part],
+    }
     const existing = grouped.get(key)
     if (existing) {
-      existing.amountParts = mergeAmountParts(existing.amountParts, [part])
+      existing.contributions.push(contribution)
+      const finalized = finalizeShoppingItem(existing)
+      existing.amountParts = finalized.amountParts
+      existing.sourceRecipes = finalized.sourceRecipes
     } else {
-      grouped.set(key, {
-        id: crypto.randomUUID(),
-        ingredientName: input.ingredientName.trim(),
-        category: input.category,
-        amountParts: [part],
-        sourceRecipes: [{ ...sourceRecipe }],
-      })
+      grouped.set(
+        key,
+        finalizeShoppingItem({
+          id: crypto.randomUUID(),
+          ingredientName: input.ingredientName.trim(),
+          category: input.category,
+          contributions: [contribution],
+          checked: false,
+        }),
+      )
     }
   }
 
   return [...grouped.values()]
+}
+
+export function removeRecipeFromItems(items: ShoppingListItem[], recipeId: number): ShoppingListItem[] {
+  const result: ShoppingListItem[] = []
+  for (const item of items) {
+    const contributions = item.contributions.filter((c) => c.recipeId !== recipeId)
+    if (contributions.length === 0) continue
+    result.push(
+      finalizeShoppingItem({
+        id: item.id,
+        ingredientName: item.ingredientName,
+        category: item.category,
+        contributions,
+        checked: item.checked,
+      }),
+    )
+  }
+  return result
+}
+
+export function removeItemById(items: ShoppingListItem[], itemId: string): ShoppingListItem[] {
+  return items.filter((item) => item.id !== itemId)
+}
+
+export function toggleItemChecked(items: ShoppingListItem[], itemId: string): ShoppingListItem[] {
+  return items.map((item) => (item.id === itemId ? { ...item, checked: !item.checked } : item))
 }

@@ -4,7 +4,12 @@ import type { ShoppingListItem } from './shoppingListTypes'
 export function collectSourceRecipes(items: ShoppingListItem[]): { id: number; title: string }[] {
   const byId = new Map<number, string>()
   for (const item of items) {
-    for (const src of item.sourceRecipes) {
+    for (const contribution of item.contributions ?? []) {
+      if (!byId.has(contribution.recipeId)) {
+        byId.set(contribution.recipeId, contribution.recipeTitle)
+      }
+    }
+    for (const src of item.sourceRecipes ?? []) {
       if (!byId.has(src.id)) byId.set(src.id, src.title)
     }
   }
