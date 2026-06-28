@@ -25,23 +25,41 @@ Personal grocery list generated from recipe ingredients. Frontend-only (`localSt
 | Shopping view `/shopping` | ✅ | `ShoppingView.vue` |
 | Print (`window.print`) | ✅ | Hides app chrome |
 | Clear entire list | ✅ | Confirm dialog |
-| `localStorage` persistence | ✅ | Key `recipe-library-shopping-list-v1` |
+| `localStorage` persistence | ✅ | Key `recipe-library-shopping-list-v2` (migrates from v1) |
 | Toast + link after add | ✅ | |
 | “Rezepte auf dieser Liste” (screen only) | ✅ | Links to recipes; hidden when printing |
 | Per-item check-off (strikethrough) | ✅ | Screen only; checked rows omitted from print |
 | Remove single ingredient line | ✅ | × per row |
-| Remove recipe from list | ✅ | × on recipe chip; contribution model (`v2` storage) |
+| Remove recipe from list | ✅ | × on recipe chip; contribution model |
 | Default unchecked: tap water | ✅ | `Wasser`, `kochendes Wasser`, etc. |
 | Unit tests | ✅ | `frontend/tests/utils/shoppingList.test.ts` |
+
+### Shipped (Phase 2 — in-store ergonomics)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Configurable aisle order | ✅ | `ShoppingAisleOrderSettings.vue`, `shoppingCategoryOrderStorage.ts` |
+
+### Shipped (Phase 3 — intelligence, frontend-only)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Merge suggestions (manual confirm) | ✅ | `MergeSuggestionSheet.vue`, `shoppingListMergeSuggestions.ts` |
+| Copy as plain text | ✅ | `shoppingListExport.ts`, Kopieren button on `/shopping` |
+
+### Shipped (Phase 3.5 — manual add)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Manual ingredient add | ✅ | `ManualAddIngredientSheet.vue` |
+| Autocomplete from curated staples | ✅ | `commonShoppingIngredients.ts`, Fuse.js search |
 
 ### Not yet implemented
 
 | Feature | Planned phase |
 |---------|----------------|
-| Configurable aisle order (settings UI) | Phase 2 |
-| Nav badge (open item count) | Phase 2 (optional) |
-| Merge suggestions (manual confirm) | Phase 3 |
-| Backend / multi-device sync | Phase 3 |
+| Nav badge (open item count) | Phase 2 (optional, skipped) |
+| Backend / multi-device sync | Phase 3 (deferred) |
 | Batch add from Plan | Phase 4 |
 
 ---
@@ -54,19 +72,26 @@ Core flow: recipe → picker → merged list → print → clear all.
 
 See [UI components](#ui-components-implemented) and [Confirmed product decisions](#confirmed-product-decisions).
 
-### Phase 2 — In-store ergonomics (mostly done)
+### Phase 2 — In-store ergonomics ✅ (done)
 
 - ✅ **Per-item check-off** — strikethrough on screen; checked rows hidden when printing.
 - ✅ **Remove by recipe** — × on recipe chips; uses per-recipe `contributions` (`localStorage` key `recipe-library-shopping-list-v2`, migrates from v1).
 - ✅ **Remove single line** — × per ingredient row.
 - ✅ **Default unchecked** — `pantry`, `spices`, and tap water (`Wasser`, `kochendes Wasser`, …).
-- Remaining: **configurable category order** (settings UI), optional nav badge.
+- ✅ **Configurable category order** — collapsible “Supermarkt-Gangfolge” on `/shopping`; persisted in `recipe-library-shopping-category-order`.
+- Nav badge (optional) — **not implemented** (skipped).
 
-### Phase 3 — Intelligence & sync
+### Phase 3 — Intelligence (frontend-only) ✅
 
-- **Merge suggestions** after add (e.g. “Rispentomaten zu Tomaten?”) — manual confirm only; strict rules to avoid false positives (`Ei`, `Salz`, …).
-- Optional **backend persistence** (`shopping_list` tables + API) for sync across devices.
-- Optional export (share sheet, copy as plain text).
+- ✅ **Merge suggestions** after list changes (e.g. “Rispentomaten zu Tomaten?”) — manual confirm only; substring match in same category, min length 4, stopwords (`Ei`, `Tee`, `Öl`).
+- ✅ **Copy as plain text** — “Kopieren” on `/shopping`; unchecked items only, grouped by category.
+- Backend persistence — **deferred**.
+
+### Phase 3.5 — Manual add ✅
+
+- ✅ **“Zutat hinzufügen”** on `/shopping` — amount-free lines merged like recipe ingredients.
+- ✅ **Autocomplete** from `COMMON_SHOPPING_INGREDIENTS` (~90 German supermarket staples with category keys); free text falls back to `other`.
+- Manual entries use `MANUAL_SHOPPING_SOURCE` (id `0`); hidden from “Rezepte auf dieser Liste”.
 
 ### Phase 4 — Plan integration
 
@@ -106,7 +131,7 @@ flowchart LR
 | Persistence | `localStorage` (`recipe-library-shopping-list-v2`; migrates from v1). |
 | Item check-off | Strikethrough on screen; checked rows not printed. |
 | Clear | Whole list only (`Liste leeren`) in MVP. |
-| Name merge | Exact ingredient name + category key; no fuzzy merge (e.g. Tomaten ≠ Rispentomaten). |
+| Name merge | Same ingredient + category; German singular/plural normalize to one key (Süßkartoffel ↔ Süßkartoffeln). No fuzzy merge (Tomaten ≠ Rispentomaten). |
 | Display format | `Tomaten (400g)` — name first, amounts in parentheses as a rough hint. |
 | Within category | Sort alphabetically by ingredient name (German locale). |
 | Category order | Supermarket aisle order in `frontend/src/constants/shoppingCategoryOrder.ts`. |
@@ -251,9 +276,17 @@ Maintain `activeRecipeIds: number[]` + last-known picker selections per recipe; 
 | `shoppingListSort.ts` | Group + sort |
 | `shoppingCategoryOrder.ts` | Aisle order constant |
 | `shoppingListSources.ts` | Unique source recipes for list header |
+| `shoppingCategoryOrderStorage.ts` | Custom aisle order in `localStorage` |
+| `commonShoppingIngredients.ts` | Curated staples for manual add autocomplete |
+| `commonIngredientSearch.ts` | Fuse.js search over staples |
+| `shoppingListExport.ts` | Plain-text format + clipboard copy |
+| `shoppingListMergeSuggestions.ts` | Substring merge hints (manual only) |
 | `useShoppingList.ts` | `localStorage` read/write |
 | `AddToShoppingSheet.vue` | Picker modal |
-| `ShoppingView.vue` | List + print + clear |
+| `ManualAddIngredientSheet.vue` | Manual add with autocomplete |
+| `MergeSuggestionSheet.vue` | Confirm merge pairs |
+| `ShoppingAisleOrderSettings.vue` | Reorder category groups |
+| `ShoppingView.vue` | List + print + clear + copy + manual add |
 | `ShoppingListIcon.vue` | Icon |
 | Shopping icon entry | `RecipesView.vue` ingredients header (detail + cooking mode) |
 
@@ -272,9 +305,13 @@ Vitest (`frontend/tests/utils/shoppingList.test.ts`):
 - `formatShoppingLine`
 - `mergeShoppingItems` / `mergeAmountParts`
 - `groupShoppingListItems` (aisle order)
-- `collectSourceRecipes`
+- `collectSourceRecipes` (excludes manual source)
+- `findMergeSuggestions` / `mergeItemsById`
+- `formatShoppingListAsText`
+- `searchCommonShoppingIngredients` / `matchCommonIngredient`
+- `shoppingCategoryOrderStorage` (move + persist)
 
-**Phase 2+ tests to add:**
+**Future tests:**
 
-- `subtractContributionsForRecipe` / rebuild after remove
+- `subtractContributionsForRecipe` edge cases
 - Migration v1 → v2 storage

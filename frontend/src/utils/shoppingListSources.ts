@@ -5,11 +5,13 @@ export function collectSourceRecipes(items: ShoppingListItem[]): { id: number; t
   const byId = new Map<number, string>()
   for (const item of items) {
     for (const contribution of item.contributions ?? []) {
+      if (contribution.recipeId === 0) continue
       if (!byId.has(contribution.recipeId)) {
         byId.set(contribution.recipeId, contribution.recipeTitle)
       }
     }
     for (const src of item.sourceRecipes ?? []) {
+      if (src.id === 0) continue
       if (!byId.has(src.id)) byId.set(src.id, src.title)
     }
   }

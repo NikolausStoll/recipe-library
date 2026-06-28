@@ -1,5 +1,5 @@
 import type { ShoppingContribution, ShoppingListItem } from './shoppingListTypes'
-import { finalizeShoppingItem } from './shoppingListMerge'
+import { finalizeShoppingItem, regroupShoppingItems } from './shoppingListMerge'
 
 const STORAGE_KEY_V2 = 'recipe-library-shopping-list-v2'
 const STORAGE_KEY_V1 = 'recipe-library-shopping-list-v1'
@@ -48,14 +48,14 @@ export function loadShoppingListFromStorage(): ShoppingListItem[] {
     if (rawV2) {
       const parsed = JSON.parse(rawV2) as LegacyShoppingListItem[]
       if (!Array.isArray(parsed)) return []
-      return parsed.map(migrateV1Item)
+      return regroupShoppingItems(parsed.map(migrateV1Item))
     }
 
     const rawV1 = localStorage.getItem(STORAGE_KEY_V1)
     if (!rawV1) return []
     const parsed = JSON.parse(rawV1) as LegacyShoppingListItem[]
     if (!Array.isArray(parsed)) return []
-    return parsed.map(migrateV1Item)
+    return regroupShoppingItems(parsed.map(migrateV1Item))
   } catch {
     return []
   }

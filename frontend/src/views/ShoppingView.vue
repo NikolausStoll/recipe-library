@@ -5,7 +5,7 @@
         <div>
           <h1 class="page-header__title h2">Einkauf</h1>
           <p class="page-header__subtitle">
-            <template v-if="isEmpty">Füge Zutaten aus Rezepten hinzu.</template>
+            <template v-if="isEmpty">Füge Zutaten aus Rezepten oder manuell hinzu.</template>
             <template v-else>
               {{ itemCount }} {{ itemCount === 1 ? 'Eintrag' : 'Einträge' }}
               <span v-if="uncheckedCount < itemCount" class="shopping-view__subtitle-meta">
@@ -14,18 +14,27 @@
             </template>
           </p>
         </div>
-        <div v-if="!isEmpty" class="shopping-view__actions">
-          <button type="button" class="btn btn--secondary" @click="onPrint">Drucken</button>
-          <button type="button" class="btn btn--secondary shopping-view__clear" @click="onClear">
-            Liste leeren
-          </button>
+        <div class="shopping-view__actions">
+          <button type="button" class="btn btn--secondary" @click="manualAddOpen = true">Zutat hinzufügen</button>
+          <template v-if="!isEmpty">
+            <button type="button" class="btn btn--secondary" @click="onCopy">Kopieren</button>
+            <button type="button" class="btn btn--secondary" @click="onPrint">Drucken</button>
+            <button type="button" class="btn btn--secondary shopping-view__clear" @click="onClear">
+              Liste leeren
+            </button>
+          </template>
         </div>
       </div>
     </header>
 
+    <ShoppingAisleOrderSettings class="no-print" @changed="bumpCategoryOrder" />
+
+    <div v-if="copyNotice" class="shopping-view__notice no-print" role="status">{{ copyNotice }}</div>
+
     <div v-if="isEmpty" class="surface-card shopping-view__card no-print">
       <p class="body-text">
-        Öffne ein Rezept und tippe auf das Einkaufs-Icon bei den Zutaten, um Einträge hinzuzufügen.
+        Öffne ein Rezept und tippe auf das Einkaufs-Icon bei den Zutaten — oder füge Zutaten direkt mit
+        „Zutat hinzufügen“ ein.
       </p>
       <router-link to="/recipes" class="btn btn--secondary shopping-view__link">Zu den Rezepten</router-link>
     </div>
@@ -87,12 +96,22 @@
         </ul>
       </section>
     </div>
+
+    <ManualAddIngredientSheet
+      :open="manualAddOpen"
+      @close="manualAddOpen = false"
+      @add="onManualAdd"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import ManualAddIngredientSheet from '../components/ManualAddIngredientSheet.vue'
+import ShoppingAisleOrderSettings from '../components/ShoppingAisleOrderSettings.vue'
 import { useShoppingList } from '../composables/useShoppingList'
 import { formatShoppingLine } from '../utils/shoppingListFormat'
+import { copyShoppingListToClipboard, formatShoppingListAsText } from '../utils/shoppingListExport'
 
 const {
   grouped,
@@ -104,10 +123,31 @@ const {
   toggleChecked,
   removeItem,
   removeRecipe,
+  addManualIngredient,
+  bumpCategoryOrder,
+  openMergeReviewIfNeeded,
 } = useShoppingList()
+
+onMounted(() => {
+  openMergeReviewIfNeeded()
+})
+
+const manualAddOpen = ref(false)
+const copyNotice = ref<string | null>(null)
+let copyNoticeTimer: ReturnType<typeof setTimeout> | null = null
 
 function onPrint() {
   window.print()
+}
+
+async function onCopy() {
+  const text = formatShoppingListAsText(grouped.value)
+  const ok = await copyShoppingListToClipboard(text)
+  copyNotice.value = ok ? 'Liste in die Zwischenablage kopiert.' : 'Kopieren fehlgeschlagen.'
+  if (copyNoticeTimer) clearTimeout(copyNoticeTimer)
+  copyNoticeTimer = setTimeout(() => {
+    copyNotice.value = null
+  }, 3000)
 }
 
 function onClear() {
@@ -118,6 +158,10 @@ function onClear() {
 function onRemoveRecipe(recipeId: number, title: string) {
   if (!window.confirm(`Zutaten von „${title}“ von der Einkaufsliste entfernen?`)) return
   removeRecipe(recipeId)
+}
+
+function onManualAdd(payload: { name: string; category: string | null }) {
+  addManualIngredient(payload.name, payload.category)
 }
 </script>
 
@@ -151,6 +195,15 @@ function onRemoveRecipe(recipeId: number, title: string) {
 .shopping-view__link {
   align-self: flex-start;
   text-decoration: none;
+}
+
+.shopping-view__notice {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  font-size: 0.9rem;
 }
 
 .shopping-view__list-wrap {

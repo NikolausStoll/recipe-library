@@ -33,3 +33,6 @@ export interface ShoppingListGroup {
   categoryLabel: string
   items: ShoppingListItem[]
 }
+
+/** Pseudo-source for manually added shopping rows (not a real recipe). */
+export const MANUAL_SHOPPING_SOURCE = { id: 0, title: 'Manuell' } as const

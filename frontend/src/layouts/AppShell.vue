@@ -7,17 +7,35 @@
       <router-view />
     </main>
     <BottomNavigation v-if="!hideBottomNav" />
+
+    <MergeSuggestionSheet
+      :open="mergeSheetOpen"
+      :suggestions="activeMergeSuggestions"
+      @dismiss="dismissMergeReview"
+      @merge="mergeItems"
+      @skip="skipMergeSuggestion"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import MergeSuggestionSheet from '../components/MergeSuggestionSheet.vue'
+import { useShoppingList } from '../composables/useShoppingList'
 import TopNavigation from '../components/navigation/TopNavigation.vue'
 import BottomNavigation from '../components/navigation/BottomNavigation.vue'
 
 const route = useRoute()
 const hideBottomNav = computed(() => route.meta.hideBottomNav === true)
+
+const {
+  mergeSheetOpen,
+  activeMergeSuggestions,
+  mergeItems,
+  dismissMergeReview,
+  skipMergeSuggestion,
+} = useShoppingList()
 </script>
 
 <style scoped>

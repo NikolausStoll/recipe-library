@@ -4,6 +4,10 @@ import type {
   ShoppingIngredientInput,
   ShoppingListItem,
 } from './shoppingListTypes'
+import {
+  normalizeIngredientNameForMerge,
+  preferIngredientDisplayName,
+} from './shoppingIngredientNameNormalize'
 
 type UnitFamily = 'mass' | 'volume' | 'count' | 'other'
 
@@ -114,7 +118,7 @@ export function mergeAmountParts(
 }
 
 export function shoppingItemMergeKey(ingredientName: string, category: string | null): string {
-  const name = ingredientName.trim().toLowerCase()
+  const name = normalizeIngredientNameForMerge(ingredientName)
   const cat = category?.trim() || 'other'
   return `${name}|${cat}`
 }
@@ -189,6 +193,7 @@ export function mergeShoppingItems(
       ...c,
       amountParts: c.amountParts.map((p) => ({ ...p })),
     }))]
+    current.ingredientName = preferIngredientDisplayName(current.ingredientName, addition.ingredientName)
     const finalized = finalizeShoppingItem(current)
     current.amountParts = finalized.amountParts
     current.sourceRecipes = finalized.sourceRecipes
@@ -214,6 +219,7 @@ export function buildShoppingListItemsFromInputs(
     const existing = grouped.get(key)
     if (existing) {
       existing.contributions.push(contribution)
+      existing.ingredientName = preferIngredientDisplayName(existing.ingredientName, input.ingredientName.trim())
       const finalized = finalizeShoppingItem(existing)
       existing.amountParts = finalized.amountParts
       existing.sourceRecipes = finalized.sourceRecipes
@@ -258,4 +264,33 @@ export function removeItemById(items: ShoppingListItem[], itemId: string): Shopp
 
 export function toggleItemChecked(items: ShoppingListItem[], itemId: string): ShoppingListItem[] {
   return items.map((item) => (item.id === itemId ? { ...item, checked: !item.checked } : item))
+}
+
+/** Merge two rows into one; keeps `keepId` name and combines contributions. */
+export function mergeItemsById(
+  items: ShoppingListItem[],
+  keepId: string,
+  removeId: string,
+): ShoppingListItem[] {
+  const keep = items.find((item) => item.id === keepId)
+  const remove = items.find((item) => item.id === removeId)
+  if (!keep || !remove || keepId === removeId) return items
+
+  const merged = finalizeShoppingItem({
+    id: keep.id,
+    ingredientName: keep.ingredientName,
+    category: keep.category ?? remove.category,
+    contributions: [...keep.contributions, ...remove.contributions],
+    checked: keep.checked && remove.checked,
+  })
+
+  return items
+    .filter((item) => item.id !== removeId)
+    .map((item) => (item.id === keepId ? merged : item))
+}
+
+/** Re-group list rows by merge key (e.g. after plural normalization rules change). */
+export function regroupShoppingItems(items: ShoppingListItem[]): ShoppingListItem[] {
+  if (items.length <= 1) return items
+  return mergeShoppingItems([], items)
 }

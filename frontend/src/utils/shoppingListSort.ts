@@ -1,14 +1,15 @@
 import { getIngredientCategoryLabelDe } from '../constants/ingredientCategories'
-import { SHOPPING_CATEGORY_ORDER } from '../constants/shoppingCategoryOrder'
+import { getEffectiveCategoryOrder } from './shoppingCategoryOrderStorage'
 import type { ShoppingListGroup, ShoppingListItem } from './shoppingListTypes'
 
-function categorySortIndex(category: string | null): number {
+function categorySortIndex(category: string | null, order: string[]): number {
   const key = category?.trim() || 'other'
-  const idx = SHOPPING_CATEGORY_ORDER.indexOf(key as (typeof SHOPPING_CATEGORY_ORDER)[number])
-  return idx === -1 ? SHOPPING_CATEGORY_ORDER.length : idx
+  const idx = order.indexOf(key)
+  return idx === -1 ? order.length : idx
 }
 
 export function groupShoppingListItems(items: ShoppingListItem[]): ShoppingListGroup[] {
+  const order = getEffectiveCategoryOrder()
   const byCategory = new Map<string, ShoppingListItem[]>()
 
   for (const item of items) {
@@ -26,6 +27,6 @@ export function groupShoppingListItems(items: ShoppingListItem[]): ShoppingListG
     ),
   }))
 
-  groups.sort((a, b) => categorySortIndex(a.categoryKey) - categorySortIndex(b.categoryKey))
+  groups.sort((a, b) => categorySortIndex(a.categoryKey, order) - categorySortIndex(b.categoryKey, order))
   return groups
 }
