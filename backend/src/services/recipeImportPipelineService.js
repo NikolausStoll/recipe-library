@@ -6,6 +6,7 @@
 import * as recipeService from './recipeService.js'
 import { logAiTokenUsage } from './extractRecipeService.js'
 import { convertCupIngredients } from './cupConversionService.js'
+import { convertImperialUnitsInEnvelope } from './imperialUnitConversionService.js'
 import { generateRecipeTags } from './recipeTagGenerationService.js'
 import { replaceRecipeTags } from './recipeTagPersistence.js'
 
@@ -15,7 +16,8 @@ import { replaceRecipeTags } from './recipeTagPersistence.js'
  * @returns {Promise<{ envelope: object, warnings: string[], cupConversion: object, cupAttempt: object | null }>}
  */
 export async function applyPostNormalizationStages(structured) {
-  const cupResult = await convertCupIngredients(structured)
+  const imperialResult = convertImperialUnitsInEnvelope(structured)
+  const cupResult = await convertCupIngredients(imperialResult.envelope)
   const pipelineWarnings = [...(cupResult.warnings ?? [])]
   const envelope = {
     ...cupResult.envelope,
@@ -26,6 +28,7 @@ export async function applyPostNormalizationStages(structured) {
     warnings: pipelineWarnings,
     cupConversion: cupResult.meta,
     cupAttempt: cupResult.attempt,
+    imperialConversion: { convertedCount: imperialResult.convertedCount },
   }
 }
 
@@ -88,7 +91,8 @@ export async function awaitRecipeTagging(recipeId) {
 export async function finalizeImportedRecipe(recipeId, structured, options = {}) {
   const pipelineWarnings = []
 
-  const cupResult = await convertCupIngredients(structured)
+  const imperialResult = convertImperialUnitsInEnvelope(structured)
+  const cupResult = await convertCupIngredients(imperialResult.envelope)
   pipelineWarnings.push(...(cupResult.warnings ?? []))
 
   if (cupResult.attempt) {

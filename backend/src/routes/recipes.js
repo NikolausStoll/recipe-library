@@ -14,10 +14,10 @@ import {
   HealthScoreEstimateError,
   buildHealthScorePayload,
 } from '../services/recipeHealthScoreService.js'
-import { upsertRecipeHealthScore } from '../services/recipeHealthScorePersistence.js'
+import { upsertRecipeHealthScore, listRecipeHealthScoreMap } from '../services/recipeHealthScorePersistence.js'
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { findOrCreateUrlSource } from '../services/sourceService.js'
-import { normalizeRecipeWithLLM, finalizeNormalizedTips } from '../services/recipeNormalizationService.js'
+import { normalizeRecipeWithLLM, finalizeNormalizedRecipe } from '../services/recipeNormalizationService.js'
 import {
   applyPostNormalizationStages,
   finalizeImportedRecipe,
@@ -302,11 +302,12 @@ router.post('/estimate-health-score', async (req, res) => {
 })
 
 /**
- * POST /api/recipes/:id/cook – record that the recipe was cooked today.
+ * POST /api/recipes/:id/cook – record that the recipe was cooked (optional body: { cooked_date: "YYYY-MM-DD" }).
  */
 router.post('/:id/cook', (req, res) => {
   try {
-    const history = recipeService.addRecipeHistoryEntry(req.params.id)
+    const cookedDate = req.body?.cooked_date ?? null
+    const history = recipeService.addRecipeHistoryEntry(req.params.id, cookedDate)
     res.json({ history })
   } catch (e) {
     console.error('Failed to add recipe history:', e)
@@ -324,6 +325,21 @@ router.get('/:id/history', (req, res) => {
   } catch (e) {
     console.error('Failed to fetch recipe history:', e)
     res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to load cooking history' })
+  }
+})
+
+/**
+ * GET /api/recipes/plan-suggestion-context – cook history + health scores for plan suggestions.
+ */
+router.get('/plan-suggestion-context', (req, res) => {
+  try {
+    res.json({
+      cookHistory: recipeService.listRecipeCookHistorySummaries(),
+      healthScores: listRecipeHealthScoreMap(),
+    })
+  } catch (e) {
+    console.error('Failed to load plan suggestion context:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to load plan context' })
   }
 })
 
@@ -397,7 +413,7 @@ router.post('/extract-from-url', async (req, res) => {
     try {
       const { recipe: structured, usage: normalize_usage, model: normalize_model } =
         await normalizeRecipeWithLLM(result.recipe)
-      finalizeNormalizedTips(structured, result.recipe)
+      finalizeNormalizedRecipe(structured, result.recipe)
       const { envelope: finalStructured, cupAttempt } = await applyPostNormalizationStages(structured)
       return res.json({
         ...result,
@@ -463,7 +479,7 @@ router.post('/import-from-url', async (req, res) => {
     })
 
     const { recipe: structured, attempts } = await normalizeRecipeWithLLM(scraped.recipe)
-    finalizeNormalizedTips(structured, scraped.recipe)
+    finalizeNormalizedRecipe(structured, scraped.recipe)
     if (structured?.recipe && typeof structured.recipe === 'object') {
       structured.recipe.prepTimeMinutes = null
       structured.recipe.cookTimeMinutes = null

@@ -60,7 +60,7 @@ Personal grocery list generated from recipe ingredients. Frontend-only (`localSt
 |---------|----------------|
 | Nav badge (open item count) | Phase 2 (optional, skipped) |
 | Backend / multi-device sync | Phase 3 (deferred) |
-| Batch add from Plan | Phase 4 |
+| Batch add from Plan | Phase 4 | See [plan-tool-spec.md](./plan-tool-spec.md) |
 
 ---
 
@@ -95,7 +95,7 @@ See [UI components](#ui-components-implemented) and [Confirmed product decisions
 
 ### Phase 4 — Plan integration
 
-- Batch add from **Plan** view once meal planning exists. Not needed until the Plan tool is implemented.
+- Batch add from **Plan** view once meal planning exists. Spec: [plan-tool-spec.md](./plan-tool-spec.md) (Phase 3 — shopping batch).
 
 ---
 

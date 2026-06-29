@@ -99,13 +99,17 @@ Categorization:
 - If uncertain, use "other".
 
 Steps:
-- Translate to natural German recipe language for home cooks.
+- The scraper already provides clustered steps. Return **exactly one output step per input step** (same count, same order).
+- Do not split one input step into multiple steps, even when it contains several sentences or alternatives.
+- Do not merge multiple input steps into one step.
+- Translate the **entire** step text to German, including short phrases like "Now assemble." → e.g. "Jetzt alles zusammenstellen."
+- Do not leave English words or fragments in step text.
+- Use natural German recipe language for home cooks.
 - Use informal "du" only when directly addressing the cook.
 - Do not use formal "Sie".
 - Preserve meaning and cooking intent.
 - Do not translate word-for-word if it sounds unnatural.
-- Keep order.
-- Keep concise, but not at the cost of awkward wording.
+- Keep concise, but not at the cost of awkward wording or by splitting steps.
 
 Notes/Tips:
 - If input contains notes, map them to recipe.tips.
@@ -195,10 +199,15 @@ async function callLLM(rawRecipe, model) {
   const client = new OpenAI({ apiKey })
   // Do not send time fields, image URLs, or duplicate ingredient sources to the model.
   const payloadForModel = buildNormalizationPayloadForModel(rawRecipe)
+  const stepCount = Array.isArray(payloadForModel.steps) ? payloadForModel.steps.length : 0
   /** Serialized input JSON sent to the model (stored in ai_token_usage.request_json). */
   const userPayload = JSON.stringify(payloadForModel, null, 0)
 
   const systemPrompt = buildNormalizationPrompt()
+  const stepConstraint =
+    stepCount > 0
+      ? `\n\nImportant: The input has ${stepCount} step(s). Return exactly ${stepCount} step(s) in recipe.steps — one translated German step per input step, same order. Do not split or merge steps.`
+      : ''
 
   const response = await client.chat.completions.create({
     model,
@@ -207,7 +216,7 @@ async function callLLM(rawRecipe, model) {
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Raw recipe JSON (from web scraper):\n${userPayload}\n\nReturn valid JSON matching the recipe extraction schema exactly.`,
+        content: `Raw recipe JSON (from web scraper):\n${userPayload}\n\nReturn valid JSON matching the recipe extraction schema exactly.${stepConstraint}`,
       },
     ],
     response_format: {
@@ -295,6 +304,84 @@ export function mergeScrapedNotesIntoEnvelope(structured, rawRecipe) {
 export function finalizeNormalizedTips(structured, rawRecipe) {
   sanitizeNormalizedTips(structured, rawRecipe)
   mergeScrapedNotesIntoEnvelope(structured, rawRecipe)
+  return structured
+}
+
+function rawStepsFromRecipe(rawRecipe) {
+  return (Array.isArray(rawRecipe?.steps) ? rawRecipe.steps : [])
+    .map((step) => String(step).replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+}
+
+function normalizedStepsFromEnvelope(structured) {
+  return (Array.isArray(structured?.recipe?.steps) ? structured.recipe.steps : [])
+    .map((step) => String(step?.text ?? '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+}
+
+/** True when normalized step likely starts the next raw English step (boundary for re-merge). */
+function normalizedStepMatchesRawStart(normalizedText, rawStep) {
+  const norm = normalizedText.toLowerCase()
+  const raw = rawStep.toLowerCase()
+  if (norm.startsWith(raw.slice(0, Math.min(14, raw.length)))) return true
+
+  const boundaryPairs = [
+    ['alternatively', 'alternativ'],
+    ['in the meantime', 'in der zwischenzeit'],
+    ['cook the', 'koche'],
+    ['cook ', 'koche '],
+    ['prepare the', 'bereite'],
+    ['now assemble', 'jetzt'],
+  ]
+  return boundaryPairs.some(([en, de]) => raw.includes(en) && norm.includes(de))
+}
+
+/**
+ * When the LLM splits clustered scraper steps, merge normalized steps back to match raw step count.
+ * Uses the next raw step text as a boundary marker.
+ */
+export function realignNormalizedSteps(structured, rawRecipe) {
+  if (!structured?.recipe) return structured
+
+  const rawSteps = rawStepsFromRecipe(rawRecipe)
+  const normalizedSteps = normalizedStepsFromEnvelope(structured)
+  if (rawSteps.length === 0 || normalizedSteps.length <= rawSteps.length) return structured
+
+  const buckets = []
+  let normIndex = 0
+
+  for (let rawIndex = 0; rawIndex < rawSteps.length; rawIndex++) {
+    const parts = []
+    if (normIndex >= normalizedSteps.length) break
+
+    do {
+      parts.push(normalizedSteps[normIndex])
+      normIndex++
+      if (rawIndex === rawSteps.length - 1) break
+      if (normIndex >= normalizedSteps.length) break
+    } while (!normalizedStepMatchesRawStart(normalizedSteps[normIndex], rawSteps[rawIndex + 1]))
+
+    buckets.push(parts.join(' '))
+  }
+
+  if (normIndex < normalizedSteps.length && buckets.length > 0) {
+    buckets[buckets.length - 1] += ` ${normalizedSteps.slice(normIndex).join(' ')}`
+  }
+
+  structured.recipe.steps = buckets.map((text, index) => ({
+    index: index + 1,
+    text,
+  }))
+  return structured
+}
+
+export function finalizeNormalizedSteps(structured, rawRecipe) {
+  return realignNormalizedSteps(structured, rawRecipe)
+}
+
+export function finalizeNormalizedRecipe(structured, rawRecipe) {
+  finalizeNormalizedTips(structured, rawRecipe)
+  finalizeNormalizedSteps(structured, rawRecipe)
   return structured
 }
 

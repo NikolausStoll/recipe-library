@@ -567,14 +567,36 @@ export interface RecipeHistoryResponse {
   history: string[]
 }
 
-export function postRecipeCooked(recipeId: number): Promise<RecipeHistoryResponse> {
-  return fetch(`${API_BASE}/recipes/${recipeId}/cook`, { method: 'POST' }).then((res) =>
-    handleResponse<RecipeHistoryResponse>(res)
-  )
+export function postRecipeCooked(recipeId: number, options?: { cookedDate?: string }): Promise<RecipeHistoryResponse> {
+  const body =
+    options?.cookedDate && /^\d{4}-\d{2}-\d{2}$/.test(options.cookedDate)
+      ? JSON.stringify({ cooked_date: options.cookedDate })
+      : undefined
+  return fetch(`${API_BASE}/recipes/${recipeId}/cook`, {
+    method: 'POST',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body,
+  }).then((res) => handleResponse<RecipeHistoryResponse>(res))
 }
 
 export function getRecipeHistory(recipeId: number): Promise<RecipeHistoryResponse> {
   return fetch(`${API_BASE}/recipes/${recipeId}/history`).then((res) =>
     handleResponse<RecipeHistoryResponse>(res)
+  )
+}
+
+export interface RecipeCookSummary {
+  cookCount: number
+  lastCookedDate: string | null
+}
+
+export interface PlanSuggestionContextResponse {
+  cookHistory: Record<string, RecipeCookSummary>
+  healthScores: Record<string, number>
+}
+
+export function getPlanSuggestionContext(): Promise<PlanSuggestionContextResponse> {
+  return fetch(`${API_BASE}/recipes/plan-suggestion-context`).then((res) =>
+    handleResponse<PlanSuggestionContextResponse>(res)
   )
 }

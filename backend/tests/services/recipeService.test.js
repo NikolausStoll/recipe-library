@@ -16,6 +16,9 @@ const {
   setRecipeParsedRecipe,
   recipeTimeReplaceConflicts,
   applyRecipeTimeEstimate,
+  addRecipeHistoryEntry,
+  listRecipeHistory,
+  listRecipeCookHistorySummaries,
 } = await import('../../src/services/recipeService.js')
 
 before(() => {
@@ -176,5 +179,30 @@ describe('getRecipeById parsed_recipe round-trip', () => {
     assert.equal(item?.ingredient, 'Meersalz')
     assert.equal(item?.unit, 'Prise')
     assert.equal(item?.originalText, 'a pinch of sea salt')
+  })
+})
+
+describe('addRecipeHistoryEntry', () => {
+  it('records an explicit cooked_date for plan check-off', () => {
+    const created = createRecipe({ title: 'Planned dinner' })
+    const history = addRecipeHistoryEntry(created.id, '2026-06-20')
+    assert.ok(history.includes('2026-06-20'))
+    assert.deepEqual(listRecipeHistory(created.id), ['2026-06-20'])
+  })
+})
+
+describe('listRecipeCookHistorySummaries', () => {
+  it('returns cook count and last date per recipe', () => {
+    const a = createRecipe({ title: 'A' })
+    const b = createRecipe({ title: 'B' })
+    addRecipeHistoryEntry(a.id, '2026-06-10')
+    addRecipeHistoryEntry(a.id, '2026-06-20')
+    addRecipeHistoryEntry(b.id, '2026-06-15')
+
+    const summaries = listRecipeCookHistorySummaries()
+    assert.equal(summaries[a.id].cookCount, 2)
+    assert.equal(summaries[a.id].lastCookedDate, '2026-06-20')
+    assert.equal(summaries[b.id].cookCount, 1)
+    assert.equal(summaries[b.id].lastCookedDate, '2026-06-15')
   })
 })

@@ -4,7 +4,7 @@
 
 Recipe Library is a personal recipe-management monorepo. It covers:
 
-- A curated library view (list, detail, favorites, “would cook again”, cooking mode) plus placeholders for Plan and a **shopping list** (add ingredients from recipes, `localStorage`, print).
+- A curated library view (list, detail, favorites, “would cook again”, cooking mode) plus **shopping list** (`/shopping`, `localStorage`, print) and **meal plan** (`/plan`, 7-day rolling window, suggestions, `localStorage`; spec in `sdd/plan-tool-spec.md`).
 - Manual editing via the multi-step `RecipeFormMultiStep` system that keeps ingredients, steps, tips, nutrition, tags, and source info in sync.
 - Website import and AI-powered image/photo import with enrichment, normalization, cup conversion, tagging, and optional estimates (health/time).
 - Source tracking for cookbooks and URLs, including cover upload/crop and image-processing queues.
@@ -72,7 +72,7 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 ## Import & AI pipeline
 
 - **Image import** (`POST /api/upload` → `recipes/:id/extract-from-images`): uploads are optional, optionally marked with `processImageLater` to keep raw bytes in `data/uploads/{recipe,source}/pending/`. The pipeline crops (Sharp + optional Python), resizes to WebP, writes thumbnails, creates a draft recipe, runs `extractRecipeFromImages` (OpenAI vision via `extractRecipeService.js`), and logs tokens.
-- **URL import/extract** (`/api/recipes/extract-from-url` and `/api/recipes/import-from-url`): `recipeUrlExtractService` scrapes JSON-LD + recipe-card HTML (`recipeHtmlEnrichment.js`), deduplicates images, optionally runs `normalizeRecipeWithLLM` (`recipeNormalizationService.js`), and returns structured data for review. `recipeImportPipelineService.finalizeImportedRecipe` applies cup conversion (`cupConversionService.js`), writes `parsed_recipe`, and waits on tag generation (`generateRecipeTags`).
+- **URL import/extract** (`/api/recipes/extract-from-url` and `/api/recipes/import-from-url`): `recipeUrlExtractService` scrapes JSON-LD + recipe-card HTML (`recipeHtmlEnrichment.js`), deduplicates images, optionally runs `normalizeRecipeWithLLM` (`recipeNormalizationService.js`), and returns structured data for review. `recipeImportPipelineService.finalizeImportedRecipe` applies imperial unit conversion (`imperialUnitConversionService.js`), cup conversion (`cupConversionService.js`), writes `parsed_recipe`, and waits on tag generation (`generateRecipeTags`).
 - **Tags/estimates**: tagging runs after `finalizeImportedRecipe`, health/time estimates are separate endpoints (`recipeHealthScoreService`, `recipeTimeEstimateService`, `recipeService.applyRecipeTimeEstimate`) and log usage to `ai_token_usage` via `logAiTokenUsage`.
 - **Persistence**: `recipeService.setRecipeParsedRecipe` populates recipe rows + ingredient/step/tip tables from the structured envelope. `PUT /api/recipes/:id` replaces ingredient sections (new IDs) and relies on `groupIngredientsForSections()` for ordering/grouping.
 

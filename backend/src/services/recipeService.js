@@ -232,12 +232,37 @@ export function listRecipeHistory(recipeId) {
   return rows.map((row) => row.cooked_date)
 }
 
-export function addRecipeHistoryEntry(recipeId) {
+/** Cook count + latest date per recipe for plan suggestions. */
+export function listRecipeCookHistorySummaries() {
   const db = getDb()
-  const cookedDate = new Date().toISOString().slice(0, 10)
+  const rows = db
+    .prepare(
+      `
+      SELECT recipe_id, COUNT(*) AS cook_count, MAX(cooked_date) AS last_cooked_date
+      FROM recipe_history
+      GROUP BY recipe_id
+    `,
+    )
+    .all()
+  const summaries = {}
+  for (const row of rows) {
+    summaries[row.recipe_id] = {
+      cookCount: row.cook_count,
+      lastCookedDate: row.last_cooked_date ?? null,
+    }
+  }
+  return summaries
+}
+
+export function addRecipeHistoryEntry(recipeId, cookedDate = null) {
+  const db = getDb()
+  const date =
+    typeof cookedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cookedDate.trim())
+      ? cookedDate.trim()
+      : new Date().toISOString().slice(0, 10)
   db.prepare('INSERT OR IGNORE INTO recipe_history (recipe_id, cooked_date) VALUES (?, ?)').run(
     Number(recipeId),
-    cookedDate
+    date,
   )
   return listRecipeHistory(recipeId)
 }

@@ -6,13 +6,14 @@ Recipe Library is a personal recipe-management workspace that keeps edits, impor
 
 - Multi-step recipe form with ingredients, steps, tips, tags, nutrition, and linked source metadata.
 - Recipe detail view with cooking mode, favorites, “would cook again,” and “Needs review” badges for drafts.
-- Website imports that scrape JSON-LD/HTML, optionally normalize via the LLM pipeline, and dedupe sources by domain.
+- **Shopping list** (`/shopping`): add scaled ingredients from recipes, merge by category, check off in-store, print.
+- **Meal plan** (`/plan`): rolling 7-day dinner plan, add/remove recipes, mark cooked → `recipe_history`, smart suggestions.
+- Website imports that scrape JSON-LD/HTML, normalize via LLM, convert cups and imperial units (oz/lb → g), and dedupe sources by domain.
 - Image/photo import backed by OpenAI vision, deferred uploads (`processImageLater`), optional 4-point crop, and Sharp/WebP resizing.
 - Cookbook/source management with cover upload, cover cropping, and separate book vs. website listings.
 - Tags, health-score, and time-estimate APIs that append structured AI usage to `ai_token_usage`.
 - Cooking-mode layout for step-by-step guidance and ingredients panels.
 - Responsive PWA shell (manifest + `sw.js`), top/bottom navigation, and consistent light/dark theming.
-- Backend pipeline that includes cup-conversion normalization plus image optimization flags.
 
 ## Installation
 
@@ -50,7 +51,6 @@ Copy `.env.example` into `.env` in the workspace root. Supply `OPENAI_API_KEY` a
 
 ## Next
 
+- Plan → shopping batch (add planned recipes to shopping list)
 - Recipe overview overhaul
-- Shopping
-- Planning
 - Further large-screen optimizations

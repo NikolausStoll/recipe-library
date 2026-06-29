@@ -68,6 +68,36 @@ describe('applyPostNormalizationStages', () => {
       `expected cup-skip warning, got: ${JSON.stringify(result.warnings)}`,
     )
   })
+
+  it('converts imperial units before cup conversion', async () => {
+    const structured = {
+      ...envelopeWithPriseSalt(),
+      recipe: {
+        ...envelopeWithPriseSalt().recipe,
+        ingredientsSections: [
+          {
+            heading: null,
+            items: [
+              {
+                originalText: '15 oz chickpeas, drained and rinsed',
+                amount: 15,
+                amountMax: 15,
+                unit: 'oz',
+                ingredient: 'Kichererbsen',
+                additionalInfo: 'aus der Dose, abgetropft und abgespült',
+                category: 'legumes',
+              },
+            ],
+          },
+        ],
+      },
+    }
+    const result = await applyPostNormalizationStages(structured)
+    const row = result.envelope.recipe.ingredientsSections[0].items[0]
+    assert.equal(row.unit, 'g')
+    assert.equal(row.amount, 425)
+    assert.equal(result.imperialConversion.convertedCount, 1)
+  })
 })
 
 describe('finalizeImportedRecipe', () => {

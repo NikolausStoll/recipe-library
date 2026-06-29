@@ -10,6 +10,8 @@ import {
   buildCanonicalIngredientSections,
   buildNormalizationPayloadForModel,
   finalizeNormalizedTips,
+  finalizeNormalizedRecipe,
+  realignNormalizedSteps,
   mergeScrapedNotesIntoEnvelope,
   sanitizeNormalizedTips,
 } from '../../src/services/recipeNormalizationService.js'
@@ -182,6 +184,52 @@ describe('finalizeNormalizedTips', () => {
       notes: ['Store leftovers in an airtight container for up to 3 days.'],
     })
     assert.deepEqual(structured.recipe.tips, ['Reste bis zu 3 Tage aufbewahren.'])
+  })
+})
+
+describe('realignNormalizedSteps', () => {
+  const rawSteps = [
+    'Cook the couscous or quinoa according to package directions.',
+    'In the meantime, prepare the vegetables and drain and rinse the can of chickpeas.',
+    'In a jar or bowl, combine all dressing ingredients until smooth. Now assemble. This works great to make salad jars by dispersing the ingredients evenly between 4 mason jars.',
+    'Alternatively, assemble in a bowl, by adding the quinoa, vegetables, chickpeas, vegan feta, pistachios and dressing. Toss and store in the fridge for up to four days.',
+  ]
+
+  it('merges over-split normalized steps back to raw step count', () => {
+    const structured = {
+      recipe: {
+        steps: [
+          { index: 1, text: 'Koche den Couscous oder Quinoa nach den Anweisungen auf der Verpackung.' },
+          { index: 2, text: 'Bereite in der Zwischenzeit das Gemüse vor und spüle die Kichererbsen ab.' },
+          { index: 3, text: 'Vermische in einem Glas alle Dressing-Zutaten, bis es glatt ist. Jetzt assemble.' },
+          { index: 4, text: 'Das funktioniert hervorragend für Salatgläser mit 4 Einmachgläsern.' },
+          {
+            index: 5,
+            text: 'Alternativ kannst du alles in einer Schüssel zusammenstellen und im Kühlschrank aufbewahren.',
+          },
+        ],
+      },
+    }
+
+    realignNormalizedSteps(structured, { steps: rawSteps })
+    assert.equal(structured.recipe.steps.length, 4)
+    assert.match(structured.recipe.steps[2].text, /Dressing/)
+    assert.match(structured.recipe.steps[2].text, /Salatgläser/)
+    assert.match(structured.recipe.steps[3].text, /^Alternativ/)
+  })
+
+  it('leaves matching step counts unchanged', () => {
+    const structured = {
+      recipe: {
+        steps: [
+          { index: 1, text: 'Schritt eins.' },
+          { index: 2, text: 'Schritt zwei.' },
+        ],
+      },
+    }
+    realignNormalizedSteps(structured, { steps: ['Step one.', 'Step two.'] })
+    assert.equal(structured.recipe.steps.length, 2)
+    assert.equal(structured.recipe.steps[0].text, 'Schritt eins.')
   })
 })
 

@@ -5,8 +5,9 @@ This folder holds the Home Assistant add-on metadata and docs for [Recipe Librar
 ## Features
 
 - Full recipe library view: list, detail, favorites, “would cook again”, cooking mode, and draft badges.
+- Shopping list and 7-day meal plan (frontend `localStorage`).
 - Multi-step recipe editing with ingredients, steps, tips, tags, nutrition, and source metadata.
-- AI-assisted imports (URL + image/photo) that scrape JSON-LD/HTML, call OpenAI for normalization, cup conversion, tagging, nutrition, health score, and time estimates, and log usage.
+- AI-assisted imports (URL + image/photo) that scrape JSON-LD/HTML, call OpenAI for normalization, imperial/cup conversion, tagging, nutrition, health score, and time estimates, and log usage.
 - Source management (cookbooks and websites) with cover upload/crop, deferred processing, and per-domain deduplication.
 - Responsive PWA shell with top/bottom navigation, search/chips, and ingress-friendly UIs.
 - Image handling via Sharp + perspective crop; uploads stored under `/data/uploads` with `image_processing_pending` support.

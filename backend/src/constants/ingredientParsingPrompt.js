@@ -26,7 +26,13 @@ const METRIC_AND_SPOON_UNITS_DE = `Units (metric and spoons):
 - Never convert tbsp/tsp/EL/TL to grams or ml.
 - tablespoon/tbsp always becomes unit: "EL" with the same amount.
 - teaspoon/tsp always becomes unit: "TL" with the same amount.
-- Do not convert small spoon amounts like tahini, dijon, salt, garlic powder, oil, vinegar, spices, or similar into grams/ml.`
+- Do not convert small spoon amounts like tahini, dijon, salt, garlic powder, oil, vinegar, spices, or similar into grams/ml.
+- Convert imperial weight/volume units to metric for German output:
+  - oz / ounces (weight) → g (1 oz ≈ 28 g; round to nearest 5 g).
+  - lb / pounds → g (1 lb ≈ 450 g; round to nearest 5 g).
+  - fl oz / fluid ounces → ml (1 fl oz ≈ 30 ml; round to nearest 5 ml).
+  - Do not leave oz, lb, or fl oz as units in the output.
+  - Standard cans like "15 oz chickpeas" → about 425 g Kichererbsen, not 15 oz.`
 
 const METRIC_AND_SPOON_UNITS_EN = `Units (metric and spoons):
 - Keep tsp, tbsp, cup/cups, g, kg, ml, l, oz, lb when visible.
@@ -71,7 +77,8 @@ const EXAMPLES_DE = `Ingredient examples:
 - "1-2 cups sweet potato (roasted)" → amount: 1, amountMax: 2, unit: "cup", ingredient: "Süßkartoffel", additionalInfo: "geröstet"
 - "1 tbsp tahini" → amount: 1, amountMax: 1, unit: "EL", ingredient: "Tahini"; do not convert to grams
 - "1 tsp dijon" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Dijon-Senf"; do not convert to grams
-- "1 tsp salt" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Salz"; do not convert to grams`
+- "1 tsp salt" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Salz"; do not convert to grams
+- "15 oz chickpeas, drained and rinsed" → amount: 425, amountMax: 425, unit: "g", ingredient: "Kichererbsen", additionalInfo: "aus der Dose, abgetropft und abgespült"; do not keep oz`
 
 const EXAMPLES_EN = `Ingredient examples:
 - "1/2 red onion" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "red onion"

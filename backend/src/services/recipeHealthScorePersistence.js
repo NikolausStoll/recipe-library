@@ -91,3 +91,18 @@ export function getRecipeHealthScoreByRecipeId(recipeId) {
   const row = db.prepare('SELECT * FROM recipe_health_scores WHERE recipe_id = ?').get(Number(recipeId))
   return rowToHealthScoreResponse(row)
 }
+
+/** recipe_id → health_score for plan suggestions (null scores omitted). */
+export function listRecipeHealthScoreMap() {
+  const db = getDb()
+  const rows = db
+    .prepare(
+      'SELECT recipe_id, health_score FROM recipe_health_scores WHERE health_score IS NOT NULL',
+    )
+    .all()
+  const map = {}
+  for (const row of rows) {
+    map[row.recipe_id] = row.health_score
+  }
+  return map
+}
