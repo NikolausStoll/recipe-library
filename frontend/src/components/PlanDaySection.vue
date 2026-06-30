@@ -45,6 +45,20 @@
         </button>
         <span v-else class="plan-day__cooked-label meta-text">Gekocht</span>
 
+        <label v-if="!entry.cookedAt && moveTargets.length > 0" class="plan-day__move">
+          <select
+            class="plan-day__move-select"
+            :value="''"
+            aria-label="Verschieben nach"
+            @change="onMoveSelect(entry.id, $event)"
+          >
+            <option value="" disabled selected hidden>↔</option>
+            <option v-for="option in moveTargets" :key="option.date" :value="option.date">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+
         <button
           type="button"
           class="plan-day__remove"
@@ -90,12 +104,16 @@ const props = defineProps<{
   suggestions?: PlanSuggestionCandidate[]
   showSuggestions?: boolean
   suggestionsReady?: boolean
+  moveDayOptions?: { date: string; label: string }[]
 }>()
+
+const moveTargets = computed(() => props.moveDayOptions ?? [])
 
 const emit = defineEmits<{
   add: [date: string]
   remove: [entryId: string]
   cook: [entryId: string]
+  move: [entryId: string, targetDate: string]
   'suggest-add': [suggestion: PlanSuggestionCandidate]
 }>()
 
@@ -114,6 +132,14 @@ const showEmptySuggestionHint = computed(
 
 function entryImageUrl(entry: PlanEntry): string | null {
   return entry.recipeImageUrl ?? props.recipeImageUrls?.[entry.recipeId] ?? null
+}
+
+function onMoveSelect(entryId: string, event: Event) {
+  const target = event.target as HTMLSelectElement
+  const date = target.value
+  if (!date) return
+  emit('move', entryId, date)
+  target.value = ''
 }
 </script>
 
@@ -183,6 +209,28 @@ function entryImageUrl(entry: PlanEntry): string | null {
   flex-shrink: 0;
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+
+.plan-day__move {
+  flex-shrink: 0;
+}
+
+.plan-day__move-select {
+  width: 2.1rem;
+  padding: 0.2rem 0.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  text-align: center;
+}
+
+.plan-day__move-select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 .plan-day__link {

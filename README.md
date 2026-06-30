@@ -51,6 +51,6 @@ Copy `.env.example` into `.env` in the workspace root. Supply `OPENAI_API_KEY` a
 
 ## Next
 
-- Plan → shopping batch (add planned recipes to shopping list)
-- Recipe overview overhaul
+- Backend plan + shopping sync (multi-device)
+- Historical plan calendar
 - Further large-screen optimizations

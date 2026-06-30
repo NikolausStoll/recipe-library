@@ -71,7 +71,8 @@
         </span>
         <div class="recipes-overview__controls">
           <label class="recipes-sort recipes-source-filter">
-            <span class="recipes-sort__visible meta-text">{{ sourceFilterLabel }}</span>
+            <span class="recipes-sort__visible recipes-sort__visible--short meta-text">Quelle</span>
+            <span class="recipes-sort__visible recipes-sort__visible--long meta-text">{{ sourceFilterLabel }}</span>
             <select
               v-model="sourceFilter"
               class="recipes-sort__select"
@@ -102,7 +103,8 @@
             </select>
           </label>
           <label class="recipes-sort">
-            <span class="recipes-sort__visible meta-text">{{ sortByLabel }}</span>
+            <span class="recipes-sort__visible recipes-sort__visible--short meta-text">Sortierung</span>
+            <span class="recipes-sort__visible recipes-sort__visible--long meta-text">{{ sortByLabel }}</span>
             <select v-model="sortBy" class="recipes-sort__select" aria-label="Sortieren nach">
               <option value="created-desc">Zuletzt hinzugefügt</option>
               <option value="title-asc">Name A–Z</option>
@@ -1904,6 +1906,7 @@ function openAddToShopping() {
 }
 
 function onShoppingAdded(count: number) {
+  addToShoppingOpen.value = false
   shoppingAddNotice.value =
     count === 1 ? '1 Zutat zur Einkaufsliste hinzugefügt.' : `${count} Zutaten zur Einkaufsliste hinzugefügt.`
   if (shoppingAddNoticeTimer) clearTimeout(shoppingAddNoticeTimer)

@@ -900,6 +900,56 @@
   flex-shrink: 1;
 }
 
+.recipes-sort__visible--short {
+  display: none;
+}
+
+.recipes-sort__visible--long {
+  display: inline;
+}
+
+@media (max-width: 767px) {
+  .recipes-overview__meta {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+  }
+
+  .recipes-toolbar__count {
+    font-size: 0.8125rem;
+  }
+
+  .recipes-overview__controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xs);
+    width: 100%;
+  }
+
+  .recipes-sort,
+  .recipes-source-filter {
+    max-width: none;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .recipes-sort__visible--short {
+    display: inline;
+  }
+
+  .recipes-sort__visible--long {
+    display: none;
+  }
+
+  .recipes-sort__visible {
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+}
+
 .recipes-source-filter {
   max-width: 42%;
 }

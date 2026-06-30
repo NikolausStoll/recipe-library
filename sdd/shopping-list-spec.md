@@ -60,7 +60,7 @@ Personal grocery list generated from recipe ingredients. Frontend-only (`localSt
 |---------|----------------|
 | Nav badge (open item count) | Phase 2 (optional, skipped) |
 | Backend / multi-device sync | Phase 3 (deferred) |
-| Batch add from Plan | Phase 4 | See [plan-tool-spec.md](./plan-tool-spec.md) |
+| Batch add from Plan | ✅ | `PlanShoppingBatchFlow.vue` on `/plan` |
 
 ---
 
@@ -93,9 +93,9 @@ See [UI components](#ui-components-implemented) and [Confirmed product decisions
 - ✅ **Autocomplete** from `COMMON_SHOPPING_INGREDIENTS` (~90 German supermarket staples with category keys); free text falls back to `other`.
 - Manual entries use `MANUAL_SHOPPING_SOURCE` (id `0`); hidden from “Rezepte auf dieser Liste”.
 
-### Phase 4 — Plan integration
+### Phase 4 — Plan integration ✅
 
-- Batch add from **Plan** view once meal planning exists. Spec: [plan-tool-spec.md](./plan-tool-spec.md) (Phase 3 — shopping batch).
+- ✅ Batch add from **Plan** (`/plan` → „Zutaten einkaufen“) — sequential `AddToShoppingSheet` per open plan entry. See [plan-tool-spec.md](./plan-tool-spec.md) Phase 3.
 
 ---
 

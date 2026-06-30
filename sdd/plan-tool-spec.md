@@ -19,10 +19,10 @@ Personal **dinner plan** for the next few days — rolling week view, smart sugg
 | Servings snapshot on add | ✅ | |
 | Check off → `recipe_history` (plan date) | ✅ | `POST /api/recipes/:id/cook` + `cooked_date` |
 | `localStorage` persistence | ✅ | `recipe-library-meal-plan-v1` |
-| Move entry between days | 🔲 | Phase 1.1 |
+| Move entry between days | ✅ | Phase 1.1 — ↔ select on plan entry |
 | Suggestion algorithm | ✅ | Phase 2 — `planSuggestionScore.ts` |
 | Suggestion UI per day | ✅ | `PlanSuggestionsRow.vue`, `usePlanSuggestions.ts` |
-| Batch → shopping list | 🔲 | Phase 3 |
+| Batch → shopping list | ✅ | Phase 3 — `PlanShoppingBatchFlow.vue`, `planShoppingBatch.ts` |
 | Backend plan persistence | 🔲 | Phase 4 — **TODO** |
 | Historical calendar view | 🔲 | Phase 5 — needs backend |
 
@@ -276,7 +276,7 @@ score =
 - ✅ 7-Tage-Fenster ab heute; vergangene Tage mit Einträgen bleiben sichtbar.
 - ✅ Abhaken → `recipe_history` mit Plan-Tag (`cooked_date` im Cook-API).
 - ✅ `would_cook_again: no` und Drafts nicht planbar.
-- Optional später: Eintrag zwischen Tagen verschieben.
+- Optional später: Eintrag zwischen Tagen verschieben. ✅ `moveEntry` + ↔-Select in `PlanDaySection`.
 
 ### Phase 2 — Suggestions ✅ (shipped)
 
@@ -284,13 +284,13 @@ score =
 - ✅ `GET /api/recipes/plan-suggestion-context` — bulk cook history + health scores.
 - ✅ `usePlanSuggestions.ts` + `PlanSuggestionsRow.vue` — top 8 Vorschläge pro Tag mit „Warum“-Hint.
 - ✅ „Vorschläge aktualisieren“ in `PlanView`.
-- Optional später: „Woche vorschlagen“ (halbautomatisch leere Slots füllen).
+- ✅ „Woche vorschlagen“ — `PlanWeekSuggestSheet.vue`, `buildWeekPlanSuggestions()`.
 
-### Phase 3 — Shopping batch
+### Phase 3 — Shopping batch ✅ (shipped)
 
-- „Zutaten einkaufen“ auf `/plan`.
-- Queue durch geplante Rezepte → `AddToShoppingSheet` nacheinander.
-- Abschluss-Toast + Link `/shopping`.
+- ✅ „Zutaten einkaufen“ auf `/plan`.
+- ✅ Queue durch offene geplante Rezepte → `AddToShoppingSheet` nacheinander.
+- ✅ Abschluss-Hinweis + Link `/shopping`.
 - **Completes** [shopping-list-spec.md Phase 4](./shopping-list-spec.md#phase-4--plan-integration).
 
 ### Phase 4 — Backend plan & sync (deferred)
@@ -332,7 +332,7 @@ score =
 | `AddToPlanSheet.vue` | Pick recipe + servings for a day |
 | `PlanSuggestionsRow.vue` | Ranked suggestions per day (Phase 2) ✅ |
 | `usePlanSuggestions.ts` | Loads recipes + context, scores per day (Phase 2) ✅ |
-| `PlanShoppingBatchFlow.vue` | Orchestrates multi-recipe picker (Phase 3) |
+| `PlanShoppingBatchFlow.vue` | Orchestrates multi-recipe picker (Phase 3) ✅ |
 | Reuse | `AddToShoppingSheet.vue`, `useShoppingList.ts` |
 
 ---

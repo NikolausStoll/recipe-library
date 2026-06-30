@@ -5,10 +5,12 @@ import { getVisiblePlanDays } from '../utils/mealPlanStorage'
 import { isRecipePlannable, type MealPlan } from '../utils/mealPlanTypes'
 import {
   buildPlanSuggestionsForDay,
+  buildWeekPlanSuggestions,
   collectNeighborPlanTags,
   getPlannedOpenRecipeIds,
   type PlanSuggestionCandidate,
   type RecipeCookSummary,
+  type WeekPlanSuggestion,
 } from '../utils/planSuggestionScore'
 
 function parseCookHistory(
@@ -113,11 +115,21 @@ export function usePlanSuggestions(plan: Ref<MealPlan>, today: Ref<string>) {
     return suggestionLookup.value[date] ?? []
   }
 
+  function weekSuggestions(): WeekPlanSuggestion[] {
+    return buildWeekPlanSuggestions(
+      suggestionInputs.value,
+      plan.value,
+      today.value,
+      recipeTagsById.value,
+    )
+  }
+
   return {
     recipes,
     daySuggestions,
     suggestionLookup,
     suggestionsForDate,
+    weekSuggestions,
     totalSuggestionCount,
     openPlannedRecipeCount,
     plannableRecipeCount,

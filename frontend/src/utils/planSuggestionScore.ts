@@ -1,5 +1,6 @@
-import { addDaysIso, daysBetweenIso, isWeekendIsoDate } from './mealPlanDates'
-import { isRecipePlannable, type MealPlan, type PlanEntry } from './mealPlanTypes'
+import { addDaysIso, compareIsoDates, daysBetweenIso, isPastIsoDate, isWeekendIsoDate } from './mealPlanDates'
+import { getVisiblePlanDays } from './mealPlanStorage'
+import { isRecipePlannable, type MealPlan, type PlanDay, type PlanEntry } from './mealPlanTypes'
 
 export const PLAN_SUGGESTIONS_PER_DAY = 8
 
@@ -350,4 +351,76 @@ export function planEntryFromSuggestion(
     servings: candidate.defaultServings,
     recipeImageUrl: extras?.recipeImageUrl ?? null,
   }
+}
+
+export interface WeekPlanSuggestion {
+  date: string
+  candidate: PlanSuggestionCandidate
+}
+
+function clonePlanDays(days: MealPlan['days']): PlanDay[] {
+  return days.map((day) => ({
+    date: day.date,
+    entries: day.entries.map((entry) => ({ ...entry })),
+  }))
+}
+
+/**
+ * Top suggestion per empty future/today plan day, simulating adds so recipes are not repeated.
+ */
+export function buildWeekPlanSuggestions(
+  inputs: PlanSuggestionInput[],
+  plan: MealPlan,
+  today: string,
+  recipeTagsById: Map<number, string[]>,
+): WeekPlanSuggestion[] {
+  const results: WeekPlanSuggestion[] = []
+  let simulatedDays = clonePlanDays(plan.days)
+
+  const visibleDates = getVisiblePlanDays(plan, today)
+    .filter((day) => !isPastIsoDate(day.date, today))
+    .map((day) => day.date)
+    .sort(compareIsoDates)
+
+  for (const date of visibleDates) {
+    const day = simulatedDays.find((item) => item.date === date) ?? { date, entries: [] }
+    if (day.entries.length > 0) continue
+
+    const simulatedPlan: MealPlan = { ...plan, days: simulatedDays }
+    const suggestions = buildPlanSuggestionsForDay(
+      inputs,
+      {
+        targetDate: date,
+        today,
+        plannedOpenRecipeIds: getPlannedOpenRecipeIds(simulatedPlan),
+        neighborTags: collectNeighborPlanTags(date, simulatedPlan, recipeTagsById),
+      },
+      1,
+    )
+    const candidate = suggestions[0]
+    if (!candidate) continue
+
+    results.push({ date, candidate })
+
+    const simulatedEntry: PlanEntry = {
+      id: `week-suggest-${date}`,
+      recipeId: candidate.recipeId,
+      recipeTitle: candidate.recipeTitle,
+      servings: candidate.defaultServings,
+      sortOrder: 0,
+      addedAt: new Date().toISOString(),
+      cookedAt: null,
+    }
+
+    const dayIndex = simulatedDays.findIndex((item) => item.date === date)
+    if (dayIndex >= 0) {
+      simulatedDays = simulatedDays.map((item, index) =>
+        index === dayIndex ? { ...item, entries: [...item.entries, simulatedEntry] } : item,
+      )
+    } else {
+      simulatedDays = [...simulatedDays, { date, entries: [simulatedEntry] }]
+    }
+  }
+
+  return results
 }

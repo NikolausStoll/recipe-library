@@ -5,14 +5,32 @@
         <h1 class="page-header__title h2">Plan</h1>
         <p v-if="dateRangeLabel" class="page-header__subtitle">{{ dateRangeLabel }}</p>
       </div>
-      <button
-        type="button"
-        class="btn btn--secondary btn--small plan-view__refresh"
-        :disabled="suggestionsLoading"
-        @click="refreshSuggestions"
-      >
-        {{ suggestionsLoading ? 'Lädt…' : 'Vorschläge aktualisieren' }}
-      </button>
+      <div class="plan-view__header-actions">
+        <button
+          type="button"
+          class="btn btn--secondary btn--small plan-view__week"
+          :disabled="suggestionsLoading || !suggestionsHasLoaded"
+          @click="openWeekSuggest"
+        >
+          Woche vorschlagen
+        </button>
+        <button
+          type="button"
+          class="btn btn--secondary btn--small plan-view__shop"
+          :disabled="shoppingBatchActive || shoppingQueueCount === 0"
+          @click="startShoppingBatch"
+        >
+          Zutaten einkaufen
+        </button>
+        <button
+          type="button"
+          class="btn btn--secondary btn--small plan-view__refresh"
+          :disabled="suggestionsLoading"
+          @click="refreshSuggestions"
+        >
+          {{ suggestionsLoading ? 'Lädt…' : 'Vorschläge aktualisieren' }}
+        </button>
+      </div>
     </header>
 
     <p v-if="suggestionsLoading && !suggestionsHasLoaded" class="plan-view__notice meta-text" role="status">
@@ -74,9 +92,11 @@
         :suggestions="section.suggestions"
         :show-suggestions="section.showSuggestions"
         :suggestions-ready="suggestionsHasLoaded"
+        :move-day-options="moveDayOptions(section.day.date)"
         @add="openAddSheet"
         @remove="onRemove"
         @cook="onCook"
+        @move="onMove"
         @suggest-add="onSuggestAdd(section.day.date, $event)"
       />
     </div>
@@ -87,17 +107,54 @@
       @close="addSheetOpen = false"
       @add="onAdd"
     />
+
+    <PlanWeekSuggestSheet
+      :open="weekSuggestOpen"
+      :items="weekSuggestItems"
+      :today="today"
+      @close="weekSuggestOpen = false"
+      @confirm="confirmWeekSuggest"
+    />
+
+    <PlanShoppingBatchFlow
+      :active="shoppingBatchActive"
+      :loading="shoppingBatchLoading"
+      :load-error="shoppingBatchLoadError"
+      :current-recipe="shoppingBatchRecipe"
+      :current-item="shoppingBatchItem"
+      :batch-label="shoppingBatchLabel"
+      @added="onShoppingBatchAdded"
+      @abort="abortShoppingBatch"
+      @skip-error="skipShoppingBatchError"
+    />
+
+    <div v-if="shoppingBatchNotice" class="plan-view__shopping-notice no-print" role="status">
+      <span>{{ shoppingBatchNotice }}</span>
+      <router-link to="/shopping" class="plan-view__shopping-notice-link">Zur Liste</router-link>
+      <button
+        type="button"
+        class="plan-view__shopping-notice-close"
+        aria-label="Schließen"
+        @click="dismissShoppingBatchNotice"
+      >
+        ×
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AddToPlanSheet from '../components/AddToPlanSheet.vue'
 import PlanDaySection from '../components/PlanDaySection.vue'
+import PlanShoppingBatchFlow from '../components/PlanShoppingBatchFlow.vue'
+import PlanWeekSuggestSheet from '../components/PlanWeekSuggestSheet.vue'
 import { useMealPlan } from '../composables/useMealPlan'
+import { usePlanShoppingBatch } from '../composables/usePlanShoppingBatch'
 import { usePlanSuggestions } from '../composables/usePlanSuggestions'
-import { isPastIsoDate } from '../utils/mealPlanDates'
-import type { PlanSuggestionCandidate } from '../utils/planSuggestionScore'
+import { formatPlanDayLabel, isPastIsoDate } from '../utils/mealPlanDates'
+import { collectPlanEntriesForShopping } from '../utils/planShoppingBatch'
+import { planEntryFromSuggestion, type PlanSuggestionCandidate, type WeekPlanSuggestion } from '../utils/planSuggestionScore'
 import { getRecipeCardImageUrl } from '../utils/recipeDisplayImage'
 
 const {
@@ -109,6 +166,7 @@ const {
   refreshPlanWindow,
   addEntry,
   removeEntry,
+  moveEntry,
   markEntryCooked,
 } = useMealPlan()
 
@@ -120,6 +178,7 @@ const {
   draftRecipeCount,
   hasLoaded: suggestionsHasLoaded,
   refreshSuggestions,
+  weekSuggestions,
   loading: suggestionsLoading,
   error: suggestionsError,
 } = usePlanSuggestions(plan, today)
@@ -136,8 +195,51 @@ const planDaySections = computed(() => {
 
 const addSheetOpen = ref(false)
 const addTargetDate = ref<string | null>(null)
+const weekSuggestOpen = ref(false)
+const weekSuggestItems = ref<WeekPlanSuggestion[]>([])
 const cookingEntryId = ref<string | null>(null)
 const cookError = ref<string | null>(null)
+const shoppingBatchNotice = ref<string | null>(null)
+let shoppingBatchNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+const {
+  active: shoppingBatchActive,
+  loading: shoppingBatchLoading,
+  loadError: shoppingBatchLoadError,
+  currentRecipe: shoppingBatchRecipe,
+  currentItem: shoppingBatchItem,
+  batchLabel: shoppingBatchLabel,
+  result: shoppingBatchResult,
+  start: startPlanShoppingBatch,
+  onAdded: onShoppingBatchAdded,
+  abort: abortShoppingBatch,
+  skipFailedAndContinue: skipShoppingBatchError,
+  dismissResult: dismissShoppingBatchResult,
+} = usePlanShoppingBatch()
+
+const shoppingQueueCount = computed(() =>
+  collectPlanEntriesForShopping(plan.value, { today: today.value }).length,
+)
+
+watch(shoppingBatchResult, (value) => {
+  if (!value) return
+  if (value.ingredientCount === 0) {
+    shoppingBatchNotice.value =
+      value.recipeCount === 1
+        ? 'Keine Zutaten aus dem Plan hinzugefügt.'
+        : `Keine Zutaten aus ${value.recipeCount} Rezepten hinzugefügt.`
+  } else {
+    shoppingBatchNotice.value =
+      value.ingredientCount === 1
+        ? `1 Zutat aus ${value.recipeCount} ${value.recipeCount === 1 ? 'Rezept' : 'Rezepten'} hinzugefügt.`
+        : `${value.ingredientCount} Zutaten aus ${value.recipeCount} Rezepten hinzugefügt.`
+  }
+  if (shoppingBatchNoticeTimer) clearTimeout(shoppingBatchNoticeTimer)
+  shoppingBatchNoticeTimer = setTimeout(() => {
+    shoppingBatchNotice.value = null
+  }, 8000)
+  dismissShoppingBatchResult()
+})
 
 const recipeImageUrls = computed(() =>
   Object.fromEntries(
@@ -176,6 +278,37 @@ function onSuggestAdd(date: string, suggestion: PlanSuggestionCandidate) {
   })
 }
 
+function moveDayOptions(currentDate: string) {
+  const todayStr = today.value
+  return visibleDays.value
+    .filter((day) => day.date !== currentDate && !isPastIsoDate(day.date, todayStr))
+    .map((day) => ({
+      date: day.date,
+      label: formatPlanDayLabel(day.date, todayStr),
+    }))
+}
+
+function onMove(entryId: string, targetDate: string) {
+  moveEntry(entryId, targetDate)
+}
+
+function openWeekSuggest() {
+  weekSuggestItems.value = weekSuggestions()
+  weekSuggestOpen.value = true
+}
+
+function confirmWeekSuggest() {
+  for (const item of weekSuggestItems.value) {
+    addEntry(item.date, {
+      ...planEntryFromSuggestion(item.candidate, {
+        recipeImageUrl: recipeImageUrls.value[item.candidate.recipeId] ?? null,
+      }),
+    })
+  }
+  weekSuggestOpen.value = false
+  weekSuggestItems.value = []
+}
+
 function onRemove(entryId: string) {
   removeEntry(entryId)
 }
@@ -191,6 +324,15 @@ async function onCook(entryId: string) {
     cookingEntryId.value = null
   }
 }
+
+async function startShoppingBatch() {
+  await startPlanShoppingBatch(plan.value)
+}
+
+function dismissShoppingBatchNotice() {
+  shoppingBatchNotice.value = null
+  if (shoppingBatchNoticeTimer) clearTimeout(shoppingBatchNoticeTimer)
+}
 </script>
 
 <style scoped>
@@ -202,6 +344,15 @@ async function onCook(entryId: string) {
   margin-bottom: var(--spacing-lg);
 }
 
+.plan-view__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.plan-view__shop,
 .plan-view__refresh {
   flex-shrink: 0;
 }
@@ -228,5 +379,34 @@ async function onCook(entryId: string) {
 .plan-view__notice--hint {
   background: transparent;
   border-style: dashed;
+}
+
+.plan-view__shopping-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+.plan-view__shopping-notice-link {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.plan-view__shopping-notice-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0 0.25rem;
 }
 </style>

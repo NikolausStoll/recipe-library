@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { useMealPlan } from '../../src/composables/useMealPlan'
 import { addDaysIso, formatPlanDayLabel } from '../../src/utils/mealPlanDates'
 import {
   createEmptyMealPlan,
@@ -127,5 +128,23 @@ describe('isRecipePlannable', () => {
     expect(isRecipePlannable({ status: 'confirmed', wouldCookAgain: 'yes' })).toBe(true)
     expect(isRecipePlannable({ status: 'confirmed', wouldCookAgain: 'no' })).toBe(false)
     expect(isRecipePlannable({ status: 'draft', wouldCookAgain: null })).toBe(false)
+  })
+})
+
+describe('useMealPlan moveEntry', () => {
+  it('moves an open entry to another day', () => {
+    const { plan, addEntry, moveEntry, refreshPlanWindow } = useMealPlan()
+    const today = '2026-06-26'
+    refreshPlanWindow()
+    addEntry(today, { recipeId: 1, recipeTitle: 'Pasta', servings: 2 })
+    const sourceDay = plan.value.days.find((day) => day.date === today)
+    const entryId = sourceDay?.entries[0]?.id
+    expect(entryId).toBeTruthy()
+
+    const targetDate = addDaysIso(today, 1)
+    moveEntry(entryId!, targetDate)
+
+    expect(plan.value.days.find((day) => day.date === today)?.entries ?? []).toHaveLength(0)
+    expect(plan.value.days.find((day) => day.date === targetDate)?.entries[0]?.recipeTitle).toBe('Pasta')
   })
 })

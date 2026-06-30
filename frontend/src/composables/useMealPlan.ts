@@ -105,6 +105,47 @@ export function useMealPlan() {
     )
   }
 
+  function moveEntry(entryId: string, targetDate: string) {
+    refreshPlanWindow()
+    const trimmedTarget = targetDate.trim()
+    if (!trimmedTarget) return
+
+    let entry: PlanEntry | null = null
+    let sourceDate: string | null = null
+
+    for (const day of plan.value.days) {
+      const found = day.entries.find((e) => e.id === entryId)
+      if (found) {
+        entry = found
+        sourceDate = day.date
+        break
+      }
+    }
+    if (!entry || !sourceDate || sourceDate === trimmedTarget) return
+
+    const targetDay = findDay(trimmedTarget)
+    const movedEntry: PlanEntry = {
+      ...entry,
+      sortOrder: nextSortOrder(targetDay?.entries ?? []),
+    }
+
+    let nextDays = plan.value.days.map((day) => {
+      if (day.date === sourceDate) {
+        return { ...day, entries: day.entries.filter((e) => e.id !== entryId) }
+      }
+      if (day.date === trimmedTarget) {
+        return { ...day, entries: [...day.entries, movedEntry] }
+      }
+      return day
+    })
+
+    if (!nextDays.some((day) => day.date === trimmedTarget)) {
+      nextDays = [...nextDays, { date: trimmedTarget, entries: [movedEntry] }]
+    }
+
+    plan.value = normalizeMealPlan({ ...plan.value, days: nextDays }, today.value)
+  }
+
   async function markEntryCooked(entryId: string): Promise<void> {
     let cookedDate: string | null = null
     let recipeId: number | null = null
@@ -160,6 +201,7 @@ export function useMealPlan() {
     refreshPlanWindow,
     addEntry,
     removeEntry,
+    moveEntry,
     markEntryCooked,
     showManyEntriesHint,
     isDayPast,

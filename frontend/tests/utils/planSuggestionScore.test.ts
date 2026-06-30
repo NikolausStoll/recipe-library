@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildPlanSuggestionsForDay,
+  buildWeekPlanSuggestions,
   planDayTimeContext,
   scoreRecipeForPlanDay,
   type PlanSuggestionInput,
   type PlanSuggestionRecipe,
 } from '../../src/utils/planSuggestionScore'
+import { createEmptyMealPlan } from '../../src/utils/mealPlanStorage'
 
 function recipe(overrides: Partial<PlanSuggestionRecipe> = {}): PlanSuggestionRecipe {
   return {
@@ -135,5 +137,47 @@ describe('buildPlanSuggestionsForDay', () => {
       context,
     )
     expect(asian!.score).toBeGreaterThan(italian!.score)
+  })
+})
+
+describe('buildWeekPlanSuggestions', () => {
+  it('suggests one recipe per empty day without repeating recipes', () => {
+    const plan = createEmptyMealPlan(3, '2026-06-26')
+    const inputs: PlanSuggestionInput[] = [
+      input({ id: 1, title: 'Alpha', favorite: true }),
+      input({ id: 2, title: 'Beta', favorite: true }),
+      input({ id: 3, title: 'Gamma', favorite: true }),
+    ]
+    const tags = new Map(inputs.map((row) => [row.recipe.id, row.recipe.tags ?? []]))
+    const suggestions = buildWeekPlanSuggestions(inputs, plan, '2026-06-26', tags)
+    expect(suggestions).toHaveLength(3)
+    expect(new Set(suggestions.map((item) => item.candidate.recipeId)).size).toBe(3)
+    expect(suggestions.map((item) => item.date)).toEqual(['2026-06-26', '2026-06-27', '2026-06-28'])
+  })
+
+  it('skips days that already have entries', () => {
+    const plan = createEmptyMealPlan(3, '2026-06-26')
+    plan.days = plan.days.map((day) =>
+      day.date === '2026-06-27'
+        ? {
+            ...day,
+            entries: [
+              {
+                id: 'existing',
+                recipeId: 99,
+                recipeTitle: 'Busy day',
+                servings: 2,
+                sortOrder: 0,
+                addedAt: '2026-06-26T10:00:00.000Z',
+                cookedAt: null,
+              },
+            ],
+          }
+        : day,
+    )
+    const inputs: PlanSuggestionInput[] = [input({ id: 1, title: 'Alpha' }), input({ id: 2, title: 'Beta' })]
+    const tags = new Map(inputs.map((row) => [row.recipe.id, row.recipe.tags ?? []]))
+    const suggestions = buildWeekPlanSuggestions(inputs, plan, '2026-06-26', tags)
+    expect(suggestions.map((item) => item.date)).toEqual(['2026-06-26', '2026-06-28'])
   })
 })

@@ -19,8 +19,13 @@
           </button>
         </header>
 
-        <p v-if="servings > 0" class="add-to-shopping__servings meta-text">
-          Für {{ servings }} {{ servings === 1 ? 'Portion' : 'Portionen' }}
+        <p v-if="servings > 0 || batchLabel" class="add-to-shopping__servings meta-text">
+          <template v-if="servings > 0">
+            Für {{ servings }} {{ servings === 1 ? 'Portion' : 'Portionen' }}
+          </template>
+          <template v-if="batchLabel">
+            <template v-if="servings > 0"> · </template>{{ batchLabel }}
+          </template>
         </p>
 
         <div v-if="rows.length === 0" class="add-to-shopping__empty body-text">
@@ -37,7 +42,7 @@
         </ul>
 
         <footer class="add-to-shopping__footer">
-          <button type="button" class="btn btn--secondary" @click="emit('close')">Abbrechen</button>
+          <button type="button" class="btn btn--secondary" @click="emit('close')">{{ cancelButtonLabel }}</button>
           <button
             type="button"
             class="btn btn--primary"
@@ -67,6 +72,8 @@ const props = defineProps<{
   open: boolean
   recipe: Recipe | null
   servings: number
+  batchLabel?: string | null
+  cancelLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -88,6 +95,7 @@ type PickerRow = {
 const rows = ref<PickerRow[]>([])
 
 const recipeTitle = computed(() => props.recipe?.title?.trim() || 'Rezept')
+const cancelButtonLabel = computed(() => props.cancelLabel?.trim() || 'Abbrechen')
 
 const selectedCount = computed(() => rows.value.filter((r) => r.selected).length)
 
@@ -124,7 +132,6 @@ function onConfirm() {
   const selected = rows.value.filter((r) => r.selected).map((r) => r.input)
   const count = addIngredients(selected, { id: props.recipe.id, title: props.recipe.title })
   emit('added', count)
-  emit('close')
 }
 </script>
 
