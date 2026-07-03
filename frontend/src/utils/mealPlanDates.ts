@@ -47,6 +47,19 @@ export function formatPlanDayLabel(isoDate: string, today = todayIsoDate()): str
   return `${weekday}, ${d}. ${month}${suffix}`
 }
 
+/** Compact label for day assignment UI: Heute / Morgen / Do + day number */
+export function formatPlanDayCompactLabel(
+  isoDate: string,
+  today = todayIsoDate(),
+): { label: string; subLabel: string } {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  const subLabel = String(d)
+  if (isTodayIsoDate(isoDate, today)) return { label: 'Heute', subLabel }
+  if (daysBetweenIso(today, isoDate) === 1) return { label: 'Morgen', subLabel }
+  return { label: WEEKDAY_SHORT_DE[dt.getDay()], subLabel }
+}
+
 export function formatPlanDateRange(start: string, end: string): string {
   const fmt = (iso: string) => {
     const [y, m, d] = iso.split('-').map(Number)

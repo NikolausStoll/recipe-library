@@ -6,11 +6,20 @@
       'plan-day--today': isToday,
       'plan-day--past': isPast,
       'plan-day--weekend': isWeekend,
+      'plan-day--empty': day.entries.length === 0,
     }"
   >
     <header class="plan-day__header">
       <h2 class="plan-day__title">{{ dayLabel }}</h2>
       <p v-if="isPast && hasOpenEntries" class="plan-day__past-hint meta-text">Noch offen</p>
+      <button
+        v-if="!isPast"
+        type="button"
+        class="btn btn--secondary btn--small plan-day__add"
+        @click="emit('add', day.date)"
+      >
+        + Rezept
+      </button>
     </header>
 
     <p v-if="showManyHint" class="plan-day__many-hint meta-text">
@@ -30,69 +39,56 @@
         />
 
         <router-link :to="`/recipes/${entry.recipeId}`" class="plan-day__link">
-          {{ entry.recipeTitle }}
-          <span class="plan-day__servings meta-text">({{ entry.servings }} {{ entry.servings === 1 ? 'Portion' : 'Portionen' }})</span>
+          <span class="plan-day__recipe-title">{{ entry.recipeTitle }}</span>
+          <span class="plan-day__servings meta-text">
+            {{ entry.servings }} {{ entry.servings === 1 ? 'Portion' : 'Portionen' }}
+          </span>
         </router-link>
 
-        <button
-          v-if="!entry.cookedAt"
-          type="button"
-          class="btn btn--secondary btn--small plan-day__cook"
-          :disabled="cookingEntryId === entry.id"
-          @click="emit('cook', entry.id)"
-        >
-          {{ cookingEntryId === entry.id ? '…' : 'Gekocht' }}
-        </button>
-        <span v-else class="plan-day__cooked-label meta-text">Gekocht</span>
-
-        <label v-if="!entry.cookedAt && moveTargets.length > 0" class="plan-day__move">
-          <select
-            class="plan-day__move-select"
-            :value="''"
-            aria-label="Verschieben nach"
-            @change="onMoveSelect(entry.id, $event)"
+        <div class="plan-day__actions">
+          <button
+            v-if="!entry.cookedAt"
+            type="button"
+            class="btn btn--secondary btn--small plan-day__cook"
+            :disabled="cookingEntryId === entry.id"
+            @click="emit('cook', entry.id)"
           >
-            <option value="" disabled selected hidden>↔</option>
-            <option v-for="option in moveTargets" :key="option.date" :value="option.date">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
+            {{ cookingEntryId === entry.id ? '…' : 'Gekocht' }}
+          </button>
+          <span v-else class="plan-day__cooked-label meta-text">Gekocht</span>
 
-        <button
-          type="button"
-          class="plan-day__remove"
-          :aria-label="`${entry.recipeTitle} aus dem Plan entfernen`"
-          @click="emit('remove', entry.id)"
-        >
-          ×
-        </button>
+          <button
+            v-if="!entry.cookedAt && canMove"
+            type="button"
+            class="btn btn--secondary btn--small plan-day__move-btn"
+            aria-label="Zu anderem Tag verschieben"
+            @click="emit('assign-move', entry.id, day.date, entry.recipeTitle)"
+          >
+            Verschieben
+          </button>
+
+          <button
+            type="button"
+            class="plan-day__remove"
+            :aria-label="`${entry.recipeTitle} aus dem Plan entfernen`"
+            @click="emit('remove', entry.id)"
+          >
+            ×
+          </button>
+        </div>
       </li>
     </ul>
 
-    <PlanSuggestionsRow
-      v-if="showSuggestionBlock && suggestions.length > 0"
-      :suggestions="suggestions"
-      :recipe-image-urls="recipeImageUrls"
-      @pick="emit('suggest-add', $event)"
-    />
-
-    <p v-else-if="showEmptySuggestionHint" class="plan-day__no-suggestions meta-text">
-      Keine Vorschläge für diesen Tag.
+    <p v-else-if="!isPast" class="plan-day__empty meta-text">
+      Noch nichts geplant.
     </p>
-
-    <button type="button" class="btn btn--secondary btn--small plan-day__add" @click="emit('add', day.date)">
-      + Rezept
-    </button>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import PlanRecipeThumb from './PlanRecipeThumb.vue'
-import PlanSuggestionsRow from './PlanSuggestionsRow.vue'
 import type { PlanDay, PlanEntry } from '../utils/mealPlanTypes'
-import type { PlanSuggestionCandidate } from '../utils/planSuggestionScore'
 import { formatPlanDayLabel, isPastIsoDate, isTodayIsoDate, isWeekendIsoDate, todayIsoDate } from '../utils/mealPlanDates'
 import { PLAN_MANY_ENTRIES_HINT } from '../utils/mealPlanTypes'
 
@@ -101,20 +97,14 @@ const props = defineProps<{
   today?: string
   cookingEntryId?: string | null
   recipeImageUrls?: Record<number, string | null>
-  suggestions?: PlanSuggestionCandidate[]
-  showSuggestions?: boolean
-  suggestionsReady?: boolean
-  moveDayOptions?: { date: string; label: string }[]
+  canMove?: boolean
 }>()
-
-const moveTargets = computed(() => props.moveDayOptions ?? [])
 
 const emit = defineEmits<{
   add: [date: string]
   remove: [entryId: string]
   cook: [entryId: string]
-  move: [entryId: string, targetDate: string]
-  'suggest-add': [suggestion: PlanSuggestionCandidate]
+  'assign-move': [entryId: string, sourceDate: string, recipeTitle: string]
 }>()
 
 const referenceToday = computed(() => props.today ?? todayIsoDate())
@@ -124,22 +114,9 @@ const isPast = computed(() => isPastIsoDate(props.day.date, referenceToday.value
 const isWeekend = computed(() => isWeekendIsoDate(props.day.date))
 const hasOpenEntries = computed(() => props.day.entries.some((e) => !e.cookedAt))
 const showManyHint = computed(() => props.day.entries.length >= PLAN_MANY_ENTRIES_HINT)
-const suggestions = computed(() => props.suggestions ?? [])
-const showSuggestionBlock = computed(() => props.showSuggestions === true)
-const showEmptySuggestionHint = computed(
-  () => showSuggestionBlock.value && props.suggestionsReady === true && suggestions.value.length === 0,
-)
 
 function entryImageUrl(entry: PlanEntry): string | null {
   return entry.recipeImageUrl ?? props.recipeImageUrls?.[entry.recipeId] ?? null
-}
-
-function onMoveSelect(entryId: string, event: Event) {
-  const target = event.target as HTMLSelectElement
-  const date = target.value
-  if (!date) return
-  emit('move', entryId, date)
-  target.value = ''
 }
 </script>
 
@@ -154,51 +131,115 @@ function onMoveSelect(entryId: string, event: Event) {
   padding-top: 0;
 }
 
-.plan-day--today .plan-day__title {
-  color: var(--color-accent);
+.plan-day--today {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  margin-inline: calc(-1 * var(--spacing-md));
+  padding-inline: var(--spacing-md);
+  border-radius: var(--radius-md, 8px);
 }
 
 .plan-day--past {
-  opacity: 0.92;
+  opacity: 0.88;
+}
+
+.plan-day--empty:not(.plan-day--past) .plan-day__title {
+  color: var(--color-text-muted);
 }
 
 .plan-day__header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
 }
 
 .plan-day__title {
-  font-size: 0.95rem;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
   font-weight: 600;
+}
+
+.plan-day--today .plan-day__title {
+  color: var(--color-accent);
 }
 
 .plan-day__past-hint {
   color: var(--color-warning, #b45309);
+  font-size: 0.8rem;
+}
+
+.plan-day__add {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .plan-day__many-hint {
-  margin-bottom: var(--spacing-sm);
+  margin: 0 0 var(--spacing-sm);
   font-size: 0.85rem;
 }
 
 .plan-day__list {
   list-style: none;
-  margin: 0 0 var(--spacing-sm);
+  margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
 .plan-day__item {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: 0.35rem 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-subtle);
 }
 
-.plan-day__item--cooked .plan-day__link {
+.plan-day__item--cooked {
+  opacity: 0.75;
+}
+
+.plan-day__item--cooked .plan-day__recipe-title {
   text-decoration: line-through;
   color: var(--color-text-muted);
+}
+
+.plan-day__link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  color: var(--color-text);
+  text-decoration: none;
+  line-height: 1.35;
+}
+
+.plan-day__link:hover .plan-day__recipe-title {
+  color: var(--color-accent);
+}
+
+.plan-day__recipe-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-day__servings {
+  font-size: 0.78rem;
+}
+
+.plan-day__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
 }
 
 .plan-day__cook {
@@ -206,47 +247,15 @@ function onMoveSelect(entryId: string, event: Event) {
 }
 
 .plan-day__cooked-label {
-  flex-shrink: 0;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
+  padding: 0 0.25rem;
 }
 
-.plan-day__move {
+.plan-day__move-btn {
   flex-shrink: 0;
-}
-
-.plan-day__move-select {
-  width: 2.1rem;
-  padding: 0.2rem 0.1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  line-height: 1;
-  cursor: pointer;
-  text-align: center;
-}
-
-.plan-day__move-select:focus {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
-}
-
-.plan-day__link {
-  flex: 1;
-  min-width: 0;
-  color: var(--color-text);
-  text-decoration: none;
-  line-height: 1.4;
-}
-
-.plan-day__link:hover {
-  color: var(--color-accent);
-}
-
-.plan-day__servings {
-  font-size: 0.85em;
+  font-size: 0.78rem;
+  padding-inline: 0.45rem;
 }
 
 .plan-day__remove {
@@ -256,20 +265,26 @@ function onMoveSelect(entryId: string, event: Event) {
   font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
-  flex-shrink: 0;
+  padding: 0 0.15rem;
 }
 
 .plan-day__remove:hover {
   color: var(--color-danger);
 }
 
-.plan-day__add {
-  margin-top: var(--spacing-xs);
-  margin-bottom: var(--spacing-sm);
+.plan-day__empty {
+  margin: 0;
+  font-size: 0.85rem;
 }
 
-.plan-day__no-suggestions {
-  margin: 0;
-  font-size: 0.8rem;
+@media (min-width: 960px) {
+  .plan-day--today {
+    margin-inline: calc(-1 * var(--spacing-xl));
+    padding-inline: var(--spacing-xl);
+  }
+
+  .plan-day__item {
+    padding: 0.55rem 0.75rem;
+  }
 }
 </style>

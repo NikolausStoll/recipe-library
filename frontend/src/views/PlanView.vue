@@ -1,14 +1,14 @@
 <template>
   <div class="page plan-view">
     <header class="page-header plan-view__header">
-      <div>
+      <div class="plan-view__header-text">
         <h1 class="page-header__title h2">Plan</h1>
         <p v-if="dateRangeLabel" class="page-header__subtitle">{{ dateRangeLabel }}</p>
       </div>
       <div class="plan-view__header-actions">
         <button
           type="button"
-          class="btn btn--secondary btn--small plan-view__week"
+          class="btn btn--secondary btn--small"
           :disabled="suggestionsLoading || !suggestionsHasLoaded"
           @click="openWeekSuggest"
         >
@@ -16,7 +16,7 @@
         </button>
         <button
           type="button"
-          class="btn btn--secondary btn--small plan-view__shop"
+          class="btn btn--secondary btn--small"
           :disabled="shoppingBatchActive || shoppingQueueCount === 0"
           @click="startShoppingBatch"
         >
@@ -24,7 +24,7 @@
         </button>
         <button
           type="button"
-          class="btn btn--secondary btn--small plan-view__refresh"
+          class="btn btn--secondary btn--small"
           :disabled="suggestionsLoading"
           @click="refreshSuggestions"
         >
@@ -33,43 +33,7 @@
       </div>
     </header>
 
-    <p v-if="suggestionsLoading && !suggestionsHasLoaded" class="plan-view__notice meta-text" role="status">
-      Vorschläge werden geladen…
-    </p>
-
-    <p
-      v-else-if="suggestionsHasLoaded && plannableRecipeCount === 0"
-      class="plan-view__notice"
-      role="status"
-    >
-      Keine planbaren Rezepte — nur <strong>bestätigte</strong> Rezepte erscheinen in Vorschlägen
-      <template v-if="draftRecipeCount > 0">
-        ({{ draftRecipeCount }} Entwürfe müssen erst unter Rezepte geprüft/bestätigt werden).
-      </template>
-    </p>
-
-    <p
-      v-else-if="suggestionsHasLoaded && plannableRecipeCount > 0 && totalSuggestionCount === 0"
-      class="plan-view__notice"
-      role="status"
-    >
-      Alle {{ plannableRecipeCount }} planbaren Rezepte sind bereits im Plan — entferne Einträge oder bestätige
-      weitere Rezepte, um neue Vorschläge zu sehen.
-      <template v-if="draftRecipeCount > 0">
-        ({{ draftRecipeCount }} Entwürfe sind weiterhin ausgeschlossen.)
-      </template>
-    </p>
-
-    <p
-      v-else-if="suggestionsHasLoaded && plannableRecipeCount > 0 && totalSuggestionCount > 0"
-      class="plan-view__notice plan-view__notice--hint meta-text"
-      role="status"
-    >
-      {{ plannableRecipeCount }} planbare Rezepte — tippe auf einen Vorschlag unter einem Tag.
-      <template v-if="draftRecipeCount > 0">
-        {{ draftRecipeCount }} Entwürfe sind ausgeschlossen.
-      </template>
-    </p>
+    <PlanWeekSummary :stats="weekStats" />
 
     <p v-if="suggestionsError" class="plan-view__notice plan-view__notice--error" role="alert">
       {{ suggestionsError }}
@@ -81,25 +45,49 @@
       Es gibt noch offene Gerichte an vergangenen Tagen — mit „Gekocht“ markieren oder entfernen.
     </p>
 
-    <div class="surface-card plan-view__card">
-      <PlanDaySection
-        v-for="section in planDaySections"
-        :key="`${section.day.date}-${section.suggestions.length}-${suggestionsHasLoaded}`"
-        :day="section.day"
-        :today="today"
-        :cooking-entry-id="cookingEntryId"
+    <p v-if="suggestionStatusNotice" class="plan-view__notice plan-view__notice--hint meta-text" role="status">
+      {{ suggestionStatusNotice }}
+    </p>
+
+    <section class="plan-view__suggestions-primary surface-card">
+      <PlanSuggestionsPanel
+        :suggestions="flatSuggestions"
         :recipe-image-urls="recipeImageUrls"
-        :suggestions="section.suggestions"
-        :show-suggestions="section.showSuggestions"
-        :suggestions-ready="suggestionsHasLoaded"
-        :move-day-options="moveDayOptions(section.day.date)"
-        @add="openAddSheet"
-        @remove="onRemove"
-        @cook="onCook"
-        @move="onMove"
-        @suggest-add="onSuggestAdd(section.day.date, $event)"
+        :loading="suggestionsLoading && !suggestionsHasLoaded"
+        :ready="suggestionsHasLoaded"
+        :error="suggestionsError"
+        :hint="suggestionsHint"
+        @assign="openAssignForSuggestion"
       />
-    </div>
+    </section>
+
+    <section class="plan-view__planned">
+      <h2 class="plan-view__planned-title">Geplant</h2>
+      <div class="surface-card plan-view__days">
+        <PlanDaySection
+          v-for="section in planDaySections"
+          :key="section.day.date"
+          :day="section.day"
+          :today="today"
+          :cooking-entry-id="cookingEntryId"
+          :recipe-image-urls="recipeImageUrls"
+          :can-move="section.isFutureOrToday && assignableDayCount > 1"
+          @add="openAddSheet"
+          @remove="onRemove"
+          @cook="onCook"
+          @assign-move="openAssignForMove"
+        />
+      </div>
+    </section>
+
+    <PlanAssignDaySheet
+      :open="assignOpen"
+      :title="assignTitle"
+      :recipe-title="assignRecipeTitle"
+      :days="assignDayOptions"
+      @close="closeAssign"
+      @select="onAssignDay"
+    />
 
     <AddToPlanSheet
       :open="addSheetOpen"
@@ -146,14 +134,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AddToPlanSheet from '../components/AddToPlanSheet.vue'
+import PlanAssignDaySheet from '../components/PlanAssignDaySheet.vue'
 import PlanDaySection from '../components/PlanDaySection.vue'
 import PlanShoppingBatchFlow from '../components/PlanShoppingBatchFlow.vue'
+import PlanSuggestionsPanel from '../components/PlanSuggestionsPanel.vue'
 import PlanWeekSuggestSheet from '../components/PlanWeekSuggestSheet.vue'
+import PlanWeekSummary from '../components/PlanWeekSummary.vue'
 import { useMealPlan } from '../composables/useMealPlan'
 import { usePlanShoppingBatch } from '../composables/usePlanShoppingBatch'
 import { usePlanSuggestions } from '../composables/usePlanSuggestions'
-import { formatPlanDayLabel, isPastIsoDate } from '../utils/mealPlanDates'
+import { buildAssignDayOptions } from '../utils/planAssignDays'
+import { isPastIsoDate } from '../utils/mealPlanDates'
 import { collectPlanEntriesForShopping } from '../utils/planShoppingBatch'
+import {
+  buildDedupedDaySuggestionGroups,
+  computePlanWeekStats,
+  flattenDedupedSuggestions,
+} from '../utils/planWeekSummary'
 import { planEntryFromSuggestion, type PlanSuggestionCandidate, type WeekPlanSuggestion } from '../utils/planSuggestionScore'
 import { getRecipeCardImageUrl } from '../utils/recipeDisplayImage'
 
@@ -184,13 +181,81 @@ const {
 } = usePlanSuggestions(plan, today)
 
 const planDaySections = computed(() => {
-  const lookup = suggestionLookup.value
   const todayStr = today.value
   return visibleDays.value.map((day) => ({
     day,
-    suggestions: lookup[day.date] ?? [],
-    showSuggestions: !isPastIsoDate(day.date, todayStr),
+    isFutureOrToday: !isPastIsoDate(day.date, todayStr),
   }))
+})
+
+const suggestionGroups = computed(() =>
+  buildDedupedDaySuggestionGroups(
+    visibleDays.value.map((day) => ({
+      date: day.date,
+      entries: day.entries,
+      suggestions: suggestionLookup.value[day.date] ?? [],
+    })),
+    today.value,
+    4,
+  ),
+)
+
+const flatSuggestions = computed(() => flattenDedupedSuggestions(suggestionGroups.value))
+
+const assignableDayCount = computed(
+  () => visibleDays.value.filter((day) => !isPastIsoDate(day.date, today.value)).length,
+)
+
+const shoppingQueueCount = computed(() =>
+  collectPlanEntriesForShopping(plan.value, { today: today.value }).length,
+)
+
+const weekStats = computed(() =>
+  computePlanWeekStats(visibleDays.value, today.value, shoppingQueueCount.value),
+)
+
+const suggestionStatusNotice = computed(() => {
+  if (suggestionsLoading.value && !suggestionsHasLoaded.value) return null
+  if (!suggestionsHasLoaded.value) return null
+  if (plannableRecipeCount.value === 0) {
+    const draftHint =
+      draftRecipeCount.value > 0
+        ? ` (${draftRecipeCount.value} Entwürfe müssen erst bestätigt werden.)`
+        : ''
+    return `Keine planbaren Rezepte — nur bestätigte Rezepte erscheinen in Vorschlägen.${draftHint}`
+  }
+  if (totalSuggestionCount.value === 0) {
+    return 'Alle planbaren Rezepte sind bereits in der Woche — entferne Einträge für neue Vorschläge.'
+  }
+  return null
+})
+
+const suggestionsHint = computed(() => {
+  if (!suggestionsHasLoaded.value || totalSuggestionCount.value === 0) return null
+  return 'Tippe ein Rezept und wähle den Zieltag — jedes Rezept nur einmal pro Woche.'
+})
+
+type AssignContext =
+  | { kind: 'suggestion'; suggestion: PlanSuggestionCandidate }
+  | { kind: 'move'; entryId: string; sourceDate: string; recipeTitle: string }
+
+const assignOpen = ref(false)
+const assignContext = ref<AssignContext | null>(null)
+
+const assignTitle = computed(() =>
+  assignContext.value?.kind === 'move' ? 'Zu Tag verschieben' : 'Tag auswählen',
+)
+
+const assignRecipeTitle = computed(() => {
+  const ctx = assignContext.value
+  if (!ctx) return null
+  return ctx.kind === 'move' ? ctx.recipeTitle : ctx.suggestion.recipeTitle
+})
+
+const assignDayOptions = computed(() => {
+  const ctx = assignContext.value
+  const excludeDate = ctx?.kind === 'move' ? ctx.sourceDate : undefined
+  return buildAssignDayOptions(visibleDays.value, today.value, excludeDate)
 })
 
 const addSheetOpen = ref(false)
@@ -216,10 +281,6 @@ const {
   skipFailedAndContinue: skipShoppingBatchError,
   dismissResult: dismissShoppingBatchResult,
 } = usePlanShoppingBatch()
-
-const shoppingQueueCount = computed(() =>
-  collectPlanEntriesForShopping(plan.value, { today: today.value }).length,
-)
 
 watch(shoppingBatchResult, (value) => {
   if (!value) return
@@ -278,18 +339,30 @@ function onSuggestAdd(date: string, suggestion: PlanSuggestionCandidate) {
   })
 }
 
-function moveDayOptions(currentDate: string) {
-  const todayStr = today.value
-  return visibleDays.value
-    .filter((day) => day.date !== currentDate && !isPastIsoDate(day.date, todayStr))
-    .map((day) => ({
-      date: day.date,
-      label: formatPlanDayLabel(day.date, todayStr),
-    }))
+function openAssignForSuggestion(suggestion: PlanSuggestionCandidate) {
+  assignContext.value = { kind: 'suggestion', suggestion }
+  assignOpen.value = true
 }
 
-function onMove(entryId: string, targetDate: string) {
-  moveEntry(entryId, targetDate)
+function openAssignForMove(entryId: string, sourceDate: string, recipeTitle: string) {
+  assignContext.value = { kind: 'move', entryId, sourceDate, recipeTitle }
+  assignOpen.value = true
+}
+
+function closeAssign() {
+  assignOpen.value = false
+  assignContext.value = null
+}
+
+function onAssignDay(date: string) {
+  const ctx = assignContext.value
+  if (!ctx) return
+  if (ctx.kind === 'suggestion') {
+    onSuggestAdd(date, ctx.suggestion)
+  } else {
+    moveEntry(ctx.entryId, date)
+  }
+  closeAssign()
 }
 
 function openWeekSuggest() {
@@ -341,7 +414,11 @@ function dismissShoppingBatchNotice() {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.plan-view__header-text {
+  min-width: 0;
 }
 
 .plan-view__header-actions {
@@ -352,14 +429,30 @@ function dismissShoppingBatchNotice() {
   flex-shrink: 0;
 }
 
-.plan-view__shop,
-.plan-view__refresh {
-  flex-shrink: 0;
+.plan-view__suggestions-primary {
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
+  min-width: 0;
 }
 
-.plan-view__card {
-  padding: var(--spacing-lg) var(--spacing-xl);
-  max-width: 40rem;
+.plan-view__planned {
+  min-width: 0;
+}
+
+.plan-view__planned-title {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.plan-view__days {
+  padding: var(--spacing-md) var(--spacing-lg);
+  min-width: 0;
 }
 
 .plan-view__notice {
@@ -386,7 +479,7 @@ function dismissShoppingBatchNotice() {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
+  margin-top: var(--spacing-md);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md, 8px);
   background: var(--color-surface-raised);
@@ -408,5 +501,15 @@ function dismissShoppingBatchNotice() {
   color: var(--color-text-muted);
   cursor: pointer;
   padding: 0 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .plan-view__suggestions-primary {
+    padding: var(--spacing-lg) var(--spacing-xl);
+  }
+
+  .plan-view__days {
+    padding: var(--spacing-lg) var(--spacing-xl);
+  }
 }
 </style>

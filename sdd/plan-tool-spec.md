@@ -19,9 +19,9 @@ Personal **dinner plan** for the next few days — rolling week view, smart sugg
 | Servings snapshot on add | ✅ | |
 | Check off → `recipe_history` (plan date) | ✅ | `POST /api/recipes/:id/cook` + `cooked_date` |
 | `localStorage` persistence | ✅ | `recipe-library-meal-plan-v1` |
-| Move entry between days | ✅ | Phase 1.1 — ↔ select on plan entry |
+| Move entry between days | ✅ | Phase 1.1 — `moveEntry` + `PlanAssignDaySheet` (Verschieben-Button) |
 | Suggestion algorithm | ✅ | Phase 2 — `planSuggestionScore.ts` |
-| Suggestion UI per day | ✅ | `PlanSuggestionsRow.vue`, `usePlanSuggestions.ts` |
+| Suggestion UI | ✅ | `PlanSuggestionsPanel.vue` — primary panel, deduped; tap → `PlanAssignDaySheet` |
 | Batch → shopping list | ✅ | Phase 3 — `PlanShoppingBatchFlow.vue`, `planShoppingBatch.ts` |
 | Backend plan persistence | 🔲 | Phase 4 — **TODO** |
 | Historical calendar view | 🔲 | Phase 5 — needs backend |
@@ -276,7 +276,7 @@ score =
 - ✅ 7-Tage-Fenster ab heute; vergangene Tage mit Einträgen bleiben sichtbar.
 - ✅ Abhaken → `recipe_history` mit Plan-Tag (`cooked_date` im Cook-API).
 - ✅ `would_cook_again: no` und Drafts nicht planbar.
-- Optional später: Eintrag zwischen Tagen verschieben. ✅ `moveEntry` + ↔-Select in `PlanDaySection`.
+- Optional später: Eintrag zwischen Tagen verschieben. ✅ `moveEntry` + „Verschieben“ → `PlanAssignDaySheet` in `PlanDaySection`.
 
 ### Phase 2 — Suggestions ✅ (shipped)
 
@@ -330,7 +330,9 @@ score =
 | `PlanView.vue` | Main UI |
 | `PlanDaySection.vue` | One day + entries |
 | `AddToPlanSheet.vue` | Pick recipe + servings for a day |
-| `PlanSuggestionsRow.vue` | Ranked suggestions per day (Phase 2) ✅ |
+| `PlanSuggestionsPanel.vue` | Primary suggestions grid; tap opens day assignment ✅ |
+| `PlanAssignDaySheet.vue` | Compact day picker (Heute/Morgen/Do …) for move + suggest ✅ |
+| `planAssignDays.ts` | Build assign-day options from visible plan window ✅ |
 | `usePlanSuggestions.ts` | Loads recipes + context, scores per day (Phase 2) ✅ |
 | `PlanShoppingBatchFlow.vue` | Orchestrates multi-recipe picker (Phase 3) ✅ |
 | Reuse | `AddToShoppingSheet.vue`, `useShoppingList.ts` |
