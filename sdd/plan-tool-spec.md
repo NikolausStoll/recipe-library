@@ -293,29 +293,27 @@ score =
 - ✅ Abschluss-Hinweis + Link `/shopping`.
 - **Completes** [shopping-list-spec.md Phase 4](./shopping-list-spec.md#phase-4--plan-integration).
 
-### Phase 4 — Backend plan & sync (deferred)
+### Phase 4 — Backend plan & sync
 
-- API + SQLite tables for meal plan (`meal_plans`, `meal_plan_entries`).
-- Migration `localStorage` → server.
-- Multi-device (same priority as shopping list backend).
-- **Prerequisite** for Phase 5 calendar (planned-not-cooked archive).
+See **[plan-shopping-persistence-spec.md](./plan-shopping-persistence-spec.md)** (decisions locked 2026-07-21).
 
-### Phase 5 — Historical calendar (deferred)
+- API + SQLite for meal plan (document or `meal_plan_entries`).
+- **No** localStorage → server migration (empty start).
+- Multi-device via last-write-wins; **no** user model.
+- Retain ~**30 days** of plan entries; longer history via `recipe_history` calendar later.
+- **Not** a prerequisite for shopping-history calendar layers (those are out of scope).
 
-**Vision:** Kalenderansicht über Zeit — was **gekocht** wurde (`recipe_history`), was **geplant** war, und was **geplant aber nicht gekocht** blieb (ggf. mit Hinweis „war auf Einkaufsliste“).
+### Phase 5 — Cook calendar (deferred, simplified)
 
-| Layer | Source today | Needed for full calendar |
-|-------|----------------|---------------------------|
-| Gekocht | `recipe_history` (backend) | ✅ already |
-| Geplant (offen/erledigt) | `localStorage` meal plan | Backend plan entries + history |
-| Geplant, nicht gekocht | Plan `cookedAt == null` on past dates | Persisted plan snapshots per day |
-| Eingekauft, nicht gekocht | Shopping `contributions` | Shopping backend or export log |
+**Vision:** Kalender aus **`recipe_history`** (was gekocht wurde). Planer speichert keine langfristige „verpasst“-Archivierung; ~30 Tage Plan-Retention reicht.
 
-**Why not localStorage-only:** Vergangene Plan-Slots ohne Backend gehen bei Roll-forward / Gerätewechsel verloren; „geplant aber nicht gekocht“ ist für eine verlässliche Historie nicht rekonstruierbar.
+| Layer | Source | Notes |
+|-------|--------|-------|
+| Gekocht | `recipe_history` | ✅ already; basis for calendar |
+| Geplant (kürzlich) | Backend plan (~30d) | Optional overlay; not long archive |
+| Eingekauft, nicht gekocht | — | **Out of scope** |
 
-**MVP calendar (after Phase 4):** Monatsraster, Farben/Icons: gekocht · geplant · verpasst; Tap → Rezeptdetail.
-
-**Later:** Wochenansicht aus Plan, Filter, Export.
+**MVP calendar:** Monatsraster aus Cook-Daten; Tap → Rezeptdetail.
 
 ---
 
@@ -352,12 +350,12 @@ score =
 
 | ID | Item | Notes |
 |----|------|-------|
-| **PLAN-TODO-1** | Backend persistence (`meal_plans` / `meal_plan_entries`) | Blocks Phase 5 calendar; same epic as `SHOP-TODO-1` |
-| **SHOP-TODO-1** | Shopping list backend sync | Needed for „eingekauft aber nicht gekocht“ in calendar |
-| **PLAN-TODO-2** | Multi-user / auth | Out of scope until needed |
+| **PLAN-TODO-1** | Backend persistence | See [plan-shopping-persistence-spec.md](./plan-shopping-persistence-spec.md) |
+| **SHOP-TODO-1** | Shopping list + aisle order backend | Same epic; no shopping history |
+| **PLAN-TODO-2** | Multi-user / auth | **Won’t do** (no user model) |
 | **PLAN-TODO-3** | „Ab morgen“ als Startoption | Nice-to-have after MVP |
 | **PLAN-TODO-5** | Rezepte mit `would_cook_again: no` in Bibliothek ausblenden/archivieren | Optional, außerhalb Plan-MVP |
-| **PLAN-TODO-6** | Historical calendar view (Phase 5) | After PLAN-TODO-1 + optional SHOP-TODO-1 |
+| **PLAN-TODO-6** | Cook calendar from `recipe_history` | After PLAN-TODO-1 optional; not shopping-based |
 
 ---
 
@@ -376,5 +374,5 @@ score =
 | Date | Change |
 |------|--------|
 | 2026-06-26 | Initial spec from product discussion (5–7 day dinner plan, suggestions, shopping batch, localStorage + backend TODO). |
-| 2026-06-26 | Resolved: past days stay visible; plan check-off → history; exclude `would_cook_again: no`; soft hint at 4 recipes/day. |
+| 2026-07-21 | Persistence decisions: multi-device, no auth, no LS migration, ~30d plan retention, cook calendar later, no shopping history. |
 | 2026-06-26 | Phase 2 suggestions: scoring, per-day UI, plan-suggestion-context API. |

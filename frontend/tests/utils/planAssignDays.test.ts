@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildAssignDayOptions } from '../../src/utils/planAssignDays'
-import { formatPlanDayCompactLabel } from '../../src/utils/mealPlanDates'
+import { formatPlanDayCompactLabel, formatPlanDayPopoverLabel } from '../../src/utils/mealPlanDates'
 
 describe('formatPlanDayCompactLabel', () => {
   const today = '2026-06-26'
@@ -13,6 +13,14 @@ describe('formatPlanDayCompactLabel', () => {
   it('uses weekday short label for later days', () => {
     expect(formatPlanDayCompactLabel('2026-06-28', today)).toEqual({ label: 'So', subLabel: '28' })
     expect(formatPlanDayCompactLabel('2026-06-29', today)).toEqual({ label: 'Mo', subLabel: '29' })
+  })
+})
+
+describe('formatPlanDayPopoverLabel', () => {
+  it('always uses weekday abbreviation, never Heute or Morgen', () => {
+    expect(formatPlanDayPopoverLabel('2026-06-26')).toEqual({ label: 'Fr', subLabel: '26' })
+    expect(formatPlanDayPopoverLabel('2026-06-27')).toEqual({ label: 'Sa', subLabel: '27' })
+    expect(formatPlanDayPopoverLabel('2026-06-29')).toEqual({ label: 'Mo', subLabel: '29' })
   })
 })
 
@@ -46,12 +54,16 @@ describe('buildAssignDayOptions', () => {
     expect(options[0]).toMatchObject({
       compactLabel: 'Morgen',
       subLabel: '27',
+      popoverLabel: 'Sa',
+      popoverSubLabel: '27',
       plannedCount: 0,
       isToday: false,
     })
     expect(options[1]).toMatchObject({
       compactLabel: 'So',
       subLabel: '28',
+      popoverLabel: 'So',
+      popoverSubLabel: '28',
       plannedCount: 0,
     })
   })

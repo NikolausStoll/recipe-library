@@ -1,7 +1,11 @@
 <template>
-  <section class="plan-suggestions-panel" aria-labelledby="plan-suggestions-panel-title">
+  <section
+    class="plan-suggestions-panel"
+    :class="{ 'plan-suggestions-panel--sidebar': layout === 'sidebar' }"
+    aria-labelledby="plan-suggestions-panel-title"
+  >
     <header class="plan-suggestions-panel__header">
-      <div>
+      <div class="plan-suggestions-panel__header-text">
         <h2 id="plan-suggestions-panel-title" class="plan-suggestions-panel__title">Vorschläge</h2>
         <p v-if="hint" class="plan-suggestions-panel__hint meta-text">{{ hint }}</p>
       </div>
@@ -24,7 +28,7 @@
           type="button"
           class="plan-suggestions-panel__card"
           :aria-label="`${suggestion.recipeTitle} einem Tag zuweisen`"
-          @click="emit('assign', suggestion)"
+          @click="emit('assign', suggestion, $event)"
         >
           <PlanRecipeThumb
             :image-url="imageUrl(suggestion.recipeId)"
@@ -32,7 +36,10 @@
           />
           <span class="plan-suggestions-panel__text">
             <span class="plan-suggestions-panel__recipe">{{ suggestion.recipeTitle }}</span>
-            <span v-if="primaryReason(suggestion)" class="plan-suggestions-panel__meta meta-text">
+            <span
+              v-if="layout !== 'sidebar' && primaryReason(suggestion)"
+              class="plan-suggestions-panel__meta meta-text"
+            >
               {{ primaryReason(suggestion) }}
             </span>
           </span>
@@ -47,17 +54,21 @@
 import PlanRecipeThumb from './PlanRecipeThumb.vue'
 import type { PlanSuggestionCandidate } from '../utils/planSuggestionScore'
 
-const props = defineProps<{
-  suggestions: PlanSuggestionCandidate[]
-  recipeImageUrls?: Record<number, string | null>
-  loading?: boolean
-  ready?: boolean
-  error?: string | null
-  hint?: string | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    suggestions: PlanSuggestionCandidate[]
+    recipeImageUrls?: Record<number, string | null>
+    loading?: boolean
+    ready?: boolean
+    error?: string | null
+    hint?: string | null
+    layout?: 'default' | 'sidebar'
+  }>(),
+  { layout: 'default' },
+)
 
 const emit = defineEmits<{
-  assign: [suggestion: PlanSuggestionCandidate]
+  assign: [suggestion: PlanSuggestionCandidate, event: MouseEvent]
 }>()
 
 function imageUrl(recipeId: number): string | null {
@@ -74,6 +85,7 @@ function primaryReason(suggestion: PlanSuggestionCandidate): string {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .plan-suggestions-panel__header {
@@ -82,6 +94,11 @@ function primaryReason(suggestion: PlanSuggestionCandidate): string {
   justify-content: space-between;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.plan-suggestions-panel__header-text {
+  min-width: 0;
 }
 
 .plan-suggestions-panel__title {
@@ -112,6 +129,7 @@ function primaryReason(suggestion: PlanSuggestionCandidate): string {
 .plan-suggestions-panel__status {
   margin: 0;
   font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
 .plan-suggestions-panel__status--error {
@@ -125,6 +143,7 @@ function primaryReason(suggestion: PlanSuggestionCandidate): string {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
   gap: var(--spacing-sm);
+  min-width: 0;
 }
 
 .plan-suggestions-panel__card {
@@ -190,6 +209,40 @@ function primaryReason(suggestion: PlanSuggestionCandidate): string {
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
+/* Desktop right-hand column */
+.plan-suggestions-panel--sidebar .plan-suggestions-panel__title {
+  font-size: 1.2rem;
+}
+
+.plan-suggestions-panel--sidebar .plan-suggestions-panel__hint {
+  max-width: none;
+  font-size: 0.8rem;
+}
+
+.plan-suggestions-panel--sidebar .plan-suggestions-panel__grid {
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 0.5rem;
+}
+
+.plan-suggestions-panel--sidebar .plan-suggestions-panel__card {
+  padding: 0.5rem 0.55rem;
+}
+
+.plan-suggestions-panel--sidebar .plan-suggestions-panel__recipe {
+  -webkit-line-clamp: 3;
+  font-size: 0.9rem;
+}
+
+.plan-suggestions-panel--sidebar .plan-suggestions-panel__card :deep(.plan-recipe-thumb) {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
 @media (max-width: 639px) {
   .plan-suggestions-panel__grid {
     grid-template-columns: 1fr;
@@ -197,6 +250,13 @@ function primaryReason(suggestion: PlanSuggestionCandidate): string {
 
   .plan-suggestions-panel__action {
     display: none;
+  }
+}
+
+@media (min-width: 960px) {
+  .plan-suggestions-panel--sidebar {
+    flex: 1;
+    min-height: 0;
   }
 }
 </style>

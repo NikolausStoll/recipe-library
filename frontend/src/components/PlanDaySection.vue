@@ -15,10 +15,12 @@
       <button
         v-if="!isPast"
         type="button"
-        class="btn btn--secondary btn--small plan-day__add"
+        class="plan-day__icon-btn"
+        aria-label="Rezept hinzufügen"
+        title="Rezept hinzufügen"
         @click="emit('add', day.date)"
       >
-        + Rezept
+        <span class="plan-day__icon-btn-glyph" aria-hidden="true">+</span>
       </button>
     </header>
 
@@ -60,11 +62,12 @@
           <button
             v-if="!entry.cookedAt && canMove"
             type="button"
-            class="btn btn--secondary btn--small plan-day__move-btn"
-            aria-label="Zu anderem Tag verschieben"
-            @click="emit('assign-move', entry.id, day.date, entry.recipeTitle)"
+            class="plan-day__icon-btn"
+            aria-label="Verschieben"
+            title="Verschieben"
+            @click="emit('assign-move', entry.id, day.date, entry.recipeTitle, $event)"
           >
-            Verschieben
+            <MoveVerticalIcon />
           </button>
 
           <button
@@ -87,6 +90,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import MoveVerticalIcon from './icons/MoveVerticalIcon.vue'
 import PlanRecipeThumb from './PlanRecipeThumb.vue'
 import type { PlanDay, PlanEntry } from '../utils/mealPlanTypes'
 import { formatPlanDayLabel, isPastIsoDate, isTodayIsoDate, isWeekendIsoDate, todayIsoDate } from '../utils/mealPlanDates'
@@ -104,7 +108,7 @@ const emit = defineEmits<{
   add: [date: string]
   remove: [entryId: string]
   cook: [entryId: string]
-  'assign-move': [entryId: string, sourceDate: string, recipeTitle: string]
+  'assign-move': [entryId: string, sourceDate: string, recipeTitle: string, event: MouseEvent]
 }>()
 
 const referenceToday = computed(() => props.today ?? todayIsoDate())
@@ -131,13 +135,6 @@ function entryImageUrl(entry: PlanEntry): string | null {
   padding-top: 0;
 }
 
-.plan-day--today {
-  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
-  margin-inline: calc(-1 * var(--spacing-md));
-  padding-inline: var(--spacing-md);
-  border-radius: var(--radius-md, 8px);
-}
-
 .plan-day--past {
   opacity: 0.88;
 }
@@ -161,18 +158,46 @@ function entryImageUrl(entry: PlanEntry): string | null {
   font-weight: 600;
 }
 
-.plan-day--today .plan-day__title {
-  color: var(--color-accent);
-}
-
 .plan-day__past-hint {
   color: var(--color-warning, #b45309);
   font-size: 0.8rem;
 }
 
-.plan-day__add {
+.plan-day__header .plan-day__icon-btn {
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.plan-day__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.plan-day__icon-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface-subtle));
+}
+
+.plan-day__icon-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.plan-day__icon-btn-glyph {
+  font-size: 1.15rem;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .plan-day__many-hint {
@@ -240,6 +265,7 @@ function entryImageUrl(entry: PlanEntry): string | null {
   align-items: center;
   gap: 0.25rem;
   flex-shrink: 0;
+  padding-right: 0.15rem;
 }
 
 .plan-day__cook {
@@ -250,12 +276,6 @@ function entryImageUrl(entry: PlanEntry): string | null {
   font-size: 0.78rem;
   color: var(--color-text-muted);
   padding: 0 0.25rem;
-}
-
-.plan-day__move-btn {
-  flex-shrink: 0;
-  font-size: 0.78rem;
-  padding-inline: 0.45rem;
 }
 
 .plan-day__remove {
@@ -278,11 +298,6 @@ function entryImageUrl(entry: PlanEntry): string | null {
 }
 
 @media (min-width: 960px) {
-  .plan-day--today {
-    margin-inline: calc(-1 * var(--spacing-xl));
-    padding-inline: var(--spacing-xl);
-  }
-
   .plan-day__item {
     padding: 0.55rem 0.75rem;
   }

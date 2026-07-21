@@ -59,7 +59,7 @@ Personal grocery list generated from recipe ingredients. Frontend-only (`localSt
 | Feature | Planned phase |
 |---------|----------------|
 | Nav badge (open item count) | Phase 2 (optional, skipped) |
-| Backend / multi-device sync | Phase 3 (deferred) |
+| Backend / multi-device sync | Phase 4 | See [plan-shopping-persistence-spec.md](./plan-shopping-persistence-spec.md) — list + aisle order; no LS migration |
 | Batch add from Plan | ✅ | `PlanShoppingBatchFlow.vue` on `/plan` |
 
 ---
@@ -85,7 +85,7 @@ See [UI components](#ui-components-implemented) and [Confirmed product decisions
 
 - ✅ **Merge suggestions** after list changes (e.g. “Rispentomaten zu Tomaten?”) — manual confirm only; substring match in same category, min length 4, stopwords (`Ei`, `Tee`, `Öl`).
 - ✅ **Copy as plain text** — “Kopieren” on `/shopping`; unchecked items only, grouped by category.
-- Backend persistence — **deferred**.
+- Backend persistence — **deferred** → [plan-shopping-persistence-spec.md](./plan-shopping-persistence-spec.md) (list + aisle order; last-write-wins; no user model).
 
 ### Phase 3.5 — Manual add ✅
 
@@ -128,7 +128,7 @@ flowchart LR
 |-------|----------|
 | Portions | Use the servings shown on the recipe detail when adding (scaled amounts). |
 | Default unchecked | Categories `pantry`, `spices` (Gewürze), and tap water by name (`Wasser`, `kochendes Wasser`, …). |
-| Persistence | `localStorage` (`recipe-library-shopping-list-v2`; migrates from v1). |
+| Persistence | MVP: `localStorage`. **Next:** server document ([plan-shopping-persistence-spec.md](./plan-shopping-persistence-spec.md)); aisle order server-side; no migration from LS. |
 | Item check-off | Strikethrough on screen; checked rows not printed. |
 | Clear | Whole list only (`Liste leeren`) in MVP. |
 | Name merge | Same ingredient + category; German singular/plural normalize to one key (Süßkartoffel ↔ Süßkartoffeln). No fuzzy merge (Tomaten ≠ Rispentomaten). |

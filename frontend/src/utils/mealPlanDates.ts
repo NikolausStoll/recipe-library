@@ -47,6 +47,13 @@ export function formatPlanDayLabel(isoDate: string, today = todayIsoDate()): str
   return `${weekday}, ${d}. ${month}${suffix}`
 }
 
+/** Weekday-only label for desktop assignment popover (no Heute/Morgen). */
+export function formatPlanDayPopoverLabel(isoDate: string): { label: string; subLabel: string } {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  return { label: WEEKDAY_SHORT_DE[dt.getDay()], subLabel: String(d) }
+}
+
 /** Compact label for day assignment UI: Heute / Morgen / Do + day number */
 export function formatPlanDayCompactLabel(
   isoDate: string,

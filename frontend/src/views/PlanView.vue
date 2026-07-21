@@ -49,42 +49,48 @@
       {{ suggestionStatusNotice }}
     </p>
 
-    <section class="plan-view__suggestions-primary surface-card">
-      <PlanSuggestionsPanel
-        :suggestions="flatSuggestions"
-        :recipe-image-urls="recipeImageUrls"
-        :loading="suggestionsLoading && !suggestionsHasLoaded"
-        :ready="suggestionsHasLoaded"
-        :error="suggestionsError"
-        :hint="suggestionsHint"
-        @assign="openAssignForSuggestion"
-      />
-    </section>
+    <div class="plan-view__columns">
+      <section class="plan-view__planned surface-card plan-view__panel">
+        <header class="plan-view__panel-header">
+          <h2 class="plan-view__panel-title">Geplant</h2>
+        </header>
+        <div class="plan-view__days">
+          <PlanDaySection
+            v-for="section in planDaySections"
+            :key="section.day.date"
+            :day="section.day"
+            :today="today"
+            :cooking-entry-id="cookingEntryId"
+            :recipe-image-urls="recipeImageUrls"
+            :can-move="section.isFutureOrToday && assignableDayCount > 1"
+            @add="openAddSheet"
+            @remove="onRemove"
+            @cook="onCook"
+            @assign-move="openAssignForMove"
+          />
+        </div>
+      </section>
 
-    <section class="plan-view__planned">
-      <h2 class="plan-view__planned-title">Geplant</h2>
-      <div class="surface-card plan-view__days">
-        <PlanDaySection
-          v-for="section in planDaySections"
-          :key="section.day.date"
-          :day="section.day"
-          :today="today"
-          :cooking-entry-id="cookingEntryId"
+      <section class="plan-view__suggestions-primary surface-card plan-view__panel">
+        <PlanSuggestionsPanel
+          :layout="isDesktopPlanLayout ? 'sidebar' : 'default'"
+          :suggestions="flatSuggestions"
           :recipe-image-urls="recipeImageUrls"
-          :can-move="section.isFutureOrToday && assignableDayCount > 1"
-          @add="openAddSheet"
-          @remove="onRemove"
-          @cook="onCook"
-          @assign-move="openAssignForMove"
+          :loading="suggestionsLoading && !suggestionsHasLoaded"
+          :ready="suggestionsHasLoaded"
+          :error="suggestionsError"
+          :hint="suggestionsHint"
+          @assign="openAssignForSuggestion"
         />
-      </div>
-    </section>
+      </section>
+    </div>
 
     <PlanAssignDaySheet
       :open="assignOpen"
       :title="assignTitle"
       :recipe-title="assignRecipeTitle"
       :days="assignDayOptions"
+      :anchor="assignAnchor"
       @close="closeAssign"
       @select="onAssignDay"
     />
@@ -132,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddToPlanSheet from '../components/AddToPlanSheet.vue'
 import PlanAssignDaySheet from '../components/PlanAssignDaySheet.vue'
 import PlanDaySection from '../components/PlanDaySection.vue'
@@ -144,6 +150,7 @@ import { useMealPlan } from '../composables/useMealPlan'
 import { usePlanShoppingBatch } from '../composables/usePlanShoppingBatch'
 import { usePlanSuggestions } from '../composables/usePlanSuggestions'
 import { buildAssignDayOptions } from '../utils/planAssignDays'
+import { anchorFromMouseEvent, type PlanAssignAnchor } from '../utils/planAssignAnchor'
 import { isPastIsoDate } from '../utils/mealPlanDates'
 import { collectPlanEntriesForShopping } from '../utils/planShoppingBatch'
 import {
@@ -153,6 +160,16 @@ import {
 } from '../utils/planWeekSummary'
 import { planEntryFromSuggestion, type PlanSuggestionCandidate, type WeekPlanSuggestion } from '../utils/planSuggestionScore'
 import { getRecipeCardImageUrl } from '../utils/recipeDisplayImage'
+
+const DESKTOP_PLAN_LAYOUT_MQ = '(min-width: 960px)'
+const isDesktopPlanLayout = ref(
+  typeof window !== 'undefined' ? window.matchMedia(DESKTOP_PLAN_LAYOUT_MQ).matches : false,
+)
+let desktopPlanLayoutMq: MediaQueryList | null = null
+
+function onDesktopPlanLayoutChange(event: MediaQueryListEvent) {
+  isDesktopPlanLayout.value = event.matches
+}
 
 const {
   plan,
@@ -232,7 +249,7 @@ const suggestionStatusNotice = computed(() => {
 
 const suggestionsHint = computed(() => {
   if (!suggestionsHasLoaded.value || totalSuggestionCount.value === 0) return null
-  return 'Tippe ein Rezept und wähle den Zieltag — jedes Rezept nur einmal pro Woche.'
+  return 'Rezept wählen und Zieltag zuweisen — jedes Rezept nur einmal pro Woche.'
 })
 
 type AssignContext =
@@ -241,6 +258,7 @@ type AssignContext =
 
 const assignOpen = ref(false)
 const assignContext = ref<AssignContext | null>(null)
+const assignAnchor = ref<PlanAssignAnchor | null>(null)
 
 const assignTitle = computed(() =>
   assignContext.value?.kind === 'move' ? 'Zu Tag verschieben' : 'Tag auswählen',
@@ -309,10 +327,19 @@ const recipeImageUrls = computed(() =>
 )
 
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    desktopPlanLayoutMq = window.matchMedia(DESKTOP_PLAN_LAYOUT_MQ)
+    isDesktopPlanLayout.value = desktopPlanLayoutMq.matches
+    desktopPlanLayoutMq.addEventListener('change', onDesktopPlanLayoutChange)
+  }
   refreshPlanWindow()
   await refreshSuggestions()
   await nextTick()
   document.getElementById(`plan-day-${today.value}`)?.scrollIntoView({ block: 'start' })
+})
+
+onBeforeUnmount(() => {
+  desktopPlanLayoutMq?.removeEventListener('change', onDesktopPlanLayoutChange)
 })
 
 function openAddSheet(date: string) {
@@ -339,19 +366,22 @@ function onSuggestAdd(date: string, suggestion: PlanSuggestionCandidate) {
   })
 }
 
-function openAssignForSuggestion(suggestion: PlanSuggestionCandidate) {
+function openAssignForSuggestion(suggestion: PlanSuggestionCandidate, event: MouseEvent) {
   assignContext.value = { kind: 'suggestion', suggestion }
+  assignAnchor.value = anchorFromMouseEvent(event)
   assignOpen.value = true
 }
 
-function openAssignForMove(entryId: string, sourceDate: string, recipeTitle: string) {
+function openAssignForMove(entryId: string, sourceDate: string, recipeTitle: string, event: MouseEvent) {
   assignContext.value = { kind: 'move', entryId, sourceDate, recipeTitle }
+  assignAnchor.value = anchorFromMouseEvent(event)
   assignOpen.value = true
 }
 
 function closeAssign() {
   assignOpen.value = false
   assignContext.value = null
+  assignAnchor.value = null
 }
 
 function onAssignDay(date: string) {
@@ -429,30 +459,45 @@ function dismissShoppingBatchNotice() {
   flex-shrink: 0;
 }
 
-.plan-view__suggestions-primary {
-  margin-bottom: var(--spacing-lg);
+.plan-view__columns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  min-width: 0;
+}
+
+.plan-view__panel {
+  min-width: 0;
   padding: var(--spacing-md) var(--spacing-lg);
+  --plan-panel-padding-inline: var(--spacing-lg);
+}
+
+.plan-view__panel-header {
+  margin-bottom: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.plan-view__panel-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.plan-view__suggestions-primary {
+  order: -1;
   border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-border));
   background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
-  min-width: 0;
 }
 
 .plan-view__planned {
-  min-width: 0;
-}
-
-.plan-view__planned-title {
-  margin: 0 0 var(--spacing-sm);
-  font-size: 0.88rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
 }
 
 .plan-view__days {
-  padding: var(--spacing-md) var(--spacing-lg);
   min-width: 0;
+  scrollbar-gutter: stable;
 }
 
 .plan-view__notice {
@@ -504,12 +549,57 @@ function dismissShoppingBatchNotice() {
 }
 
 @media (min-width: 640px) {
-  .plan-view__suggestions-primary {
+  .plan-view__panel {
     padding: var(--spacing-lg) var(--spacing-xl);
+    --plan-panel-padding-inline: var(--spacing-xl);
+  }
+}
+
+@media (min-width: 960px) {
+  .plan-view__columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(1.25rem, 2vw, 1.75rem);
+    align-items: stretch;
+  }
+
+  .plan-view__panel {
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-lg);
+    --plan-panel-padding-inline: var(--spacing-lg);
+    min-height: min(68vh, 36rem);
+    max-height: calc(100vh - var(--top-nav-height, 56px) - 10rem);
+    overflow: hidden;
+  }
+
+  .plan-view__panel-title {
+    font-size: 1.2rem;
+  }
+
+  .plan-view__planned {
+    grid-column: 1;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--top-nav-height, 56px) + var(--spacing-md));
   }
 
   .plan-view__days {
-    padding: var(--spacing-lg) var(--spacing-xl);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.65rem;
+  }
+
+  .plan-view__suggestions-primary {
+    order: unset;
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--top-nav-height, 56px) + var(--spacing-md));
+    border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+    background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 }
 </style>

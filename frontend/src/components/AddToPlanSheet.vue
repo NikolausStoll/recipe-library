@@ -10,7 +10,7 @@
     >
       <div class="add-to-plan__panel">
         <header class="add-to-plan__header">
-          <div>
+          <div class="add-to-plan__header-text">
             <h2 id="add-to-plan-title" class="add-to-plan__title">Rezept planen</h2>
             <p v-if="dayLabel" class="add-to-plan__subtitle meta-text">{{ dayLabel }}</p>
           </div>
@@ -19,54 +19,69 @@
           </button>
         </header>
 
-        <label class="add-to-plan__search">
-          <span class="add-to-plan__search-label">Suchen</span>
-          <input
-            ref="searchRef"
-            v-model="query"
-            type="search"
-            class="form__input"
-            placeholder="Rezepttitel…"
-            autocomplete="off"
-          />
-        </label>
+        <div class="add-to-plan__body">
+          <div class="search-field add-to-plan__search">
+            <svg class="search-field__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
+              <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <input
+              ref="searchRef"
+              v-model="query"
+              type="search"
+              class="search-field__input add-to-plan__search-input"
+              placeholder="Rezept suchen…"
+              aria-label="Rezept suchen"
+              autocomplete="off"
+            />
+          </div>
 
-        <div v-if="loading" class="add-to-plan__status meta-text">Lade Rezepte…</div>
-        <div v-else-if="loadError" class="add-to-plan__status add-to-plan__status--error">{{ loadError }}</div>
+          <div class="add-to-plan__list-wrap">
+            <div v-if="loading" class="add-to-plan__status meta-text">Lade Rezepte…</div>
+            <div v-else-if="loadError" class="add-to-plan__status add-to-plan__status--error">{{ loadError }}</div>
 
-        <ul v-else class="add-to-plan__list">
-          <li v-for="recipe in filteredRecipes" :key="recipe.id">
-            <button
-              type="button"
-              class="add-to-plan__recipe"
-              :class="{ 'add-to-plan__recipe--selected': selected?.id === recipe.id }"
-              @click="selectRecipe(recipe)"
-            >
-              <PlanRecipeThumb :image-url="getRecipeCardImageUrl(recipe)" :alt="recipe.title" />
-              <span class="add-to-plan__recipe-title">{{ recipe.title }}</span>
-            </button>
-          </li>
-          <li v-if="filteredRecipes.length === 0" class="add-to-plan__empty meta-text">Kein passendes Rezept.</li>
-        </ul>
+            <ul v-else class="add-to-plan__list">
+              <li v-for="recipe in filteredRecipes" :key="recipe.id">
+                <button
+                  type="button"
+                  class="add-to-plan__recipe"
+                  :class="{ 'add-to-plan__recipe--selected': selected?.id === recipe.id }"
+                  @click="selectRecipe(recipe)"
+                >
+                  <PlanRecipeThumb :image-url="getRecipeCardImageUrl(recipe)" :alt="recipe.title" />
+                  <span class="add-to-plan__recipe-text">
+                    <span class="add-to-plan__recipe-title">{{ recipe.title }}</span>
+                    <span v-if="recipeServingsLabel(recipe)" class="add-to-plan__recipe-meta meta-text">
+                      {{ recipeServingsLabel(recipe) }}
+                    </span>
+                  </span>
+                </button>
+              </li>
+              <li v-if="filteredRecipes.length === 0" class="add-to-plan__empty meta-text">
+                Kein passendes Rezept.
+              </li>
+            </ul>
+          </div>
+        </div>
 
-        <div v-if="selected" class="add-to-plan__servings">
-          <label class="add-to-plan__servings-label">
-            Portionen
+        <footer class="add-to-plan__footer">
+          <label v-if="selected" class="add-to-plan__servings">
+            <span class="add-to-plan__servings-label">Portionen</span>
             <input
               v-model.number="servings"
               type="number"
               min="1"
               max="99"
-              class="form__input add-to-plan__servings-input"
+              class="add-to-plan__servings-input"
+              aria-label="Portionen"
             />
           </label>
-        </div>
-
-        <footer class="add-to-plan__footer">
-          <button type="button" class="btn btn--secondary" @click="emit('close')">Abbrechen</button>
-          <button type="button" class="btn btn--primary" :disabled="!selected" @click="onConfirm">
-            Hinzufügen
-          </button>
+          <div class="add-to-plan__footer-actions">
+            <button type="button" class="btn btn--secondary btn--small" @click="emit('close')">Abbrechen</button>
+            <button type="button" class="btn btn--primary btn--small" :disabled="!selected" @click="onConfirm">
+              Hinzufügen
+            </button>
+          </div>
         </footer>
       </div>
     </div>
@@ -130,6 +145,14 @@ async function loadRecipes() {
   }
 }
 
+function recipeServingsLabel(recipe: RecipeListItemWithIngredients): string | null {
+  const value = recipe.servings_value ?? recipe.servings
+  if (value == null) return null
+  const n = Math.round(Number(value))
+  if (!Number.isFinite(n) || n <= 0) return null
+  return `${n} ${n === 1 ? 'Portion' : 'Portionen'}`
+}
+
 function selectRecipe(recipe: RecipeListItemWithIngredients) {
   selected.value = recipe
   const base = recipe.servings_value ?? recipe.servings ?? 2
@@ -163,105 +186,166 @@ function onConfirm() {
 
 <style scoped>
 .add-to-plan__panel {
-  width: min(100%, 28rem);
-  max-height: min(85vh, 36rem);
+  width: min(100%, 26rem);
+  max-height: min(88vh, 30rem);
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
   border-radius: var(--radius-lg, 12px);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-soft);
+  overflow: hidden;
 }
 
 .add-to-plan__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-sm);
+  gap: var(--spacing-sm);
+  padding: 0.75rem 0.85rem 0.4rem;
+  flex-shrink: 0;
+}
+
+.add-to-plan__header-text {
+  min-width: 0;
 }
 
 .add-to-plan__title {
-  font-size: 1.125rem;
+  margin: 0;
+  font-size: 1.05rem;
   font-weight: 600;
+  line-height: 1.25;
+}
+
+.add-to-plan__subtitle {
+  margin: 0.12rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.3;
 }
 
 .add-to-plan__close {
   border: none;
   background: transparent;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
+  line-height: 1;
   color: var(--color-text-muted);
   cursor: pointer;
+  padding: 0.1rem 0.25rem;
+  flex-shrink: 0;
+}
+
+.add-to-plan__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0 0.85rem;
+  flex: 1;
+  min-height: 0;
 }
 
 .add-to-plan__search {
-  display: block;
-  padding: 0 var(--spacing-lg) var(--spacing-sm);
+  flex-shrink: 0;
 }
 
-.add-to-plan__search-label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin-bottom: 0.25rem;
+.add-to-plan__search-input {
+  min-height: 2.25rem;
+  padding: 0 0.65rem 0 2.15rem;
+  font-size: 0.9rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-subtle);
+}
+
+.add-to-plan__search .search-field__icon {
+  left: 0.6rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+.add-to-plan__list-wrap {
+  flex: 1;
+  min-height: 7.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-subtle);
 }
 
 .add-to-plan__list {
   list-style: none;
   margin: 0;
-  padding: 0 var(--spacing-lg);
+  padding: 0;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  max-height: 14rem;
+  scrollbar-gutter: stable;
 }
 
 .add-to-plan__recipe {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: 0.5rem;
   width: 100%;
   text-align: left;
-  padding: 0.55rem 0;
+  padding: 0.38rem 0.5rem;
   border: none;
   border-top: 1px solid var(--color-border);
   background: transparent;
   cursor: pointer;
   color: var(--color-text);
-}
-
-.add-to-plan__recipe-title {
-  flex: 1;
-  min-width: 0;
+  transition: background 0.12s ease;
 }
 
 .add-to-plan__list li:first-child .add-to-plan__recipe {
   border-top: none;
 }
 
-.add-to-plan__recipe:hover,
+.add-to-plan__recipe:hover {
+  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface-subtle));
+}
+
 .add-to-plan__recipe--selected {
-  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-subtle));
+  box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
-.add-to-plan__servings {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
+.add-to-plan__recipe :deep(.plan-recipe-thumb) {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
 }
 
-.add-to-plan__servings-label {
+.add-to-plan__recipe-text {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-size: 0.9rem;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1;
 }
 
-.add-to-plan__servings-input {
-  width: 4rem;
+.add-to-plan__recipe-title {
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.add-to-plan__recipe--selected .add-to-plan__recipe-title {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.add-to-plan__recipe-meta {
+  font-size: 0.72rem;
+  line-height: 1.2;
 }
 
 .add-to-plan__status {
-  padding: var(--spacing-md) var(--spacing-lg);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.85rem;
 }
 
 .add-to-plan__status--error {
@@ -269,14 +353,77 @@ function onConfirm() {
 }
 
 .add-to-plan__empty {
-  padding: var(--spacing-md) 0;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.85rem;
 }
 
 .add-to-plan__footer {
   display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-lg);
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem 0.7rem;
   border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-subtle) 40%, var(--color-surface));
+  flex-shrink: 0;
+}
+
+.add-to-plan__servings {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  min-width: 0;
+}
+
+.add-to-plan__servings-label {
+  flex-shrink: 0;
+}
+
+.add-to-plan__servings-input {
+  width: 3rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.add-to-plan__servings-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.add-to-plan__footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+@media (max-width: 639px) {
+  .add-to-plan.app-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .add-to-plan__panel {
+    width: 100%;
+    max-height: min(88vh, 34rem);
+    border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
+    border-bottom: none;
+  }
+
+  .add-to-plan__list-wrap {
+    min-height: 10rem;
+  }
 }
 </style>

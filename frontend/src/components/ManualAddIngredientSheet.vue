@@ -30,18 +30,22 @@
           />
         </label>
 
-        <ul v-if="suggestions.length" class="manual-add-ingredient__suggestions">
-          <li v-for="item in suggestions" :key="item.name">
-            <button type="button" class="manual-add-ingredient__suggestion" @click="selectSuggestion(item)">
-              <span>{{ item.name }}</span>
-              <span class="manual-add-ingredient__category meta-text">{{ categoryLabel(item.category) }}</span>
-            </button>
-          </li>
-        </ul>
-
-        <p v-else-if="query.trim()" class="meta-text manual-add-ingredient__empty">
-          Kein Vorschlag — Enter legt „{{ query.trim() }}“ unter Sonstiges an.
-        </p>
+        <div class="manual-add-ingredient__results" aria-live="polite">
+          <ul v-if="suggestions.length" class="manual-add-ingredient__suggestions">
+            <li v-for="item in suggestions" :key="item.name">
+              <button type="button" class="manual-add-ingredient__suggestion" @click="selectSuggestion(item)">
+                <span>{{ item.name }}</span>
+                <span class="manual-add-ingredient__category meta-text">{{ categoryLabel(item.category) }}</span>
+              </button>
+            </li>
+          </ul>
+          <p v-else-if="query.trim()" class="meta-text manual-add-ingredient__empty">
+            Kein Vorschlag — Enter legt „{{ query.trim() }}“ unter Sonstiges an.
+          </p>
+          <p v-else class="meta-text manual-add-ingredient__empty">
+            Tippe, um Vorschläge zu sehen.
+          </p>
+        </div>
 
         <footer class="manual-add-ingredient__footer">
           <button type="button" class="btn btn--secondary" @click="emit('close')">Fertig</button>
@@ -154,14 +158,21 @@ async function afterAdd() {
   width: 100%;
 }
 
-.manual-add-ingredient__suggestions {
-  list-style: none;
+.manual-add-ingredient__results {
+  height: 14rem;
   margin: var(--spacing-sm) var(--spacing-lg) 0;
-  padding: 0;
-  max-height: 14rem;
-  overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-subtle);
+  overflow: hidden;
+}
+
+.manual-add-ingredient__suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .manual-add-ingredient__suggestion {
@@ -183,7 +194,7 @@ async function afterAdd() {
 }
 
 .manual-add-ingredient__suggestion:hover {
-  background: var(--color-surface-subtle);
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface-subtle));
 }
 
 .manual-add-ingredient__category {
@@ -192,7 +203,9 @@ async function afterAdd() {
 }
 
 .manual-add-ingredient__empty {
-  padding: var(--spacing-sm) var(--spacing-lg) 0;
+  margin: 0;
+  padding: 0.75rem var(--spacing-sm);
+  font-size: 0.85rem;
 }
 
 .manual-add-ingredient__footer {
