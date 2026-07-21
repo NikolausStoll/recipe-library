@@ -54,6 +54,8 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 | `npm run build` | Build the frontend bundle. |
 | `npm run start` | Run the production backend server (expects built frontend + env). |
 | `npm --prefix backend run test` | Run backend test suite (`node --test tests/**/*.test.js`). |
+| `npm --prefix frontend run test` | Run frontend test suite (`vitest run`). |
+| `npm test` | Run backend + frontend tests (both must pass). |
 | `npm --prefix backend run evaluate-vision` | Run the backend vision-evaluation helper. |
 | `npm --prefix frontend run preview` | Serve the built frontend for manual verification. |
 
@@ -68,6 +70,7 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 - Consider mobile, tablet, desktop, light/dark modes, and the PWA install experience when adjusting UI/layout.
 - Leave `.env` secrets out of the repo; mention only the needed keys in docs.
 - Avoid touching LLM prompts, JSON schema, or pipeline wiring unless a task explicitly asks for it.
+- **Version bumps:** When the user asks to bump the version, **first** run the full test suite (`npm test` — backend + frontend) and only bump version numbers if **all tests pass**. If anything fails, fix the failures (or report them) and do **not** change version files until green. Prefer SemVer honestly (patch = fixes only; minor = new features/UX; major = breaking).
 
 ## Import & AI pipeline
 
@@ -101,7 +104,8 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 
 ## Testing & verification
 
-- Use the provided scripts (`npm run dev`, `npm run build`, backend `npm --prefix backend run test`, `npm --prefix backend run evaluate-vision`, frontend `npm --prefix frontend run preview`) to verify functionality.
+- Use the provided scripts (`npm run dev`, `npm run build`, `npm test`, backend `npm --prefix backend run evaluate-vision`, frontend `npm --prefix frontend run preview`) to verify functionality.
+- Before any **version bump** requested by the user: run `npm test` and require a green suite (see Working rules).
 - After UI/import changes, manually exercise: list/detail views, cooking mode, recipe edit, image import, URL import, tag generation, estimate endpoints, and sources/covers.
 - For AI features, ensure `OPENAI_API_KEY` is set locally and inspect `ai_token_usage` if debugging (token logging is always on).
 - Verify PWA behavior by building + running the preview/production server (`npm run build` + `npm run start`).

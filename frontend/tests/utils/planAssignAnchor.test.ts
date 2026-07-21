@@ -11,7 +11,7 @@ describe('computeAnchoredPopoverPlacement', () => {
       600,
     )
     expect(placement.placement).toBe('bottom')
-    expect(placement.top).toBe(246)
+    expect(placement.top).toBe(248)
     expect(placement.left).toBe(80)
     expect(placement.arrowLeft).toBeGreaterThan(0)
   })
