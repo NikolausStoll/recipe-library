@@ -100,5 +100,3 @@ export function computeAnchoredPopoverPlacement(
 
   return { top, left, placement, arrowLeft }
 }
-
-export { ANCHOR_SIZE }
