@@ -47,15 +47,15 @@ Used by `POST /api/recipes/extract-from-url` / `POST /api/recipes/import-from-ur
 | Add-on option | Environment variable | Default | Description |
 | ------------- | -------------------- | ------- | ----------- |
 | `openai_normalize_model_primary` | `OPENAI_NORMALIZE_MODEL_PRIMARY` | `gpt-4o-mini` | Model for `.normalizeRecipeWithLLM`. |
-| `openai_normalize_temperature` | `OPENAI_NORMALIZE_TEMPERATURE` | `0.2` | Temperature (0–0.3 recommended). |
+| `openai_normalize_temperature` | `OPENAI_NORMALIZE_TEMPERATURE` | `0.2` | Temperature for models that support it (0–0.3 recommended); omitted automatically for GPT-5 and o-series reasoning models. |
 | `openai_nutrition_model` | `OPENAI_NUTRITION_MODEL` | `gpt-4o-mini` | Nutrition estimation model. |
-| `openai_nutrition_model_temperature` | `OPENAI_NUTRITION_MODEL_TEMPERATURE` | `0.2` | Temperature (clamped 0–0.3). |
+| `openai_nutrition_model_temperature` | `OPENAI_NUTRITION_MODEL_TEMPERATURE` | `0.2` | Temperature for models that support it (clamped 0–0.3); omitted automatically for GPT-5 and o-series reasoning models. |
 | `openai_health_score_model` | `OPENAI_HEALTH_SCORE_MODEL` | `gpt-4o-mini` | Health score estimation model. |
-| `openai_health_score_temperature` | `OPENAI_HEALTH_SCORE_TEMPERATURE` | `0.2` | Temperature (clamped 0–0.3). |
+| `openai_health_score_temperature` | `OPENAI_HEALTH_SCORE_TEMPERATURE` | `0.2` | Temperature for models that support it (clamped 0–0.3); omitted automatically for GPT-5 and o-series reasoning models. |
 | `openai_time_estimate_model` | `OPENAI_TIME_ESTIMATE_MODEL` | `gpt-4o-mini` | Time estimate model. |
-| `openai_time_estimate_temperature` | `OPENAI_TIME_ESTIMATE_TEMPERATURE` | `0.2` | Temperature (clamped 0–0.3). |
+| `openai_time_estimate_temperature` | `OPENAI_TIME_ESTIMATE_TEMPERATURE` | `0.2` | Temperature for models that support it (clamped 0–0.3); omitted automatically for GPT-5 and o-series reasoning models. |
 | `openai_recipe_tag_model` | `OPENAI_RECIPE_TAG_MODEL` | `gpt-4o-mini` | Controlled vocabulary tagging. |
-| `openai_recipe_tag_temperature` | `OPENAI_RECIPE_TAG_TEMPERATURE` | `0.2` | Temperature (clamped). |
+| `openai_recipe_tag_temperature` | `OPENAI_RECIPE_TAG_TEMPERATURE` | `0.2` | Temperature for models that support it; omitted automatically for GPT-5 and o-series reasoning models. |
 
 Cup conversion, tagging, and the other AI helpers log token usage in `ai_token_usage`; the container mirrors the upstream `logAiTokenUsage` calls.
 

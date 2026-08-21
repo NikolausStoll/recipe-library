@@ -1,6 +1,6 @@
 {
   "name": "recipe-library-backend",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "private": true,
   "type": "module",
   "main": "src/server.js",
@@ -16,6 +16,6 @@
     "express": "^4.19.2",
     "multer": "^2.0.0",
     "openai": "^4.73.0",
-    "sharp": "^0.33.0"
+    "sharp": "^0.35.3"
   }
 }

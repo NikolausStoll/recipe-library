@@ -1,11 +1,9 @@
 /**
  * OpenAI chat.completions.create helpers.
- * Some models reject custom temperature; only default (1) is allowed.
- * Add model ids to NO_CUSTOM_TEMPERATURE_MODELS as you discover them.
+ * Reasoning models reject custom temperature; only the default (1) is allowed.
+ * Keep the check family-based so dated snapshots and newly released variants
+ * do not require a code change.
  */
-
-/** Model id substrings that must not receive a custom temperature param. */
-const NO_CUSTOM_TEMPERATURE_MODELS = ['gpt-5-nano', 'gpt-5-mini']
 
 /**
  * @param {string|null|undefined} model
@@ -14,7 +12,7 @@ const NO_CUSTOM_TEMPERATURE_MODELS = ['gpt-5-nano', 'gpt-5-mini']
 export function modelSupportsCustomTemperature(model) {
   if (!model || typeof model !== 'string') return true
   const m = model.toLowerCase().trim()
-  return !NO_CUSTOM_TEMPERATURE_MODELS.some((id) => m.includes(id))
+  return !/^(?:gpt-5(?:[.-]|$)|o[1-9](?:[.-]|$))/.test(m)
 }
 
 /**

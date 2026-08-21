@@ -8,26 +8,31 @@ import {
 } from '../../src/utils/openaiChatParams.js'
 
 describe('modelSupportsCustomTemperature', () => {
-  it('returns false only for gpt-5-nano variants', () => {
-    for (const model of ['gpt-5-nano', 'gpt-5-nano-2025-08-07']) {
-      assert.equal(modelSupportsCustomTemperature(model), false, model)
-    }
-  })
-
-  it('returns false for gpt-5-mini variants', () => {
-    for (const model of ['gpt-5-mini', 'gpt-5-mini-2025-08-07']) {
-      assert.equal(modelSupportsCustomTemperature(model), false, model)
-    }
-  })
-
-  it('returns true for other models including other gpt-5 variants', () => {
+  it('returns false for all gpt-5 family variants', () => {
     for (const model of [
       'gpt-5',
-      'gpt-5.4-nano',
+      'gpt-5-2025-08-07',
+      'gpt-5-mini',
+      'gpt-5-nano-2025-08-07',
+      'gpt-5.4-mini',
+      'gpt-5.6-luna',
       'gpt-5-chat-latest',
+    ]) {
+      assert.equal(modelSupportsCustomTemperature(model), false, model)
+    }
+  })
+
+  it('returns false for o-series reasoning model variants', () => {
+    for (const model of ['o1', 'o1-mini', 'o3-2025-04-16', 'o4-mini']) {
+      assert.equal(modelSupportsCustomTemperature(model), false, model)
+    }
+  })
+
+  it('returns true for non-reasoning models', () => {
+    for (const model of [
       'gpt-4o-mini',
       'gpt-4.1-mini',
-      'o4-mini',
+      'gpt-5x-compatible',
     ]) {
       assert.equal(modelSupportsCustomTemperature(model), true, model)
     }
