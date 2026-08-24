@@ -6,28 +6,51 @@
 
 /** @type {Record<string, { input: number, cachedInput: number, output: number }>} */
 export const PRICING_USD_PER_1M = {
+  // GPT-5.6
+  'gpt-5.6': { input: 4.0, cachedInput: 0.4, output: 20.0 }, // alias → Sol
+  'gpt-5.6-sol': { input: 4.0, cachedInput: 0.4, output: 20.0 },
+  'gpt-5.6-terra': { input: 2.0, cachedInput: 0.2, output: 12.0 },
+  'gpt-5.6-luna': { input: 0.2, cachedInput: 0.02, output: 1.2 },
+
+  // GPT-5.5
   'gpt-5.5': { input: 5.0, cachedInput: 0.5, output: 30.0 },
+
+  // GPT-5.4
   'gpt-5.4': { input: 2.5, cachedInput: 0.25, output: 15.0 },
   'gpt-5.4-mini': { input: 0.75, cachedInput: 0.075, output: 4.5 },
   'gpt-5.4-nano': { input: 0.2, cachedInput: 0.02, output: 1.25 },
+
+  // GPT-5.2
   'gpt-5.2': { input: 1.75, cachedInput: 0.175, output: 14.0 },
+
+  // GPT-5.1
   'gpt-5.1': { input: 1.25, cachedInput: 0.125, output: 10.0 },
+
+  // GPT-5
   'gpt-5': { input: 1.25, cachedInput: 0.125, output: 10.0 },
   'gpt-5-mini': { input: 0.25, cachedInput: 0.025, output: 2.0 },
   'gpt-5-nano': { input: 0.05, cachedInput: 0.005, output: 0.4 },
+
+  // GPT-4.1
   'gpt-4.1': { input: 2.0, cachedInput: 0.5, output: 8.0 },
   'gpt-4.1-mini': { input: 0.4, cachedInput: 0.1, output: 1.6 },
   'gpt-4.1-nano': { input: 0.1, cachedInput: 0.025, output: 0.4 },
+
+  // GPT-4o
   'gpt-4o': { input: 2.5, cachedInput: 1.25, output: 10.0 },
   'gpt-4o-mini': { input: 0.15, cachedInput: 0.075, output: 0.6 },
 }
 
 /** Most specific model id first (avoids gpt-5 matching gpt-5.4, etc.). */
 const MODEL_MATCH_ORDER = [
+  'gpt-5.6-luna',
+  'gpt-5.6-terra',
+  'gpt-5.6-sol',
+  'gpt-5.6',
+  'gpt-5.5',
   'gpt-5.4-nano',
   'gpt-5.4-mini',
   'gpt-5.4',
-  'gpt-5.5',
   'gpt-5.2',
   'gpt-5.1',
   'gpt-5-nano',

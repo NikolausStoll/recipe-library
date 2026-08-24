@@ -22,6 +22,7 @@ describe('resolvePricingKey', () => {
   })
 
   it('prefers more specific gpt-5.x variants over gpt-5', () => {
+    assert.equal(resolvePricingKey('gpt-5.6-luna-2026-08-01'), 'gpt-5.6-luna')
     assert.equal(resolvePricingKey('gpt-5.4'), 'gpt-5.4')
     assert.equal(resolvePricingKey('gpt-5.4-mini'), 'gpt-5.4-mini')
     assert.equal(resolvePricingKey('gpt-5.1'), 'gpt-5.1')
@@ -48,6 +49,11 @@ describe('computeRequestCostUsd', () => {
   it('computes gpt-5.2 pricing', () => {
     const usd = computeRequestCostUsd(1_000_000, 1_000_000, 'gpt-5.2')
     assert.equal(usd, 1.75 + 14.0)
+  })
+
+  it('computes gpt-5.6-luna pricing', () => {
+    const usd = computeRequestCostUsd(1_000_000, 1_000_000, 'gpt-5.6-luna')
+    assert.equal(usd, 0.2 + 1.2)
   })
 
   it('returns null for unknown model', () => {
