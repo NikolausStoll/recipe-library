@@ -29,10 +29,19 @@ Extraction fidelity:
 - Preserve the original wording, sentence structure, tone, and level of detail whenever the text is readable.
 - Do not omit readable words, phrases, clauses, warnings, explanations, timings, or serving advice.
 - Do not replace readable wording with shorter or more elegant wording.
-- Use context only to resolve an obvious character or word recognition error.
-- Do not use context to rewrite or improve a readable sentence.
-- If text is damaged or partially unreadable, preserve the readable portion and do not freely reconstruct missing content.
-- Structural normalization is allowed where required by the JSON schema, but the underlying visible meaning must remain unchanged.
+- Use context only to resolve obvious character or word recognition errors.
+
+Partial text reconstruction:
+- If a sentence is mostly readable but one or a few words are obscured, damaged, or cut off, reconstruct the missing words using the visible context.
+- Reconstruction is allowed only when the missing text is strongly implied by the surrounding sentence and recipe context.
+- Prefer the smallest possible reconstruction: replace missing words or short phrases, not whole sentences or paragraphs.
+- Preserve all readable text exactly; only reconstruct the missing part.
+- Do not rewrite or stylistically improve the reconstructed sentence.
+- Do not use "..." when a short missing word or phrase can be confidently reconstructed.
+- If a larger passage is unreadable or the intended wording is uncertain, do not invent the content. Preserve the readable portion and add a warning.
+- A seemingly truncated word or phrase may be a damaged/occluded word rather than an intentional ellipsis; resolve it when the intended wording is strongly supported by context.
+
+Structural normalization is allowed where required by the JSON schema, but the underlying visible meaning must remain unchanged.
 
 ${INGREDIENT_EXTRACT_SUMMARY_RULES}
 
