@@ -95,17 +95,30 @@ const CUP_HANDLING_NORMALIZATION = `Cup handling:
 - Do not estimate grams or ml for cup ingredients in this step.
 - Cup conversion is handled by a separate pipeline step after normalization.`
 
-/**
- * @param {{ unitLanguage?: 'de' | 'en', includeAmountMaxRule?: boolean, includeCupHandling?: boolean, germanIngredientNames?: boolean }} [options]
- * @returns {string}
- */
+const FAITHFUL_EXTRACTION_RULES = `Extraction fidelity:
+- Treat the image as the source of truth.
+- Extract visible recipe text as faithfully as possible.
+- Do not paraphrase, summarize, rewrite, improve, or editorialize visible text.
+- Preserve original wording, sentence structure, tone, and level of detail whenever the text is readable.
+- Do not omit readable words, phrases, clauses, warnings, explanations, or serving advice.
+- Do not replace readable wording with shorter or more elegant wording.
+- Use context only to resolve an obvious character or word recognition error.
+- Do not use context to rewrite or improve a readable sentence.
+- If text is damaged or partially unreadable, preserve the readable portion and do not freely reconstruct missing content.
+- Structural normalization is allowed for amount, unit, ingredient, and additionalInfo, but the underlying visible meaning must remain unchanged.`
+
 export function buildIngredientParsingPromptBlock(options = {}) {
   const unitLanguage = options.unitLanguage === 'en' ? 'en' : 'de'
   const includeAmountMaxRule = options.includeAmountMaxRule !== false
   const includeCupHandling = options.includeCupHandling === true
   const germanIngredientNames = options.germanIngredientNames === true || unitLanguage === 'de'
+  const faithfulExtraction = options.faithfulExtraction === true
 
   const lines = ['Ingredient parsing:', FIELD_SPLIT_RULES]
+
+  if (faithfulExtraction) {
+    lines.push(FAITHFUL_EXTRACTION_RULES)
+  }
 
   if (includeAmountMaxRule) {
     lines.push(
@@ -116,7 +129,10 @@ export function buildIngredientParsingPromptBlock(options = {}) {
   if (germanIngredientNames) {
     lines.push('- unit is German or null.', '- ingredient is a clean German name.')
   } else {
-    lines.push('- unit matches the visible source language when present, or null.', '- ingredient is a clean normalized name.')
+    lines.push(
+      '- unit matches the visible source language when present, or null.',
+      '- ingredient is a clean normalized name.',
+    )
   }
 
   lines.push(
@@ -124,7 +140,9 @@ export function buildIngredientParsingPromptBlock(options = {}) {
     '- ingredient originalText preserves the original source line.',
     '- category must be exactly one allowed category.',
     '',
-    unitLanguage === 'de' ? METRIC_AND_SPOON_UNITS_DE : METRIC_AND_SPOON_UNITS_EN,
+    unitLanguage === 'de'
+      ? METRIC_AND_SPOON_UNITS_DE
+      : METRIC_AND_SPOON_UNITS_EN,
     '',
     unitLanguage === 'de' ? CULINARY_UNITS_DE : CULINARY_UNITS_EN,
     '',
@@ -139,6 +157,7 @@ export function buildIngredientParsingPromptBlock(options = {}) {
 }
 
 /** Short rules for vision-extract base prompt (before full parsing block). */
-export const INGREDIENT_EXTRACT_SUMMARY_RULES = `- Keep ingredient names clean and normalized; preserve the visible ingredient line in originalText.
+export const INGREDIENT_EXTRACT_SUMMARY_RULES = `- Extract ingredient information from the visible source as faithfully as possible.
+- Preserve the visible ingredient line in originalText.
 - Parse visible amounts and culinary units into amount, amountMax, and unit — never into additionalInfo.
 - Put only preparation notes, alternatives, and modifiers (e.g. diced, roasted) into additionalInfo — not pinch, handful, drizzle, splash, or similar quantity phrases.`

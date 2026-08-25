@@ -22,6 +22,18 @@ Rules:
 - If a value is not clearly visible, use null.
 - If something is missing, cut off, or uncertain, add an entry to warnings and/or missingFields.
 
+Extraction fidelity:
+- Treat the image as the source of truth.
+- Extract visible recipe text as faithfully as possible.
+- Do not paraphrase, summarize, rewrite, improve, or editorialize visible text.
+- Preserve the original wording, sentence structure, tone, and level of detail whenever the text is readable.
+- Do not omit readable words, phrases, clauses, warnings, explanations, timings, or serving advice.
+- Do not replace readable wording with shorter or more elegant wording.
+- Use context only to resolve an obvious character or word recognition error.
+- Do not use context to rewrite or improve a readable sentence.
+- If text is damaged or partially unreadable, preserve the readable portion and do not freely reconstruct missing content.
+- Structural normalization is allowed where required by the JSON schema, but the underlying visible meaning must remain unchanged.
+
 ${INGREDIENT_EXTRACT_SUMMARY_RULES}
 
 - Ingredient section headings may contain serving information.
@@ -31,13 +43,16 @@ ${INGREDIENT_EXTRACT_SUMMARY_RULES}
 - Use amount as the lower value and amountMax as the upper value for ranges.
 - For exact amounts, set amountMax equal to amount.
 
-- Keep step texts concise but faithful to the visible text.
-- Group closely related actions into one step when they belong to the same preparation phase and happen consecutively.
-- Do not create a separate step for every single verb.
-- Prefer fewer, more useful cooking steps over overly atomic action splitting.
-- Split steps only when there is a meaningful change in phase, tool, vessel, timing, or cooking process.
-- Keep ingredient prep for the same component together in one step where reasonable.
-- A step should represent a practical unit a cook would perform, not a grammatical clause.
+Step extraction:
+- Preserve the visible wording as closely as possible.
+- Do not paraphrase or summarize steps.
+- Do not omit visible clauses or sentences.
+- Keep all visible instructions, warnings, explanations, timings, and serving instructions.
+- Preserve the original step order and numbering.
+- Keep actions together when they belong to the same source step.
+- Do not merge separate numbered steps.
+- Do not split a numbered step unless the source structure clearly requires it.
+- A step should represent the source text shown in the image, not a rewritten interpretation of what the cook should do.
 
 - Do not invent servings or title if they are not visible in the image.
 - If preparation time or cooking time in minutes is explicitly stated on the image, set recipe.prepTimeMinutes and/or recipe.cookTimeMinutes; otherwise use null.
@@ -59,6 +74,8 @@ Rules for categorization:
 - If almost nothing reliable can be extracted, set status to "failed" and recipe to null.
 
 - Confidence must be a number between 0 and 1 representing overall extraction quality.
+- Confidence reflects transcription certainty, not plausibility of inferred content.
+- Do not increase confidence because missing or damaged text can be guessed from context.
 
 - Return JSON only. No markdown, no explanations, no code fences.
 
@@ -143,14 +160,19 @@ export function buildImageExtractionPrompt(translateToGerman = false) {
     unitLanguage: translateToGerman ? 'de' : 'en',
     includeAmountMaxRule: true,
     germanIngredientNames: translateToGerman,
+    faithfulExtraction: true,
   })
+
   const finalLanguageInstruction = translateToGerman
     ? GERMAN_OUTPUT_INSTRUCTION
     : ORIGINAL_LANGUAGE_INSTRUCTION
+
   const base = EXTRACT_PROMPT_BODY + parsingBlock + finalLanguageInstruction
+
   if (translateToGerman) {
     return `${base}\n\n${GERMAN_TRANSLATION_ADDON}`
   }
+
   return base
 }
 
@@ -168,6 +190,7 @@ export function buildImageExtractionUserMessage(translateToGerman = false) {
       'Set recipe.language to "de". Return valid JSON matching the schema.'
     )
   }
+
   return 'Extract the recipe from the following image(s). Return valid JSON matching the schema.'
 }
 
@@ -184,10 +207,27 @@ export const RECIPE_JSON_SCHEMA = {
   additionalProperties: false,
   required: ['status', 'confidence', 'warnings', 'missingFields', 'recipe'],
   properties: {
-    status: { type: 'string', enum: ['success', 'partial', 'failed'], description: 'Overall extraction result' },
-    confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Overall extraction confidence' },
-    warnings: { type: 'array', items: { type: 'string' }, description: 'Uncertainties or extraction problems' },
-    missingFields: { type: 'array', items: { type: 'string' }, description: 'Fields that are missing, unclear, or not visible' },
+    status: {
+      type: 'string',
+      enum: ['success', 'partial', 'failed'],
+      description: 'Overall extraction result',
+    },
+    confidence: {
+      type: 'number',
+      minimum: 0,
+      maximum: 1,
+      description: 'Overall extraction confidence',
+    },
+    warnings: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Uncertainties or extraction problems',
+    },
+    missingFields: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Fields that are missing, unclear, or not visible',
+    },
 
     recipe: {
       type: ['object', 'null'],
@@ -212,11 +252,13 @@ export const RECIPE_JSON_SCHEMA = {
 
         prepTimeMinutes: {
           type: ['number', 'null'],
-          description: 'Preparation time in minutes if explicitly visible; otherwise null',
+          description:
+            'Preparation time in minutes if explicitly visible; otherwise null',
         },
         cookTimeMinutes: {
           type: ['number', 'null'],
-          description: 'Cooking time in minutes if explicitly visible; otherwise null',
+          description:
+            'Cooking time in minutes if explicitly visible; otherwise null',
         },
 
         servings: {
@@ -242,7 +284,15 @@ export const RECIPE_JSON_SCHEMA = {
                 items: {
                   type: 'object',
                   additionalProperties: false,
-                  required: ['originalText', 'amount', 'amountMax', 'unit', 'ingredient', 'additionalInfo', 'category'],
+                  required: [
+                    'originalText',
+                    'amount',
+                    'amountMax',
+                    'unit',
+                    'ingredient',
+                    'additionalInfo',
+                    'category',
+                  ],
                   properties: {
                     originalText: { type: ['string', 'null'] },
                     amount: { type: ['number', 'null'] },
@@ -254,7 +304,10 @@ export const RECIPE_JSON_SCHEMA = {
                     },
                     ingredient: { type: ['string', 'null'] },
                     additionalInfo: { type: ['string', 'null'] },
-                    category: { type: ['string', 'null'], enum: CANONICAL_INGREDIENT_CATEGORY_ENUM },
+                    category: {
+                      type: ['string', 'null'],
+                      enum: CANONICAL_INGREDIENT_CATEGORY_ENUM,
+                    },
                   },
                 },
               },
@@ -278,7 +331,8 @@ export const RECIPE_JSON_SCHEMA = {
         tips: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Tips, notes, variations, or cooking advice not part of steps',
+          description:
+            'Tips, notes, variations, or cooking advice not part of steps',
         },
       },
     },
@@ -299,11 +353,12 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
   const userMessage = buildImageExtractionUserMessage(translateToGerman)
 
   const client = new OpenAI({ apiKey })
+
   const imageContents = imageBuffers.map((buf) => ({
     type: 'image_url',
-    image_url: { 
-      url: `data:image/webp;base64,${buf.toString('base64')}`, 
-      detail: process.env.OPENAI_EXTRACT_DETAIL || 'high'
+    image_url: {
+      url: `data:image/webp;base64,${buf.toString('base64')}`,
+      detail: process.env.OPENAI_EXTRACT_DETAIL || 'high',
     },
   }))
 
@@ -330,8 +385,13 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
   })
 
   const choice = response.choices?.[0]
-  if (!choice?.message?.content) throw new Error('No content in OpenAI response')
+
+  if (!choice?.message?.content) {
+    throw new Error('No content in OpenAI response')
+  }
+
   const recipe = JSON.parse(choice.message.content)
+
   const usage = response.usage
     ? {
         prompt_tokens: response.usage.prompt_tokens,
@@ -339,6 +399,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
         total_tokens: response.usage.total_tokens,
       }
     : undefined
+
   return { recipe, usage }
 }
 
@@ -347,23 +408,43 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
  * @param {number|null|undefined} recipeId
  * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number }|null|undefined} usage
  * @param {unknown} responseJson
- * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null }} [meta] - request_json: input JSON sent to the model (URL normalize); null for vision
+ * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null }} [meta]
  */
 export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {}) {
   if (!usage && responseJson == null) return
+
   const db = getDb()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
-  const responseStr = responseJson != null ? (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson)) : null
+
+  const responseStr =
+    responseJson != null
+      ? typeof responseJson === 'string'
+        ? responseJson
+        : JSON.stringify(responseJson)
+      : null
+
   const requestStr =
     meta.request_json != null && String(meta.request_json).trim() !== ''
       ? typeof meta.request_json === 'string'
         ? meta.request_json
         : JSON.stringify(meta.request_json)
       : null
+
   const model = meta.model != null ? String(meta.model) : null
   const usage_kind = meta.usage_kind != null ? String(meta.usage_kind) : null
+
   db.prepare(`
-    INSERT INTO ai_token_usage (recipe_id, prompt_tokens, completion_tokens, total_tokens, response_json, request_json, model, usage_kind, created_at)
+    INSERT INTO ai_token_usage (
+      recipe_id,
+      prompt_tokens,
+      completion_tokens,
+      total_tokens,
+      response_json,
+      request_json,
+      model,
+      usage_kind,
+      created_at
+    )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     recipeId,
@@ -374,6 +455,6 @@ export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {})
     requestStr,
     model,
     usage_kind,
-    now
+    now,
   )
 }
