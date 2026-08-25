@@ -9,40 +9,40 @@ const FIELD_SPLIT_RULES = `- originalText: the exact visible or scraped source l
 - ingredient: clean ingredient name only (no amount, no unit, no preparation).
 - additionalInfo: preparation notes, alternatives, or modifiers only (e.g. diced, roasted, optional) — NOT amounts or culinary quantity words.
 
-Do not put recognizable quantity phrases into additionalInfo. Parse them into amount and unit instead:
+Parse recognizable quantity phrases into amount and unit instead of additionalInfo:
 - pinch/pinches, dash/dashes → amount 1 (or N), unit: Prise (de) / pinch (en)
 - handful/handfuls → amount 1, unit: Handvoll (de) / handful (en)
 - drizzle/drizzle of/good drizzle/generous drizzle/splash/splash of → amount 1, unit: Schuss (de) / splash (en)
-- sprig/sprigs → unit: Zweige (de) / sprigs (en); clove/cloves → Zehen (de) / cloves (en)
-- bunch/bunches → Bund (de) / bunch (en); slice/slices → Scheiben (de) / slices (en)
-- "to taste" / "nach Belieben" when clearly about quantity only: amount null, unit null, additionalInfo: "nach Belieben" (de) or "to taste" (en)`
+- sprig/sprigs → unit: Zweige (de) / sprigs (en)
+- clove/cloves → unit: Zehen (de) / cloves (en)
+- bunch/bunches → unit: Bund (de) / bunch (en)
+- slice/slices → unit: Scheibe/Scheiben (de) / slices (en)
+- "to taste" / "nach Belieben" when clearly about quantity only → amount null, unit null, additionalInfo: "nach Belieben" (de) / "to taste" (en)`
 
-const METRIC_AND_SPOON_UNITS_DE = `Units (metric and spoons):
+const METRIC_AND_SPOON_UNITS_DE = `Units:
 - Translate tsp → TL.
 - Translate tbsp → EL.
 - Keep cup/cups as unit "cup".
 - Do not translate cup/cups to "Tasse".
 - Do not convert cup/cups to grams or milliliters.
 - Never convert tbsp/tsp/EL/TL to grams or ml.
-- tablespoon/tbsp always becomes unit: "EL" with the same amount.
-- teaspoon/tsp always becomes unit: "TL" with the same amount.
-- Do not convert small spoon amounts like tahini, dijon, salt, garlic powder, oil, vinegar, spices, or similar into grams/ml.
 - Convert imperial weight/volume units to metric for German output:
-  - oz / ounces (weight) → g (1 oz ≈ 28 g; round to nearest 5 g).
-  - lb / pounds → g (1 lb ≈ 450 g; round to nearest 5 g).
-  - fl oz / fluid ounces → ml (1 fl oz ≈ 30 ml; round to nearest 5 ml).
-  - Do not leave oz, lb, or fl oz as units in the output.
-  - Standard cans like "15 oz chickpeas" → about 425 g Kichererbsen, not 15 oz.`
+  - oz / ounces (weight) → g
+  - lb / pounds → g
+  - fl oz / fluid ounces → ml
+- Round imperial conversions to practical kitchen values, typically nearest 5 g or 5 ml.
+- Do not leave oz, lb, or fl oz as units in German output.
+- Standard cans like "15 oz chickpeas" → about 425 g Kichererbsen.`
 
-const METRIC_AND_SPOON_UNITS_EN = `Units (metric and spoons):
+const METRIC_AND_SPOON_UNITS_EN = `Units:
 - Keep tsp, tbsp, cup/cups, g, kg, ml, l, oz, lb when visible.
 - For exact amounts, preserve the visible unit.
 - Do not convert spoon amounts to grams/ml unless explicitly stated on the source line.`
 
-const CULINARY_UNITS_DE = `Culinary count units (German):
+const CULINARY_UNITS_DE = `Culinary count units:
 - Use specific culinary units when they are part of the source; do not use generic "Stück".
 - clove/cloves garlic → Zehe/Zehen Knoblauch
-- pinch/pinches, dash/dashes (spices) → Prise/Prisen
+- pinch/pinches, dash/dashes → Prise/Prisen
 - handful/handfuls → Handvoll
 - drizzle/splash/good drizzle/generous drizzle → Schuss
 - sprig/sprigs herbs → Zweig/Zweige
@@ -52,7 +52,7 @@ const CULINARY_UNITS_DE = `Culinary count units (German):
 - Do not convert culinary count units to grams.
 - Do not estimate piece-to-gram conversions for pinches, handfuls, sprigs, cloves, or similar count-based ingredients.`
 
-const CULINARY_UNITS_EN = `Culinary count units (English):
+const CULINARY_UNITS_EN = `Culinary count units:
 - Use specific culinary units when they are part of the source.
 - pinch/pinches, dash/dashes → unit: pinch
 - handful/handfuls → unit: handful
@@ -60,32 +60,19 @@ const CULINARY_UNITS_EN = `Culinary count units (English):
 - sprig/sprigs, clove/cloves, bunch/bunches, slice/slices → structured count + matching unit
 - Do not put these quantity words in additionalInfo.`
 
-const EXAMPLES_DE = `Ingredient examples:
-- "1/2 red onion" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "rote Zwiebel"
-- "2 carrots" → amount: 2, amountMax: 2, unit: null, ingredient: "Karotten"
-- "3 eggs" → amount: 3, amountMax: 3, unit: null, ingredient: "Eier"
-- "2 cloves garlic" → amount: 2, amountMax: 2, unit: "Zehen", ingredient: "Knoblauch"
-- "1 pinch salt" / "a pinch of sea salt" → amount: 1, amountMax: 1, unit: "Prise", ingredient: "Salz" / "Meersalz"
-- "dash of pepper" → amount: 1, amountMax: 1, unit: "Prise", ingredient: "Pfeffer"
-- "12 sprigs thyme" → amount: 12, amountMax: 12, unit: "Zweige", ingredient: "Thymian"
-- "1 handful spinach" / "a handful of black olives" → amount: 1, amountMax: 1, unit: "Handvoll", ingredient: "Spinat" / "schwarze Oliven"
-- "a good drizzle of extra virgin olive oil" → amount: 1, amountMax: 1, unit: "Schuss", ingredient: "natives Olivenöl extra"
+const EXAMPLES_DE = `Examples:
 - "1/2 red onion, diced" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "rote Zwiebel", additionalInfo: "gewürfelt"
-- "1 cup milk" → amount: 1, amountMax: 1, unit: "cup", ingredient: "Milch"
-- "1/4 cup olive oil" → amount: 0.25, amountMax: 0.25, unit: "cup", ingredient: "Olivenöl"
-- "3 cups tortellini (cooked)" → amount: 3, amountMax: 3, unit: "cup", ingredient: "Tortellini", additionalInfo: "gekocht"
+- "2 cloves garlic" → amount: 2, amountMax: 2, unit: "Zehen", ingredient: "Knoblauch"
+- "a pinch of sea salt" → amount: 1, amountMax: 1, unit: "Prise", ingredient: "Meersalz"
+- "a good drizzle of olive oil" → amount: 1, amountMax: 1, unit: "Schuss", ingredient: "Olivenöl"
 - "1-2 cups sweet potato (roasted)" → amount: 1, amountMax: 2, unit: "cup", ingredient: "Süßkartoffel", additionalInfo: "geröstet"
-- "1 tbsp tahini" → amount: 1, amountMax: 1, unit: "EL", ingredient: "Tahini"; do not convert to grams
-- "1 tsp dijon" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Dijon-Senf"; do not convert to grams
-- "1 tsp salt" → amount: 1, amountMax: 1, unit: "TL", ingredient: "Salz"; do not convert to grams
-- "15 oz chickpeas, drained and rinsed" → amount: 425, amountMax: 425, unit: "g", ingredient: "Kichererbsen", additionalInfo: "aus der Dose, abgetropft und abgespült"; do not keep oz`
+- "15 oz chickpeas, drained and rinsed" → amount: 425, amountMax: 425, unit: "g", ingredient: "Kichererbsen", additionalInfo: "abgetropft und abgespült"`
 
-const EXAMPLES_EN = `Ingredient examples:
-- "1/2 red onion" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "red onion"
+const EXAMPLES_EN = `Examples:
+- "1/2 red onion, diced" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "red onion", additionalInfo: "diced"
 - "a pinch of sea salt" → amount: 1, amountMax: 1, unit: "pinch", ingredient: "sea salt"
 - "a handful of black olives" → amount: 1, amountMax: 1, unit: "handful", ingredient: "black olives"
-- "a good drizzle of extra virgin olive oil" → amount: 1, amountMax: 1, unit: "splash", ingredient: "extra virgin olive oil"
-- "1/2 red onion, diced" → amount: 0.5, amountMax: 0.5, unit: null, ingredient: "red onion", additionalInfo: "diced"
+- "a good drizzle of olive oil" → amount: 1, amountMax: 1, unit: "splash", ingredient: "olive oil"
 - "2 cloves garlic" → amount: 2, amountMax: 2, unit: "cloves", ingredient: "garlic"`
 
 const CUP_HANDLING_NORMALIZATION = `Cup handling:
@@ -95,30 +82,14 @@ const CUP_HANDLING_NORMALIZATION = `Cup handling:
 - Do not estimate grams or ml for cup ingredients in this step.
 - Cup conversion is handled by a separate pipeline step after normalization.`
 
-const FAITHFUL_EXTRACTION_RULES = `Extraction fidelity:
-- Treat the image as the source of truth.
-- Extract visible recipe text as faithfully as possible.
-- Do not paraphrase, summarize, rewrite, improve, or editorialize visible text.
-- Preserve original wording, sentence structure, tone, and level of detail whenever the text is readable.
-- Do not omit readable words, phrases, clauses, warnings, explanations, or serving advice.
-- Do not replace readable wording with shorter or more elegant wording.
-- Use context only to resolve an obvious character or word recognition error.
-- Do not use context to rewrite or improve a readable sentence.
-- If text is damaged or partially unreadable, preserve the readable portion and do not freely reconstruct missing content.
-- Structural normalization is allowed for amount, unit, ingredient, and additionalInfo, but the underlying visible meaning must remain unchanged.`
-
 export function buildIngredientParsingPromptBlock(options = {}) {
   const unitLanguage = options.unitLanguage === 'en' ? 'en' : 'de'
   const includeAmountMaxRule = options.includeAmountMaxRule !== false
   const includeCupHandling = options.includeCupHandling === true
-  const germanIngredientNames = options.germanIngredientNames === true || unitLanguage === 'de'
-  const faithfulExtraction = options.faithfulExtraction === true
+  const germanIngredientNames =
+    options.germanIngredientNames === true || unitLanguage === 'de'
 
   const lines = ['Ingredient parsing:', FIELD_SPLIT_RULES]
-
-  if (faithfulExtraction) {
-    lines.push(FAITHFUL_EXTRACTION_RULES)
-  }
 
   if (includeAmountMaxRule) {
     lines.push(
@@ -127,7 +98,10 @@ export function buildIngredientParsingPromptBlock(options = {}) {
   }
 
   if (germanIngredientNames) {
-    lines.push('- unit is German or null.', '- ingredient is a clean German name.')
+    lines.push(
+      '- unit is German or null.',
+      '- ingredient is a clean German name.',
+    )
   } else {
     lines.push(
       '- unit matches the visible source language when present, or null.',
@@ -155,9 +129,3 @@ export function buildIngredientParsingPromptBlock(options = {}) {
 
   return `${lines.join('\n')}\n`
 }
-
-/** Short rules for vision-extract base prompt (before full parsing block). */
-export const INGREDIENT_EXTRACT_SUMMARY_RULES = `- Extract ingredient information from the visible source as faithfully as possible.
-- Preserve the visible ingredient line in originalText.
-- Parse visible amounts and culinary units into amount, amountMax, and unit — never into additionalInfo.
-- Put only preparation notes, alternatives, and modifiers (e.g. diced, roasted) into additionalInfo — not pinch, handful, drizzle, splash, or similar quantity phrases.`

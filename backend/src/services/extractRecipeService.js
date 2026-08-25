@@ -9,10 +9,7 @@ import {
   formatCategoryListForPrompt,
   CANONICAL_INGREDIENT_CATEGORY_ENUM,
 } from '../constants/ingredientCategories.js'
-import {
-  INGREDIENT_EXTRACT_SUMMARY_RULES,
-  buildIngredientParsingPromptBlock,
-} from '../constants/ingredientParsingPrompt.js'
+import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 
 const EXTRACT_PROMPT_BODY = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
@@ -39,11 +36,9 @@ Partial text reconstruction:
 - Do not rewrite or stylistically improve the reconstructed sentence.
 - Do not use "..." when a short missing word or phrase can be confidently reconstructed.
 - If a larger passage is unreadable or the intended wording is uncertain, do not invent the content. Preserve the readable portion and add a warning.
-- A seemingly truncated word or phrase may be a damaged/occluded word rather than an intentional ellipsis; resolve it when the intended wording is strongly supported by context.
+- A seemingly truncated word or phrase may be a damaged or occluded word rather than an intentional ellipsis; resolve it when the intended wording is strongly supported by context.
 
 Structural normalization is allowed where required by the JSON schema, but the underlying visible meaning must remain unchanged.
-
-${INGREDIENT_EXTRACT_SUMMARY_RULES}
 
 - Ingredient section headings may contain serving information.
 - If a heading includes serving or people information, extract that information into recipe.servings as well.
@@ -88,7 +83,7 @@ Rules for categorization:
 
 - Return JSON only. No markdown, no explanations, no code fences.
 
-Use the exact keys above. If the image has multiple pages, merge the content into one coherent recipe. `
+Use the exact keys above. If the image has multiple pages, merge the content into one coherent recipe.`
 
 const ORIGINAL_LANGUAGE_INSTRUCTION =
   'Preserve the original language of the recipe.'
@@ -96,20 +91,21 @@ const ORIGINAL_LANGUAGE_INSTRUCTION =
 const GERMAN_OUTPUT_INSTRUCTION =
   'The user requested German output; translate the extracted recipe fields according to the additional translation mode below.'
 
-export const EXTRACT_PROMPT = EXTRACT_PROMPT_BODY + ORIGINAL_LANGUAGE_INSTRUCTION
+export const EXTRACT_PROMPT =
+  EXTRACT_PROMPT_BODY + ORIGINAL_LANGUAGE_INSTRUCTION
 
 export const GERMAN_TRANSLATION_ADDON = `Additional translation mode:
 
 The user requested German output.
 
-These rules override any conflicting extraction rules above when German output is requested.
+These rules apply when German output is requested.
 
 Set recipe.language to "de".
 
-Translate to German:
+Translate:
 - recipe.introText
 - ingredientsSections.heading when present
-- ingredient (required: always German)
+- ingredient
 - additionalInfo
 - steps
 - tips
@@ -118,19 +114,15 @@ Do not translate:
 - recipe.title, unless it is clearly descriptive and not a proper recipe name
 - ingredient originalText
 
-Ingredient field split (required):
-- originalText: the exact visible source line from the image, unchanged, in the source language.
-- ingredient: a clean German ingredient name. Never leave ingredient in English when translation was requested.
-- additionalInfo: translated preparation notes or modifiers only — never quantity phrases (see ingredient parsing rules above).
+German ingredient fields:
+- originalText: keep the exact visible source line, unchanged, in the source language.
+- ingredient: always provide a clean German ingredient name.
+- additionalInfo: translated preparation notes, alternatives, or modifiers only.
 
 Ingredient sections:
-- Preserve section order and ingredient order within each section.
+- Preserve section order and ingredient order.
 - If a section heading is null, keep it null.
-- If a section heading is present, translate it naturally and keep it short.
-- Examples:
-  - "dressing" → "Dressing"
-  - "herb oil" → "Kräuteröl"
-  - "for serving" → "Zum Servieren"
+- Translate non-null headings naturally and keep them short.
 
 German translation style:
 - Use natural German recipe language for home cooks.
@@ -143,22 +135,21 @@ German translation style:
 - Avoid literal translations of English food terms when they sound awkward.
 - Translate cooking terms contextually, e.g. "broil" as "kurz unter dem Grill bräunen", or similar when appropriate.
 - For serving/enjoy instructions, use natural German recipe phrasing.
-- Do not translate "Enjoy with..." literally as "Genießen mit...".
-- Prefer phrases like:
+- Prefer natural phrases such as:
   - "Mit ... servieren."
   - "Zum Servieren ... darübergeben."
   - "Nach Belieben mit ... garnieren."
   - "Nach Belieben noch etwas ... hinzufügen."
-- Translate "as desired" naturally as "nach Belieben", not mechanically at the end if another wording sounds better.
-
-Translation example (steps/tips):
-"Enjoy with more thyme and flaky salt as desired."
-→ "Zum Servieren nach Belieben noch etwas Thymian und Meersalzflocken darübergeben."
+- Translate "as desired" naturally as "nach Belieben".
 
 Important:
-- ingredient originalText must always preserve the visible source line exactly as read from the image.
-- Do not include both translated and original versions of steps or tips.
-- Tips do not have an originalText field.`
+- Preserve ingredient originalText exactly.
+- Do not return both translated and original versions of steps or tips.
+- Tips do not have an originalText field.
+
+Example:
+"Enjoy with more thyme and flaky salt as desired."
+→ "Zum Servieren nach Belieben noch etwas Thymian und Meersalzflocken darübergeben."`
 
 /**
  * @param {boolean} [translateToGerman=false]
@@ -169,7 +160,6 @@ export function buildImageExtractionPrompt(translateToGerman = false) {
     unitLanguage: translateToGerman ? 'de' : 'en',
     includeAmountMaxRule: true,
     germanIngredientNames: translateToGerman,
-    faithfulExtraction: true,
   })
 
   const finalLanguageInstruction = translateToGerman
@@ -193,10 +183,9 @@ export function buildImageExtractionUserMessage(translateToGerman = false) {
   if (translateToGerman) {
     return (
       'Extract the recipe from the following image(s). ' +
-      'Translate translatable fields to German per the system instructions ' +
-      '(ingredient and additionalInfo in German; originalText stays the exact visible source line; ' +
-      'parse pinch/handful/drizzle into amount and unit, not additionalInfo). ' +
-      'Set recipe.language to "de". Return valid JSON matching the schema.'
+      'Translate the extracted fields to German according to the system instructions. ' +
+      'Keep ingredient originalText unchanged. ' +
+      'Return valid JSON matching the schema.'
     )
   }
 

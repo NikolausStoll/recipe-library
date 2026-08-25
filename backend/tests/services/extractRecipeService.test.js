@@ -48,10 +48,10 @@ describe('buildImageExtractionPrompt', () => {
     assert.ok(prompt.includes('merge the content into one coherent recipe'))
     assert.ok(prompt.endsWith(GERMAN_TRANSLATION_ADDON) || prompt.includes(`\n\n${GERMAN_TRANSLATION_ADDON}`))
     assert.ok(prompt.includes('Additional translation mode:'))
-    assert.ok(prompt.includes('ingredient originalText must always preserve the visible source line'))
+    assert.ok(prompt.includes('Preserve ingredient originalText exactly.'))
     assert.ok(prompt.includes('recipe.introText'))
     assert.ok(!prompt.includes('recipe.description'))
-    assert.ok(prompt.includes('Never leave ingredient in English when translation was requested'))
+    assert.ok(prompt.includes('ingredient: always provide a clean German ingredient name.'))
     assert.ok(prompt.includes('Set recipe.language to "de"'))
     assert.ok(prompt.includes('unit: "Schuss"'))
     assert.ok(prompt.includes('a pinch of sea salt'))
@@ -124,11 +124,9 @@ describe('buildImageExtractionUserMessage', () => {
 
   it('asks for German translation when translateToGerman is true', () => {
     const message = buildImageExtractionUserMessage(true)
-    assert.ok(message.includes('Translate translatable fields to German'))
-    assert.ok(message.includes('ingredient and additionalInfo in German'))
-    assert.ok(message.includes('parse pinch/handful/drizzle into amount and unit'))
-    assert.ok(message.includes('originalText stays the exact visible source line'))
-    assert.ok(message.includes('Set recipe.language to "de"'))
+    assert.ok(message.includes('Translate the extracted fields to German'))
+    assert.ok(message.includes('Keep ingredient originalText unchanged'))
+    assert.ok(message.includes('Return valid JSON matching the schema'))
   })
 
   it('does not mention German parsing hints when translateToGerman is false', () => {

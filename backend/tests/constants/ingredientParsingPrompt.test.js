@@ -6,24 +6,22 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import {
-  INGREDIENT_EXTRACT_SUMMARY_RULES,
-  buildIngredientParsingPromptBlock,
-} from '../../src/constants/ingredientParsingPrompt.js'
-
-describe('INGREDIENT_EXTRACT_SUMMARY_RULES', () => {
-  it('tells the model not to put quantity phrases in additionalInfo', () => {
-    assert.ok(INGREDIENT_EXTRACT_SUMMARY_RULES.includes('never into additionalInfo'))
-    assert.ok(INGREDIENT_EXTRACT_SUMMARY_RULES.includes('pinch, handful, drizzle'))
-  })
-})
+import { buildIngredientParsingPromptBlock } from '../../src/constants/ingredientParsingPrompt.js'
 
 describe('buildIngredientParsingPromptBlock', () => {
+  it('tells the model not to put quantity phrases in additionalInfo', () => {
+    const prompt = buildIngredientParsingPromptBlock({ unitLanguage: 'de' })
+    assert.ok(prompt.includes('never put quantity phrases in additionalInfo'))
+    assert.ok(prompt.includes('pinch/pinches'))
+    assert.ok(prompt.includes('handful/handfuls'))
+    assert.ok(prompt.includes('drizzle/drizzle of'))
+  })
+
   it('includes German Schuss examples for vague liquid amounts', () => {
     const prompt = buildIngredientParsingPromptBlock({ unitLanguage: 'de' })
     assert.ok(prompt.includes('unit: "Schuss"'))
-    assert.ok(prompt.includes('a good drizzle of extra virgin olive oil'))
-    assert.ok(prompt.includes('a handful of black olives'))
+    assert.ok(prompt.includes('a good drizzle of olive oil'))
+    assert.ok(prompt.includes('handful/handfuls → Handvoll'))
     assert.ok(prompt.includes('a pinch of sea salt'))
   })
 
@@ -36,7 +34,7 @@ describe('buildIngredientParsingPromptBlock', () => {
   it('includes diced/roasted examples in additionalInfo not as units', () => {
     const prompt = buildIngredientParsingPromptBlock({ unitLanguage: 'de' })
     assert.ok(prompt.includes('additionalInfo: "gewürfelt"'))
-    assert.ok(prompt.includes('additionalInfo: "gekocht"'))
+    assert.ok(prompt.includes('additionalInfo: "geröstet"'))
   })
 
   it('includes amountMax rule by default', () => {
