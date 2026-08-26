@@ -31,6 +31,20 @@
           {{ suggestionsLoading ? 'Lädt…' : 'Vorschläge aktualisieren' }}
         </button>
       </div>
+      <details class="plan-view__mobile-actions">
+        <summary aria-label="Plan-Aktionen" title="Plan-Aktionen">•••</summary>
+        <div class="plan-view__mobile-actions-menu">
+          <button type="button" class="plan-view__mobile-action" :disabled="suggestionsLoading || !suggestionsHasLoaded" @click="openWeekSuggest">
+            Woche vorschlagen
+          </button>
+          <button type="button" class="plan-view__mobile-action" :disabled="shoppingBatchActive || shoppingQueueCount === 0" @click="startShoppingBatch">
+            Zutaten einkaufen
+          </button>
+          <button type="button" class="plan-view__mobile-action" :disabled="suggestionsLoading" @click="refreshSuggestions">
+            {{ suggestionsLoading ? 'Lädt…' : 'Vorschläge aktualisieren' }}
+          </button>
+        </div>
+      </details>
     </header>
 
     <PlanWeekSummary :stats="weekStats" />
@@ -138,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddToPlanSheet from '../components/AddToPlanSheet.vue'
 import PlanAssignDaySheet from '../components/PlanAssignDaySheet.vue'
 import PlanDaySection from '../components/PlanDaySection.vue'
@@ -334,8 +348,6 @@ onMounted(async () => {
   }
   refreshPlanWindow()
   await refreshSuggestions()
-  await nextTick()
-  document.getElementById(`plan-day-${today.value}`)?.scrollIntoView({ block: 'start' })
 })
 
 onBeforeUnmount(() => {
@@ -459,10 +471,73 @@ function dismissShoppingBatchNotice() {
   flex-shrink: 0;
 }
 
+.plan-view__mobile-actions {
+  display: none;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.plan-view__mobile-actions summary {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  list-style: none;
+  font-size: 1.1rem;
+  letter-spacing: 0;
+}
+
+.plan-view__mobile-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan-view__mobile-actions-menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + var(--spacing-xs));
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 13rem;
+  padding: var(--spacing-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-md);
+}
+
+.plan-view__mobile-action {
+  border: 0;
+  padding: 0.65rem 0.75rem;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.plan-view__mobile-action:hover:not(:disabled) {
+  background: var(--color-surface-subtle);
+}
+
+.plan-view__mobile-action:disabled {
+  color: var(--color-text-soft);
+  cursor: not-allowed;
+}
+
 .plan-view__columns {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  min-width: 0;
+}
+
+.plan-view__columns > * {
   min-width: 0;
 }
 
@@ -546,6 +621,49 @@ function dismissShoppingBatchNotice() {
   color: var(--color-text-muted);
   cursor: pointer;
   padding: 0 0.25rem;
+}
+
+@media (max-width: 639px) {
+  .plan-view {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .plan-view__header {
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .plan-view__header-actions {
+    display: none;
+  }
+
+  .plan-view__mobile-actions {
+    display: block;
+  }
+
+  .plan-view__header-text {
+    flex: 1 1 auto;
+  }
+
+  .plan-view__header :deep(.page-header__title),
+  .plan-view__header :deep(.page-header__subtitle) {
+    white-space: nowrap;
+  }
+
+  .plan-view__header :deep(.page-header__subtitle) {
+    font-size: 0.9rem;
+  }
+
+  .plan-view__panel {
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--spacing-md);
+  }
+
+  .plan-view__columns {
+    gap: var(--spacing-md);
+  }
 }
 
 @media (min-width: 640px) {

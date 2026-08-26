@@ -3,6 +3,10 @@ import AppShell from '../layouts/AppShell.vue'
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, _from, savedPosition) {
+    if (to.name === 'plan') return { top: 0 }
+    return savedPosition
+  },
   routes: [
     {
       path: '/',

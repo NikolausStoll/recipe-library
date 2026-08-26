@@ -245,7 +245,42 @@ function primaryReason(suggestion: PlanSuggestionCandidate): string {
 
 @media (max-width: 639px) {
   .plan-suggestions-panel__grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    gap: var(--spacing-sm);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    padding: 0 0.1rem 0.35rem;
+  }
+
+  .plan-suggestions-panel__grid > li {
+    flex: 0 0 min(68vw, 13rem);
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+
+  .plan-suggestions-panel__card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 9rem;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .plan-suggestions-panel__card :deep(.plan-recipe-thumb) {
+    width: 100%;
+    height: 5.5rem;
+    border-radius: 0;
+  }
+
+  .plan-suggestions-panel__text {
+    padding: 0.55rem 0.65rem 0.65rem;
+  }
+
+  .plan-suggestions-panel__recipe {
+    -webkit-line-clamp: 2;
   }
 
   .plan-suggestions-panel__action {
