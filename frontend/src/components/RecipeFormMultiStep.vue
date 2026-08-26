@@ -587,8 +587,8 @@
               v-if="canDeleteIngredientGroup(group)"
               type="button"
               class="ingredients-icon-btn ingredients-icon-btn--subtle"
-              title="Leere Gruppe entfernen"
-              aria-label="Leere Gruppe entfernen"
+              title="Gruppe entfernen und Zutaten ohne Gruppe verschieben"
+              aria-label="Gruppe entfernen und Zutaten ohne Gruppe verschieben"
               @click="deleteIngredientGroup(group.id)"
             >
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1857,8 +1857,7 @@ const ingredientGroupOptions = computed(() =>
 )
 
 function canDeleteIngredientGroup(group: { id: string; items: { ing: IngredientRow }[] }): boolean {
-  if (group.id === UNGROUPED_SECTION_ID) return false
-  return !group.items.some(({ ing }) => ingredientHasContent(ing))
+  return group.id !== UNGROUPED_SECTION_ID
 }
 
 function sectionHeadingExists(heading: string, exceptId?: string): boolean {
