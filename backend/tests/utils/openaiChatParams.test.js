@@ -52,6 +52,16 @@ describe('buildOpenAiChatTemperature', () => {
     assert.deepEqual(buildOpenAiChatTemperature('gpt-5-mini', 0.2), {})
   })
 
+  it('omits temperature for GPT-5.6 variants', () => {
+    for (const model of ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-5.6']) {
+      assert.deepEqual(buildOpenAiChatTemperature(model, 0), {})
+    }
+  })
+
+  it('includes zero temperature for supported models', () => {
+    assert.deepEqual(buildOpenAiChatTemperature('gpt-4o-mini', 0), { temperature: 0 })
+  })
+
   it('clamps temperature to max 0.3 by default', () => {
     assert.equal(clampOpenAiTemperature(0.9), 0.3)
     assert.equal(buildOpenAiChatTemperature('gpt-4.1-mini', 0.9).temperature, 0.3)

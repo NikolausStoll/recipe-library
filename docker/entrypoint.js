@@ -41,6 +41,7 @@ const OPTION_MAP = [
   ['RECIPE_URL_USER_AGENT', ['recipe_url_user_agent'], 'RecipeLibrary/1.0'],
   ['OPENAI_API_KEY', ['openai_api_key'], ''],
   ['OPENAI_EXTRACT_MODEL', ['openai_extract_model'], 'gpt-4.1-mini'],
+  ['OPENAI_TEXT_EXTRACT_MODEL', ['openai_text_extract_model'], 'gpt-5.6-luna'],
   ['OPENAI_EXTRACT_DETAIL', ['openai_extract_detail'], 'high'],
   ['OPENAI_NORMALIZE_MODEL_PRIMARY', ['openai_normalize_model_primary'], 'gpt-4o-mini'],
   ['OPENAI_NORMALIZE_TEMPERATURE', ['openai_normalize_temperature'], '0.2'],

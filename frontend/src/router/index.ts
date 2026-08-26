@@ -54,6 +54,12 @@ const router = createRouter({
           meta: { title: 'Rezept von Website importieren' },
         },
         {
+          path: 'add/text',
+          name: 'add-text',
+          component: () => import('../views/AddRecipeTextImportView.vue'),
+          meta: { title: 'Rezept aus Text importieren' },
+        },
+        {
           path: 'shopping',
           name: 'shopping',
           component: () => import('../views/ShoppingView.vue'),

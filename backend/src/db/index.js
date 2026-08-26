@@ -55,7 +55,7 @@ export function initDb() {
       source_id INTEGER REFERENCES recipe_sources(id),
       source_page TEXT,
       original_url TEXT,
-      import_method TEXT NOT NULL DEFAULT 'manual' CHECK (import_method IN ('manual', 'url', 'image')),
+      import_method TEXT NOT NULL DEFAULT 'manual' CHECK (import_method IN ('manual', 'url', 'image', 'text')),
       extract_status TEXT CHECK (extract_status IS NULL OR extract_status IN ('pending', 'done', 'failed')),
       extract_confidence REAL,
       extract_warnings TEXT,
@@ -169,7 +169,41 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_recipe_tags_tag ON recipe_tags(tag);
   `)
 
+  const recipeTableSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'recipes'")
+    .get()?.sql || ''
+  if (!recipeTableSql.includes("'text'")) {
+    database.pragma('foreign_keys = OFF')
+    database.exec(`
+      CREATE TABLE recipes_migrated (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id INTEGER REFERENCES recipe_sources(id), source_page TEXT, original_url TEXT,
+        import_method TEXT NOT NULL DEFAULT 'manual' CHECK (import_method IN ('manual', 'url', 'image', 'text')),
+        extract_status TEXT CHECK (extract_status IS NULL OR extract_status IN ('pending', 'done', 'failed')),
+        extract_confidence REAL, extract_warnings TEXT, extract_missing_fields TEXT,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed')),
+        favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1)), would_cook_again TEXT,
+        title TEXT NOT NULL, subtitle TEXT, description TEXT, language TEXT,
+        servings_value REAL, servings_unit_text TEXT, nutrition_kcal REAL, nutrition_protein REAL,
+        nutrition_carbs REAL, nutrition_fat REAL, prep_time_min INTEGER, cook_time_min INTEGER,
+        prep_time_source TEXT, cook_time_source TEXT, prep_time_confidence REAL, cook_time_confidence REAL,
+        image_path TEXT, image_urls_json TEXT, image_processing_pending INTEGER NOT NULL DEFAULT 0 CHECK (image_processing_pending IN (0, 1)),
+        created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+      );
+      INSERT INTO recipes_migrated SELECT id, source_id, source_page, original_url, import_method,
+        extract_status, extract_confidence, extract_warnings, extract_missing_fields, status, favorite,
+        would_cook_again, title, subtitle, description, language, servings_value, servings_unit_text,
+        nutrition_kcal, nutrition_protein, nutrition_carbs, nutrition_fat, prep_time_min, cook_time_min,
+        prep_time_source, cook_time_source, prep_time_confidence, cook_time_confidence, image_path,
+        image_urls_json, image_processing_pending, created_at, updated_at FROM recipes;
+      DROP TABLE recipes;
+      ALTER TABLE recipes_migrated RENAME TO recipes;
+    `)
+    database.pragma('foreign_keys = ON')
+  }
+
   database.exec('DROP TABLE IF EXISTS cup_gram_references')
+
 
   runWebsiteSourceMigrations(database)
   backfillUrlSourcesFromOriginalUrl()

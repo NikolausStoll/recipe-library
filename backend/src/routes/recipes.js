@@ -18,6 +18,7 @@ import { upsertRecipeHealthScore, listRecipeHealthScoreMap } from '../services/r
 import { extractRecipeFromUrl } from '../services/recipeUrlExtractService.js'
 import { findOrCreateUrlSource } from '../services/sourceService.js'
 import { normalizeRecipeWithLLM, finalizeNormalizedRecipe } from '../services/recipeNormalizationService.js'
+import { extractRecipeFromText, getTextExtractionModel } from '../services/textRecipeExtractionService.js'
 import {
   applyPostNormalizationStages,
   finalizeImportedRecipe,
@@ -510,6 +511,37 @@ router.post('/import-from-url', async (req, res) => {
       } catch (_) {}
     }
     console.error('import-from-url failed:', e)
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Import failed' })
+  }
+})
+
+/** POST /api/recipes/import-from-text - extract pasted text, create a draft, and run shared post-processing. */
+router.post('/import-from-text', async (req, res) => {
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : ''
+  if (!text) return res.status(400).json({ error: 'text is required' })
+  if (!process.env.OPENAI_API_KEY) return res.status(400).json({ error: 'OPENAI_API_KEY is required for text import' })
+
+  let createdId = null
+  try {
+    const draft = recipeService.createRecipe({ title: 'Imported recipe', import_method: 'text', extract_status: 'pending' })
+    createdId = draft.id
+    const result = await extractRecipeFromText(text, { translateToGerman: req.body?.translateToGerman })
+    logAiTokenUsage(createdId, result.usage, result.recipe, { model: result.model || getTextExtractionModel(), usage_kind: 'text_recipe_extract', request_json: result.request_json })
+    if (result.recipe?.status === 'failed' || !result.recipe?.recipe) {
+      const failed = recipeService.markRecipeExtractionFailed(
+        createdId,
+        result.recipe?.warnings ?? ['No recognizable recipe content found.'],
+        result.recipe?.missingFields ?? [],
+      )
+      return res.status(422).json({ error: 'The pasted text does not contain a recognizable recipe', recipe: failed })
+    }
+    const { recipe } = await finalizeImportedRecipe(createdId, result.recipe, { updateTitle: true })
+    res.status(201).json({ recipe })
+  } catch (e) {
+    if (createdId != null) {
+      try { recipeService.deleteRecipe(createdId) } catch (_) {}
+    }
+    console.error('import-from-text failed:', e)
     res.status(500).json({ error: e instanceof Error ? e.message : 'Import failed' })
   }
 })

@@ -76,7 +76,7 @@ const EXAMPLES_EN = `Examples:
 - "2 cloves garlic" → amount: 2, amountMax: 2, unit: "cloves", ingredient: "garlic"`
 
 const CUP_HANDLING_NORMALIZATION = `Cup handling:
-- This normalization step must not convert cup-based ingredients.
+- This step must not convert cup-based ingredients.
 - Keep cup amounts as cup.
 - Keep cup ranges as cup ranges.
 - Do not estimate grams or ml for cup ingredients in this step.

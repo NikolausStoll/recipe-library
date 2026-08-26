@@ -998,6 +998,16 @@ function rowToRecipe(row) {
   }
 }
 
+export function markRecipeExtractionFailed(id, warnings = [], missingFields = []) {
+  const db = getDb()
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  db.prepare(`
+    UPDATE recipes SET extract_status = 'failed', extract_warnings = ?, extract_missing_fields = ?, updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(warnings), JSON.stringify(missingFields), now, Number(id))
+  return getRecipeById(id)
+}
+
 function sanitizeRecipeInput(body) {
   const allowed = [
     'source_id', 'source_page', 'original_url', 'import_method', 'extract_status', 'status',

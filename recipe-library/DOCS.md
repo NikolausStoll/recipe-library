@@ -40,6 +40,7 @@ Used by `POST /api/recipes/extract-from-url` / `POST /api/recipes/import-from-ur
 | ------------- | -------------------- | ------- | ----------- |
 | `openai_api_key` | `OPENAI_API_KEY` | *(empty)* | **Required** for every AI-powered feature (vision, URL normalize, nutrition, health, time, tags). Leave empty only if you use the app entirely manually. |
 | `openai_extract_model` | `OPENAI_EXTRACT_MODEL` | `gpt-4.1-mini` | Model for `POST /api/recipes/:id/extract-from-images`. |
+| `openai_text_extract_model` | `OPENAI_TEXT_EXTRACT_MODEL` | `gpt-5.6-luna` | Model for pasted-text recipe extraction. |
 | `openai_extract_detail` | `OPENAI_EXTRACT_DETAIL` | `high` | Vision detail level (`low`|`high`|`auto`). |
 
 ## OpenAI — normalization & helper APIs

@@ -287,6 +287,14 @@ export function importRecipeFromUrl(url: string): Promise<RecipeUrlImportResult>
   }).then((res) => handleResponse<RecipeUrlImportResult>(res))
 }
 
+export function importRecipeFromText(text: string, translateToGerman = false): Promise<{ recipe: Recipe }> {
+  return fetch(`${API_BASE}/recipes/import-from-text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, translateToGerman }),
+  }).then((res) => handleResponse<{ recipe: Recipe }>(res))
+}
+
 export function getRecipe(id: number): Promise<Recipe> {
   return fetch(`${API_BASE}/recipes/${id}`).then((res) => handleResponse<Recipe>(res))
 }

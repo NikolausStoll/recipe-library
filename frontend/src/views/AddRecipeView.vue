@@ -2,7 +2,7 @@
   <div class="page add-recipe-view">
     <header class="page-header">
       <h1 class="page-header__title h2">Rezept hinzufügen</h1>
-      <p class="page-header__subtitle">Importiere ein Rezept per Foto, Website oder starte von Grund auf.</p>
+      <p class="page-header__subtitle">Importiere ein Rezept per Foto, Website, Text oder starte von Grund auf.</p>
     </header>
 
     <div class="add-recipe-options">
@@ -33,6 +33,7 @@ onMounted(() => {
   const mode = route.query.mode
   if (mode === 'image') router.replace({ name: 'add-image', query: { mode: 'upload' } })
   if (mode === 'url') router.replace({ name: 'add-url' })
+  if (mode === 'text') router.replace({ name: 'add-text' })
   if (mode === 'manual') goManual()
 })
 
@@ -63,6 +64,12 @@ const allOptions: AddOption[] = [
     action: () => router.push({ name: 'add-url' }),
   },
   {
+    id: 'text',
+    title: 'Text einfügen',
+    description: 'Rezepttext aus Notizen, Nachrichten oder Dokumenten verarbeiten.',
+    action: () => router.push({ name: 'add-text' }),
+  },
+  {
     id: 'manual',
     title: 'Manuell eingeben',
     description: 'Mit einem leeren Rezept starten.',
@@ -72,7 +79,7 @@ const allOptions: AddOption[] = [
 
 const orderedOptions = computed(() => {
   if (isMobile.value) return allOptions
-  return [allOptions[1], allOptions[2], allOptions[3], allOptions[0]]
+  return [allOptions[1], allOptions[2], allOptions[3], allOptions[4], allOptions[0]]
 })
 
 function goManual() {
