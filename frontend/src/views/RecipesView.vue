@@ -2614,13 +2614,13 @@ onBeforeUnmount(() => {
 }
 
 .recipe-ingredients-list--panel .recipe-ingredient {
-  padding: 0.65rem 0;
+  padding: 0.25rem 0;
   border-bottom: none;
 }
 
 @media (min-width: 768px) {
   .recipe-ingredients-list--panel .recipe-ingredient {
-    padding: 0.45rem 0;
+    padding: 0.2rem 0;
   }
 }
 
@@ -3448,7 +3448,7 @@ onBeforeUnmount(() => {
 }
 
 .recipe-ingredient {
-  padding: 0.65rem 0;
+  padding: 0.2rem 0;
   border-bottom: 1px solid var(--color-border);
 }
 
