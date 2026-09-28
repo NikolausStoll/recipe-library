@@ -1,4 +1,4 @@
-FROM node:20-bullseye AS builder
+FROM node:20-bookworm AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build --workspace frontend
 
 
-FROM node:20-bullseye AS runtime
+FROM node:20-bookworm AS runtime
 
 WORKDIR /app
 
