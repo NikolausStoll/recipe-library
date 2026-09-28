@@ -17,19 +17,26 @@ FROM node:20-bookworm AS runtime
 
 WORKDIR /app
 
-RUN echo "===== OS RELEASE =====" \
-    && cat /etc/os-release \
-    && echo "===== APT SOURCES =====" \
-    && grep -R . /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || true
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  python3 python3-pip make g++ sqlite3 \
+  python3 \
+  python3-venv \
+  make \
+  g++ \
+  sqlite3 \
   && rm -rf /var/lib/apt/lists/*
 
-# OpenCV + NumPy for backend/scripts/crop_perspective.py (4-point crop in extract-from-images & crop routes)
+# Create an isolated Python environment.
+# Debian Bookworm prevents pip from modifying the system Python environment (PEP 668).
+RUN python3 -m venv /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+# OpenCV + NumPy for backend/scripts/crop_perspective.py
+# (4-point crop in extract-from-images & crop routes)
 COPY backend/requirements.txt ./backend/requirements.txt
-RUN pip3 install --upgrade pip setuptools wheel \
-  && pip3 install --no-cache-dir -r backend/requirements.txt \
+
+RUN pip install --upgrade pip setuptools wheel \
+  && pip install --no-cache-dir -r backend/requirements.txt \
   && rm -rf /root/.cache/pip
 
 ENV PORT=8097
@@ -48,4 +55,5 @@ COPY --from=builder /app/frontend/dist ./public
 COPY docker/entrypoint.js /app/entrypoint.js
 
 EXPOSE 8097
+
 CMD ["node", "/app/entrypoint.js"]
