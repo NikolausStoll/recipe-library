@@ -17,6 +17,11 @@ FROM node:20-bookworm AS runtime
 
 WORKDIR /app
 
+RUN echo "===== OS RELEASE =====" \
+    && cat /etc/os-release \
+    && echo "===== APT SOURCES =====" \
+    && grep -R . /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || true
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
   python3 python3-pip make g++ sqlite3 \
   && rm -rf /var/lib/apt/lists/*
