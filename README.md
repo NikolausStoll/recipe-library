@@ -11,7 +11,7 @@ Recipe Library is a personal recipe-management workspace that keeps edits, impor
 - Website imports that scrape JSON-LD/HTML, normalize via LLM, convert cups and imperial units (oz/lb → g), and dedupe sources by domain.
 - Image/photo import backed by OpenAI vision, deferred uploads (`processImageLater`), optional 4-point crop, and Sharp/WebP resizing.
 - Cookbook/source management with cover upload, cover cropping, and separate book vs. website listings.
-- Tags, health-score, and time-estimate APIs that append structured AI usage to `ai_token_usage`.
+- Tags, health-score, time-estimate, and nutrition APIs that append structured AI usage to `ai_token_usage` (optional dual-write to AI Usage Observatory via `@nikolausstoll/ai-observatory-client` and `AI_OBSERVATORY_URL` / `AI_OBSERVATORY_API_KEY`).
 - Cooking-mode layout for step-by-step guidance and ingredients panels.
 - Responsive PWA shell (manifest + `sw.js`), top/bottom navigation, and consistent light/dark theming.
 
@@ -35,7 +35,7 @@ npm run dev
 
 ## Environment
 
-Copy `.env.example` into `.env` in the workspace root. Supply `OPENAI_API_KEY` and only override `DB_PATH`, `UPLOAD_DIR`, or image-size values if you need to run outside the defaults. The example includes optional OpenAI tuning and crop-related variables.
+Copy `.env.example` into `.env` in the workspace root. Supply `OPENAI_API_KEY` and only override `DB_PATH`, `UPLOAD_DIR`, or image-size values if you need to run outside the defaults. The example includes optional OpenAI tuning, crop-related variables, and optional AI Usage Observatory dual-write (`AI_OBSERVATORY_URL`, `AI_OBSERVATORY_API_KEY`).
 
 ## Useful commands
 

@@ -110,6 +110,13 @@ router.post('/:id/estimate-nutrition', async (req, res) => {
   const { id } = req.params
   try {
     const estimation = await estimateRecipeNutrition(id)
+    logAiTokenUsage(id, estimation.tokenUsage, {
+      nutritionTotal: estimation.nutritionTotal,
+      notes: estimation.notes,
+    }, {
+      model: estimation.model,
+      usage_kind: 'nutrition_estimate',
+    })
     res.json(estimation)
   } catch (e) {
     console.error('Failed to estimate nutrition:', e)

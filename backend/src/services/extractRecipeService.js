@@ -10,6 +10,7 @@ import {
   CANONICAL_INGREDIENT_CATEGORY_ENUM,
 } from '../constants/ingredientCategories.js'
 import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
+import { reportAiUsageToObservatory } from './aiObservatoryService.js'
 
 const EXTRACT_PROMPT_BODY = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
@@ -455,4 +456,12 @@ export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {})
     usage_kind,
     now,
   )
+
+  // Dual-write to AI Usage Observatory (fire-and-forget; never blocks recipe flows)
+  reportAiUsageToObservatory({
+    recipeId,
+    usage,
+    responseJson,
+    meta: { model, usage_kind },
+  })
 }

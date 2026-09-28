@@ -22,7 +22,7 @@ This folder holds the Home Assistant add-on metadata and docs for [Recipe Librar
 ## Configuration & quick start
 
 1. Add the Recipe Library repository (or your local copy) to Home Assistant and install the add-on.
-2. In the add-on **Configuration** tab, supply at least `openai_api_key` if you want AI imports (images, URL normalization, nutrition, tags, etc.). Adjust `db_path`, `upload_dir`, or port if you use a custom storage layout.
+2. In the add-on **Configuration** tab, supply at least `openai_api_key` if you want AI imports (images, URL normalization, nutrition, tags, etc.). Optionally set `ai_observatory_url` and `ai_observatory_api_key` to dual-write AI token usage to [AI Usage Observatory](https://github.com/NikolausStoll/ai-usage-observatory). Adjust `db_path`, `upload_dir`, or port if you use a custom storage layout.
 3. Start the add-on, then click **Open web UI** (or use ingress) to begin browsing, editing, or importing recipes.
 
 ## Storage & backup guidance

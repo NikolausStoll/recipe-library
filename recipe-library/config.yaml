@@ -51,6 +51,8 @@ options:
   ai_cup_conversion_enabled: true
   ai_cup_conversion_model: "gpt-5.6-luna"
   ai_cup_conversion_temperature: 0.1
+  ai_observatory_url: ""
+  ai_observatory_api_key: ""
 
 schema:
   port: int(1024,65535)
@@ -81,3 +83,5 @@ schema:
   ai_cup_conversion_enabled: bool
   ai_cup_conversion_model: str
   ai_cup_conversion_temperature: float(0,1)
+  ai_observatory_url: str
+  ai_observatory_api_key: password

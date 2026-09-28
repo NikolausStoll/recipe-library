@@ -58,7 +58,16 @@ Used by `POST /api/recipes/extract-from-url` / `POST /api/recipes/import-from-ur
 | `openai_recipe_tag_model` | `OPENAI_RECIPE_TAG_MODEL` | `gpt-4o-mini` | Controlled vocabulary tagging. |
 | `openai_recipe_tag_temperature` | `OPENAI_RECIPE_TAG_TEMPERATURE` | `0.2` | Temperature for models that support it; omitted automatically for GPT-5 and o-series reasoning models. |
 
-Cup conversion, tagging, and the other AI helpers log token usage in `ai_token_usage`; the container mirrors the upstream `logAiTokenUsage` calls.
+Cup conversion, tagging, and the other AI helpers log token usage in `ai_token_usage`; the container mirrors the upstream `logAiTokenUsage` calls. When `ai_observatory_url` and `ai_observatory_api_key` are set, the same calls dual-write fire-and-forget events through `@nikolausstoll/ai-observatory-client` to AI Usage Observatory (`POST /api/v1/events`). Missing values disable Observatory reporting without affecting recipe flows.
+
+## AI Usage Observatory (optional)
+
+| Add-on option | Environment variable | Default | Description |
+| ------------- | -------------------- | ------- | ----------- |
+| `ai_observatory_url` | `AI_OBSERVATORY_URL` | *(empty)* | Base URL of the Observatory instance (no trailing path). Leave empty to disable dual-write. |
+| `ai_observatory_api_key` | `AI_OBSERVATORY_API_KEY` | *(empty)* | Application API key (`Authorization: Bearer …`). Leave empty to disable dual-write. |
+
+Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package; Recipe Library only supplies app-specific field mapping (`usage_kind` → feature/operation).
 
 ## Environment & naming conventions
 

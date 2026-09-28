@@ -28,7 +28,7 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 
 ### Database & AI data
 - Schema lives in `backend/src/db/index.js`. Key tables: `recipes`, `recipe_ingredient_sections`, `ingredients`, `recipe_steps`, `recipe_tips`, `recipe_health_scores`, `recipe_tags`, `ai_token_usage`, `recipe_history`, `recipe_sources`, `recipe_source_covers` (via `sourceService`).
-- AI token usage is tracked in `ai_token_usage` (`logAiTokenUsage`) for every normalization, tag, time, health, or cup conversion call.
+- AI token usage is tracked in `ai_token_usage` (`logAiTokenUsage`) for every normalization, tag, time, health, nutrition, or cup conversion call. When `AI_OBSERVATORY_URL` and `AI_OBSERVATORY_API_KEY` are set, the same hook dual-writes fire-and-forget events via `@nikolausstoll/ai-observatory-client` (`backend/src/services/aiObservatoryService.js` maps `usage_kind` → feature/operation); missing config is a no-op and Observatory failures never block recipe flows.
 - Cup-conversion (`cupConversionService.js`) and tagging (`recipeTagGenerationService.js`) are part of `recipeImportPipelineService.js`.
 
 ## Directory map
@@ -77,7 +77,7 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 
 - **Image import** (`POST /api/upload` → `recipes/:id/extract-from-images`): uploads are optional, optionally marked with `processImageLater` to keep raw bytes in `data/uploads/{recipe,source}/pending/`. The pipeline crops (Sharp + optional Python), resizes to WebP, writes thumbnails, creates a draft recipe, runs `extractRecipeFromImages` (OpenAI vision via `extractRecipeService.js`), and logs tokens.
 - **URL import/extract** (`/api/recipes/extract-from-url` and `/api/recipes/import-from-url`): `recipeUrlExtractService` scrapes JSON-LD + recipe-card HTML (`recipeHtmlEnrichment.js`), deduplicates images, optionally runs `normalizeRecipeWithLLM` (`recipeNormalizationService.js`), and returns structured data for review. `recipeImportPipelineService.finalizeImportedRecipe` applies imperial unit conversion (`imperialUnitConversionService.js`), cup conversion (`cupConversionService.js`), writes `parsed_recipe`, and waits on tag generation (`generateRecipeTags`).
-- **Tags/estimates**: tagging runs after `finalizeImportedRecipe`, health/time estimates are separate endpoints (`recipeHealthScoreService`, `recipeTimeEstimateService`, `recipeService.applyRecipeTimeEstimate`) and log usage to `ai_token_usage` via `logAiTokenUsage`.
+- **Tags/estimates**: tagging runs after `finalizeImportedRecipe`, health/time/nutrition estimates are separate endpoints (`recipeHealthScoreService`, `recipeTimeEstimateService`, `nutritionService`, `recipeService.applyRecipeTimeEstimate`) and log usage to `ai_token_usage` via `logAiTokenUsage` (optional Observatory dual-write).
 - **Persistence**: `recipeService.setRecipeParsedRecipe` populates recipe rows + ingredient/step/tip tables from the structured envelope. `PUT /api/recipes/:id` replaces ingredient sections (new IDs) and relies on `groupIngredientsForSections()` for ordering/grouping.
 
 ## UI conventions

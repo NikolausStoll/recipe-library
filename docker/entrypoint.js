@@ -56,6 +56,8 @@ const OPTION_MAP = [
   ['AI_CUP_CONVERSION_ENABLED', ['ai_cup_conversion_enabled'], 'true'],
   ['AI_CUP_CONVERSION_MODEL', ['ai_cup_conversion_model'], 'gpt-4.1-mini'],
   ['AI_CUP_CONVERSION_TEMPERATURE', ['ai_cup_conversion_temperature'], '0.1'],
+  ['AI_OBSERVATORY_URL', ['ai_observatory_url'], ''],
+  ['AI_OBSERVATORY_API_KEY', ['ai_observatory_api_key'], ''],
 ]
 
 for (const [envName, keys, fallback] of OPTION_MAP) {
