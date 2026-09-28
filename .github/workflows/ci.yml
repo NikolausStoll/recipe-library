@@ -70,13 +70,28 @@ jobs:
             exit 1
           fi
 
+          # Compare against the push base (github.event.before), not only HEAD^.
+          # A follow-up commit (e.g. lockfile sync) after a version bump still has
+          # the new version at HEAD^, which falsely skipped image builds.
           OLD_VERSION=""
-          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
-            OLD_VERSION="$(git show HEAD^:recipe-library/config.yaml 2>/dev/null | sed -n 's/^version:[[:space:]]*"\(.*\)"/\1/p' | head -1 || true)"
+          BEFORE_SHA="${{ github.event.before }}"
+          if [[ -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            OLD_VERSION="$(git show "${BEFORE_SHA}:recipe-library/config.yaml" 2>/dev/null | sed -n 's/^version:[[:space:]]*"\(.*\)"/\1/p' | head -1 || true)"
+          fi
+          if [[ -z "$OLD_VERSION" ]]; then
+            # Fallback: walk parents of config.yaml until version differs
+            while read -r commit; do
+              candidate="$(git show "${commit}:recipe-library/config.yaml" 2>/dev/null | sed -n 's/^version:[[:space:]]*"\(.*\)"/\1/p' | head -1 || true)"
+              if [[ -n "$candidate" && "$candidate" != "$NEW_VERSION" ]]; then
+                OLD_VERSION="$candidate"
+                break
+              fi
+            done < <(git rev-list --skip=1 HEAD -- recipe-library/config.yaml)
           fi
 
           echo "New version: $NEW_VERSION"
           echo "Old version: ${OLD_VERSION:-<none>}"
+          echo "Before SHA: ${BEFORE_SHA:-<none>}"
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
