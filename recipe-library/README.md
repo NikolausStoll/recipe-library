@@ -30,6 +30,10 @@ This folder holds the Home Assistant add-on metadata and docs for [Recipe Librar
 - `db_path` and `upload_dir` default to `/data/recipe-library.db` and `/data/uploads`. Keep those directories mounted to preserve recipes, images, and pending uploads across updates.
 - Back up the `.db` file together with `/data/uploads` to capture recipes, cover photos, and AI extraction history.
 
+## Releases
+
+Add-on updates follow the monorepo CI: bump `config.yaml` `version` together with `frontend/package.json` and `backend/package.json`, push to `main`, and wait for the image + git tag. See the root [README Releases section](../README.md#releases).
+
 ## Documentation
 
 - **`DOCS.md`** — Detailed option ↔ environment mapping plus notes on OpenAI, cropping, and persistence.

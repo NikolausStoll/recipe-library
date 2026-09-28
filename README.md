@@ -45,9 +45,31 @@ Copy `.env.example` into `.env` in the workspace root. Supply `OPENAI_API_KEY` a
 - `npm run dev:backend`
 - `npm run build`
 - `npm run start`
+- `npm test`
+- `npm run check:version`
 - `npm --prefix backend run test`
 - `npm --prefix backend run evaluate-vision`
 - `npm --prefix frontend run preview`
+
+## Releases
+
+**Single source of truth:** `recipe-library/config.yaml` → `version`.
+
+Home Assistant installs exactly:
+
+```text
+ghcr.io/nikolausstoll/recipe-library:<that-version>
+```
+
+So `frontend/package.json` and `backend/package.json` versions must always match. CI fails on mismatch (`npm run check:version`).
+
+### How to cut a release
+
+1. Bump **`recipe-library/config.yaml`**, **`frontend/package.json`**, and **`backend/package.json`** to the same new version in one commit on `main`.
+2. Push. CI runs tests → builds **native** `linux/amd64` and `linux/arm64` images (no QEMU) → merges a multi-arch manifest → verifies it → only then creates the git tag.
+3. Wait until the workflow is green before installing/updating the add-on in Home Assistant (there is a short window where git already has the new version but the image is still building).
+
+Manual republish of the current version: Actions → **CI** → **Run workflow**.
 
 ## Next
 

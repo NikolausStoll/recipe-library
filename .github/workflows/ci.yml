@@ -1,0 +1,217 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY_IMAGE: ghcr.io/nikolausstoll/recipe-library
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check version sync
+        run: npm run check:version
+
+      - name: Test
+        run: npm test
+
+  prepare-release:
+    needs: test
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Determine version change
+        id: version
+        run: |
+          set -euo pipefail
+
+          extract_version() {
+            sed -n 's/^version:[[:space:]]*"\(.*\)"/\1/p' "$1" | head -1
+          }
+
+          NEW_VERSION="$(extract_version recipe-library/config.yaml)"
+          if [[ -z "$NEW_VERSION" ]]; then
+            echo "Could not read version from recipe-library/config.yaml" >&2
+            exit 1
+          fi
+
+          FRONTEND_VERSION="$(node -p "require('./frontend/package.json').version")"
+          BACKEND_VERSION="$(node -p "require('./backend/package.json').version")"
+          if [[ "$NEW_VERSION" != "$FRONTEND_VERSION" || "$NEW_VERSION" != "$BACKEND_VERSION" ]]; then
+            echo "Version mismatch: config.yaml=$NEW_VERSION frontend=$FRONTEND_VERSION backend=$BACKEND_VERSION" >&2
+            exit 1
+          fi
+
+          OLD_VERSION=""
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            OLD_VERSION="$(git show HEAD^:recipe-library/config.yaml 2>/dev/null | sed -n 's/^version:[[:space:]]*"\(.*\)"/\1/p' | head -1 || true)"
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "Old version: ${OLD_VERSION:-<none>}"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$NEW_VERSION" == "$OLD_VERSION" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  # Native builds only — QEMU arm64 dies on `npm ci` (Illegal instruction) with Node.
+  build:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.changed == 'true'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=build-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,scope=build-${{ env.PLATFORM_PAIR }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v6
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs:
+      - prepare-release
+      - build
+    if: needs.prepare-release.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download digests
+        uses: actions/download-artifact@v7
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
+        working-directory: /tmp/digests
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            -t "${REGISTRY_IMAGE}:latest" \
+            -t "${REGISTRY_IMAGE}:${VERSION}" \
+            $(printf "${REGISTRY_IMAGE}@sha256:%s " *)
+
+      - name: Verify published image manifest
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          IMAGE="${REGISTRY_IMAGE}:${VERSION}"
+          docker buildx imagetools inspect "$IMAGE"
+          echo "Verified $IMAGE is available for Home Assistant"
+
+      - name: Create git tag
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists — image republished successfully"
+            exit 0
+          fi
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          echo "Created tag $VERSION after successful image publish"

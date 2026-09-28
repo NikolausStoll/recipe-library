@@ -56,6 +56,7 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 | `npm --prefix backend run test` | Run backend test suite (`node --test tests/**/*.test.js`). |
 | `npm --prefix frontend run test` | Run frontend test suite (`vitest run`). |
 | `npm test` | Run backend + frontend tests (both must pass). |
+| `npm run check:version` | Fail if `recipe-library/config.yaml` version ≠ frontend/backend `package.json`. |
 | `npm --prefix backend run evaluate-vision` | Run the backend vision-evaluation helper. |
 | `npm --prefix frontend run preview` | Serve the built frontend for manual verification. |
 
@@ -70,7 +71,7 @@ Recipe Library is a personal recipe-management monorepo. It covers:
 - Consider mobile, tablet, desktop, light/dark modes, and the PWA install experience when adjusting UI/layout.
 - Leave `.env` secrets out of the repo; mention only the needed keys in docs.
 - Avoid touching LLM prompts, JSON schema, or pipeline wiring unless a task explicitly asks for it.
-- **Version bumps:** When the user asks to bump the version, **first** run `npm test` (backend + frontend) **and** `npm run build` (frontend production build). Only bump version numbers if **both succeed**. If anything fails, fix the failures (or report them) and do **not** change version files until green. Prefer SemVer honestly (patch = fixes only; minor = new features/UX; major = breaking). Note: unit tests alone do not catch all bundler/export errors — the Vite build is required.
+- **Version bumps:** When the user asks to bump the version, **first** run `npm test` (backend + frontend) **and** `npm run build` (frontend production build). Only bump version numbers if **both succeed**. If anything fails, fix the failures (or report them) and do **not** change version files until green. Prefer SemVer honestly (patch = fixes only; minor = new features/UX; major = breaking). Note: unit tests alone do not catch all bundler/export errors — the Vite build is required. Bump **together**: `recipe-library/config.yaml`, `frontend/package.json`, and `backend/package.json` (HA installs `ghcr.io/nikolausstoll/recipe-library:<config version>`). CI (`.github/workflows/ci.yml`) runs tests → on `main`, if that version changed and is in sync, builds native amd64/arm64 images → publishes the multi-arch manifest → then creates the git tag.
 
 ## Import & AI pipeline
 
