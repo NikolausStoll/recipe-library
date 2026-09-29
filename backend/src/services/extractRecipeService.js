@@ -11,6 +11,7 @@ import {
 } from '../constants/ingredientCategories.js'
 import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 import { reportAiUsageToObservatory } from './aiObservatoryService.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const EXTRACT_PROMPT_BODY = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
@@ -391,13 +392,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
 
   const recipe = JSON.parse(choice.message.content)
 
-  const usage = response.usage
-    ? {
-        prompt_tokens: response.usage.prompt_tokens,
-        completion_tokens: response.usage.completion_tokens,
-        total_tokens: response.usage.total_tokens,
-      }
-    : undefined
+  const usage = normalizeOpenAiUsage(response.usage) ?? undefined
 
   return { recipe, usage }
 }
@@ -405,9 +400,9 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
 /**
  * Log token usage and optional JSON payloads for any OpenAI call (vision extract, URL normalize, health score, …).
  * @param {number|null|undefined} recipeId
- * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number }|null|undefined} usage
+ * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number, prompt_tokens_details?: object, completion_tokens_details?: object }|null|undefined} usage
  * @param {unknown} responseJson
- * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null }} [meta]
+ * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null, durationMs?: number|null }} [meta]
  */
 export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {}) {
   if (!usage && responseJson == null) return
@@ -462,6 +457,11 @@ export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {})
     recipeId,
     usage,
     responseJson,
-    meta: { model, usage_kind },
+    meta: {
+      model,
+      usage_kind,
+      request_json: meta.request_json,
+      durationMs: meta.durationMs,
+    },
   })
 }

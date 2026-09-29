@@ -5,6 +5,7 @@
 
 import OpenAI from 'openai'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL =
   process.env.AI_CUP_CONVERSION_MODEL ||
@@ -232,13 +233,7 @@ async function callCupConversionLLM(requestPayload, model = DEFAULT_MODEL) {
   if (!content) throw new Error('No content in cup conversion response')
 
   const response = JSON.parse(content)
-  const usage = completion.usage
-    ? {
-        prompt_tokens: completion.usage.prompt_tokens,
-        completion_tokens: completion.usage.completion_tokens,
-        total_tokens: completion.usage.total_tokens,
-      }
-    : undefined
+  const usage = normalizeOpenAiUsage(completion.usage) ?? undefined
 
   return { response, usage, model, request_json }
 }

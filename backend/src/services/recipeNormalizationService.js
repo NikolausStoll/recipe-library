@@ -8,6 +8,7 @@ import { RECIPE_JSON_SCHEMA } from './extractRecipeService.js'
 import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
 import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 // Cup-to-gram conversion moved to cupConversionService (post-normalization stage).
 // TODO: Remove the "Cup conversion:" prompt block below once normalization prompt is updated.
 
@@ -232,13 +233,7 @@ async function callLLM(rawRecipe, model) {
   const choice = response.choices?.[0]
   if (!choice?.message?.content) throw new Error('No content in OpenAI response')
   const recipe = JSON.parse(choice.message.content)
-  const usage = response.usage
-    ? {
-        prompt_tokens: response.usage.prompt_tokens,
-        completion_tokens: response.usage.completion_tokens,
-        total_tokens: response.usage.total_tokens,
-      }
-    : undefined
+  const usage = normalizeOpenAiUsage(response.usage) ?? undefined
   return { recipe, usage, request_json: userPayload }
 }
 

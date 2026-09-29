@@ -43,11 +43,85 @@ export function resolveObservatoryStatus(responseJson) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function tryParseJson(value) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * @param {unknown} requestJson
+ * @returns {import("@nikolausstoll/ai-observatory-client").ObservatoryRequestResponse|undefined}
+ */
+export function buildObservatoryRequest(requestJson) {
+  if (requestJson == null) return undefined;
+  if (typeof requestJson === "string" && requestJson.trim() === "") return undefined;
+  return { raw: tryParseJson(requestJson) };
+}
+
+/**
+ * @param {unknown} responseJson
+ * @returns {import("@nikolausstoll/ai-observatory-client").ObservatoryRequestResponse|undefined}
+ */
+export function buildObservatoryResponsePayload(responseJson) {
+  if (responseJson == null) return undefined;
+  if (typeof responseJson === "string") {
+    const parsed = tryParseJson(responseJson);
+    if (parsed !== responseJson && typeof parsed === "object") {
+      return { output: parsed };
+    }
+    return { raw: responseJson };
+  }
+  return { output: responseJson };
+}
+
+/**
+ * @param {object|null|undefined} usage
+ * @returns {number|null}
+ */
+function resolveCachedInputTokens(usage) {
+  if (!usage || typeof usage !== "object") return null;
+  if (usage.cachedInputTokens != null) return Number(usage.cachedInputTokens);
+  const details = usage.prompt_tokens_details;
+  if (details != null && typeof details === "object" && details.cached_tokens != null) {
+    return Number(details.cached_tokens);
+  }
+  return null;
+}
+
+/**
+ * @param {object|null|undefined} usage
+ * @returns {number|null}
+ */
+function resolveReasoningTokens(usage) {
+  if (!usage || typeof usage !== "object") return null;
+  if (usage.reasoningTokens != null) return Number(usage.reasoningTokens);
+  const details = usage.completion_tokens_details;
+  if (details != null && typeof details === "object" && details.reasoning_tokens != null) {
+    return Number(details.reasoning_tokens);
+  }
+  return null;
+}
+
+/**
  * @param {object} params
  * @param {number|null|undefined} params.recipeId
- * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number }|null|undefined} params.usage
+ * @param {object|null|undefined} params.usage
  * @param {unknown} params.responseJson
- * @param {{ model?: string|null, usage_kind?: string|null }} params.meta
+ * @param {{
+ *   model?: string|null,
+ *   usage_kind?: string|null,
+ *   request_json?: unknown,
+ *   durationMs?: number|null,
+ * }} params.meta
  */
 export function buildObservatoryEvent({
   recipeId,
@@ -73,6 +147,10 @@ export function buildObservatoryEvent({
     requestedModel,
   };
 
+  if (meta.durationMs != null && Number.isFinite(Number(meta.durationMs))) {
+    partial.durationMs = Number(meta.durationMs);
+  }
+
   // Include eventId in operationId suffix for uniqueness (previous behaviour)
   const event = buildEvent(partial);
   event.operationId = `${feature}:${recipePart}:${operation}:${event.eventId}`;
@@ -82,9 +160,17 @@ export function buildObservatoryEvent({
       inputTokens: usage.prompt_tokens ?? null,
       outputTokens: usage.completion_tokens ?? null,
       totalTokens: usage.total_tokens ?? null,
+      cachedInputTokens: resolveCachedInputTokens(usage),
+      reasoningTokens: resolveReasoningTokens(usage),
       rawUsage: /** @type {Record<string, unknown>} */ (usage),
     };
   }
+
+  const request = buildObservatoryRequest(meta.request_json);
+  if (request) event.request = request;
+
+  const response = buildObservatoryResponsePayload(responseJson);
+  if (response) event.response = response;
 
   if (recipeId != null) {
     event.metadata = { recipeId };
@@ -113,9 +199,14 @@ export async function postObservatoryEvent(event) {
  * Fire-and-forget dual-write after local ai_token_usage INSERT.
  * @param {object} params
  * @param {number|null|undefined} params.recipeId
- * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number }|null|undefined} params.usage
+ * @param {object|null|undefined} params.usage
  * @param {unknown} params.responseJson
- * @param {{ model?: string|null, usage_kind?: string|null }} params.meta
+ * @param {{
+ *   model?: string|null,
+ *   usage_kind?: string|null,
+ *   request_json?: unknown,
+ *   durationMs?: number|null,
+ * }} params.meta
  */
 export function reportAiUsageToObservatory({
   recipeId,

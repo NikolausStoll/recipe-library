@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { getDb } from '../db/index.js'
 import { getRecipeById } from './recipeService.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const NUTRITION_PROMPT = `Estimate nutrition for the full recipe and return JSON only.
 
@@ -131,13 +132,7 @@ export async function estimateRecipeNutrition(id) {
   return {
     nutritionTotal: total,
     model,
-    tokenUsage: response.usage
-      ? {
-          prompt_tokens: response.usage.prompt_tokens,
-          completion_tokens: response.usage.completion_tokens,
-          total_tokens: response.usage.total_tokens,
-        }
-      : null,
+    tokenUsage: normalizeOpenAiUsage(response.usage),
     notes: Array.isArray(estimation?.notes) ? estimation.notes : [],
   }
 }

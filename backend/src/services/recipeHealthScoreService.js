@@ -7,6 +7,7 @@
 import OpenAI from 'openai'
 import { getRecipeById } from './recipeService.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_HEALTH_SCORE_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_HEALTH_SCORE_TEMPERATURE) || 0.2))
@@ -157,12 +158,7 @@ export function sanitizeHealthScoreResult(raw) {
 }
 
 function usageFromResponse(usage) {
-  if (!usage) return null
-  return {
-    prompt_tokens: usage.prompt_tokens,
-    completion_tokens: usage.completion_tokens,
-    total_tokens: usage.total_tokens,
-  }
+  return normalizeOpenAiUsage(usage)
 }
 
 /**

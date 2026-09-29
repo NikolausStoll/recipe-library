@@ -3,6 +3,7 @@ import { RECIPE_JSON_SCHEMA, parseTranslateToGerman } from './extractRecipeServi
 import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
 import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = 'gpt-5.6-luna'
 const TEMPERATURE = 0
@@ -59,9 +60,7 @@ export async function extractRecipeFromText(text, options = {}) {
   return {
     recipe: JSON.parse(content),
     model,
-    usage: response.usage
-      ? { prompt_tokens: response.usage.prompt_tokens, completion_tokens: response.usage.completion_tokens, total_tokens: response.usage.total_tokens }
-      : undefined,
+    usage: normalizeOpenAiUsage(response.usage) ?? undefined,
     request_json: sourceText,
   }
 }

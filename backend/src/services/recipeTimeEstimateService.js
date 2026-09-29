@@ -4,6 +4,7 @@
 
 import OpenAI from 'openai'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_TIME_ESTIMATE_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_TIME_ESTIMATE_TEMPERATURE) || 0.2))
@@ -200,13 +201,7 @@ export async function estimateRecipePrepCookTimes(recipe) {
     throw new Error('Could not normalize model output')
   }
 
-  const tokenUsage = response.usage
-    ? {
-        prompt_tokens: response.usage.prompt_tokens,
-        completion_tokens: response.usage.completion_tokens,
-        total_tokens: response.usage.total_tokens,
-      }
-    : null
+  const tokenUsage = normalizeOpenAiUsage(response.usage)
 
   return {
     prepTimeMinutes,

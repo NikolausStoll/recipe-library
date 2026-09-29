@@ -62,9 +62,69 @@ describe('aiObservatoryService', () => {
       inputTokens: 10,
       outputTokens: 5,
       totalTokens: 15,
+      cachedInputTokens: null,
+      reasoningTokens: null,
       rawUsage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
     })
+    assert.deepEqual(event.response, { output: { tags: ['vegan'] } })
+    assert.equal(event.request, undefined)
     assert.deepEqual(event.metadata, { recipeId: 42 })
+  })
+
+  it('buildObservatoryEvent maps cached/reasoning tokens, request, response, durationMs', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const openaiUsage = {
+      prompt_tokens: 2006,
+      completion_tokens: 300,
+      total_tokens: 2306,
+      prompt_tokens_details: { cached_tokens: 1920 },
+      completion_tokens_details: { reasoning_tokens: 50 },
+    }
+    const event = buildObservatoryEvent({
+      recipeId: 9,
+      usage: openaiUsage,
+      responseJson: { tags: ['vegan'], warnings: [] },
+      meta: {
+        model: 'gpt-4o-mini',
+        usage_kind: 'recipe_tag',
+        request_json: '{"title":"Soup"}',
+        durationMs: 1843,
+      },
+    })
+
+    assert.deepEqual(event.usage, {
+      inputTokens: 2006,
+      outputTokens: 300,
+      totalTokens: 2306,
+      cachedInputTokens: 1920,
+      reasoningTokens: 50,
+      rawUsage: openaiUsage,
+    })
+    assert.deepEqual(event.request, { raw: { title: 'Soup' } })
+    assert.deepEqual(event.response, { output: { tags: ['vegan'], warnings: [] } })
+    assert.equal(event.durationMs, 1843)
+    assert.deepEqual(event.metadata, { recipeId: 9 })
+  })
+
+  it('buildObservatoryEvent keeps non-JSON request_json as raw string and sets error on failure', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const event = buildObservatoryEvent({
+      recipeId: 1,
+      usage: null,
+      responseJson: { error: 'timeout' },
+      meta: {
+        model: 'gpt-4o-mini',
+        usage_kind: 'health_score',
+        request_json: 'not-json {',
+      },
+    })
+
+    assert.equal(event.status, 'error')
+    assert.deepEqual(event.error, { message: 'timeout' })
+    assert.deepEqual(event.request, { raw: 'not-json {' })
+    assert.deepEqual(event.response, { output: { error: 'timeout' } })
   })
 
   it('reportAiUsageToObservatory is a no-op without URL/key', async () => {
@@ -108,7 +168,7 @@ describe('aiObservatoryService', () => {
         recipeId: 7,
         usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
         responseJson: { error: 'failed' },
-        meta: { model: 'gpt-4o-mini', usage_kind: 'health_score' },
+        meta: { model: 'gpt-4o-mini', usage_kind: 'health_score', request_json: '{"a":1}' },
       })
       await new Promise((r) => setTimeout(r, 50))
       assert.equal(seen.url, 'http://obs.example/api/v1/events')
@@ -122,6 +182,9 @@ describe('aiObservatoryService', () => {
       assert.equal(body.feature, 'health-score')
       assert.equal(body.usage.inputTokens, 3)
       assert.equal(body.usage.outputTokens, 2)
+      assert.deepEqual(body.request, { raw: { a: 1 } })
+      assert.deepEqual(body.response, { output: { error: 'failed' } })
+      assert.deepEqual(body.error, { message: 'failed' })
     } finally {
       globalThis.fetch = originalFetch
     }

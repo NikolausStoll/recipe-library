@@ -6,6 +6,7 @@ import OpenAI from 'openai'
 import { ALL_ALLOWED_TAGS } from '../constants/recipeTags.js'
 import { sanitizeRecipeTags } from './recipeTagValidation.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_RECIPE_TAG_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_RECIPE_TAG_TEMPERATURE) || 0.2))
@@ -205,13 +206,7 @@ export async function generateRecipeTags(recipe) {
     })
 
     const content = response.choices?.[0]?.message?.content
-    const tokenUsage = response.usage
-      ? {
-          prompt_tokens: response.usage.prompt_tokens,
-          completion_tokens: response.usage.completion_tokens,
-          total_tokens: response.usage.total_tokens,
-        }
-      : null
+    const tokenUsage = normalizeOpenAiUsage(response.usage)
 
     if (!content) {
       const sanitized = sanitizeRecipeTags([], { title })
