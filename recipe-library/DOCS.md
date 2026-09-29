@@ -69,6 +69,24 @@ Cup conversion, tagging, and the other AI helpers log token usage in `ai_token_u
 
 Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package; Recipe Library only supplies app-specific field mapping (`usage_kind` → feature/operation).
 
+### Historical backfill (admin)
+
+Live dual-write only covers new `ai_token_usage` rows. To push existing rows from the add-on’s SQLite into Observatory, call the in-app admin endpoint (same host/port as the Recipe Library UI — not a laptop CLI):
+
+```bash
+# Dry-run: count + sample events, no POSTs
+curl -X POST 'http://homeassistant.local:8097/api/admin/observatory-backfill' \
+  -H 'Content-Type: application/json' \
+  -d '{"dryRun":true,"limit":50}'
+
+# Real run (requires ai_observatory_url + ai_observatory_api_key)
+curl -X POST 'http://homeassistant.local:8097/api/admin/observatory-backfill' \
+  -H 'Content-Type: application/json' \
+  -d '{"limit":50,"batchSize":25,"delayMs":100}'
+```
+
+Optional body/query fields: `dryRun`, `limit` (default 50), `since` (ISO / SQLite datetime), `batchSize`, `delayMs`. Without Observatory env/options the endpoint returns **503** (unless `dryRun`). Re-runs are safe: each row uses a deterministic UUID v5 `eventId` (`recipe-library:ai_token_usage:{id}`); Observatory returns `duplicate: true` for already-ingested events. Historical rows have no cached/reasoning token breakdown and no `durationMs` — those fields are not invented (`durationMs` is `0`).
+
 ## Environment & naming conventions
 
 - Add-on options use snake_case in `config.yaml` (e.g. `openai_api_key`).
