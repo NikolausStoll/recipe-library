@@ -10,9 +10,11 @@ import {
   buildObservatoryRequest,
   buildObservatoryResponsePayload,
   mapUsageKindToFeatureOperation,
+  resolveApplicationVersion,
   resolveObservatoryEnvironment,
   resolveObservatoryStatus,
 } from './aiObservatoryService.js'
+import { resolvePromptMeta } from '../constants/promptRegistry.js'
 
 /** DNS namespace UUID (RFC 4122) for deterministic backfill eventIds. */
 export const OBSERVATORY_BACKFILL_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
@@ -139,6 +141,7 @@ export function buildBackfillEventFromRow(row) {
     timestamp: createdAtToIsoUtc(row.created_at),
     durationMs: 0,
     environment: resolveObservatoryEnvironment(),
+    applicationVersion: resolveApplicationVersion(),
     feature,
     operation,
     operationId: `backfill:${usageKindRaw}:${row.id}`,
@@ -161,6 +164,12 @@ export function buildBackfillEventFromRow(row) {
       source: 'backfill',
       localUsageId: row.id,
     },
+  }
+
+  // Stable promptId from usage_kind only; do not invent historical promptVersion.
+  const promptMeta = resolvePromptMeta(usageKindRaw)
+  if (promptMeta) {
+    partial.promptId = promptMeta.promptId
   }
 
   const request = buildObservatoryRequest(row.request_json)

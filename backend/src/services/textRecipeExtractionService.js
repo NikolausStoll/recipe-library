@@ -13,6 +13,7 @@ export function getTextExtractionModel() {
   return process.env.OPENAI_TEXT_EXTRACT_MODEL || DEFAULT_MODEL
 }
 
+/** Observatory bump: PROMPT_REGISTRY.text_recipe_extract when this prompt (or shared parsing/categories) changes. */
 export function buildTextExtractionPrompt(translateToGerman = false) {
   const languageRule = translateToGerman
     ? 'Set recipe.language to "de". Translate introText, ingredient section headings, ingredient, additionalInfo, steps, and tips to German. Use natural German recipe language for home cooks; do not translate word-for-word when that sounds unnatural. Use informal "du" only when directly addressing the cook; never use formal "Sie". Preserve meaning and cooking intent. Keep the translation concise without making it awkward. Keep ingredient originalText exactly as pasted. Never translate recipe.title. Do not return duplicate translated and original content.'

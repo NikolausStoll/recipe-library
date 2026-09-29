@@ -35,6 +35,7 @@ const OPTION_MAP = [
   ['IMAGE_QUALITY', ['image_quality'], '80'],
   ['IMAGE_MAX_DIMENSION', ['image_max_dimension'], '2400'],
   ['TEXT_IMAGE_MAX_DIMENSION', ['text_image_max_dimension'], '1400'],
+  ['TEXT_IMAGE_WEBP_QUALITY', ['text_image_webp_quality'], '90'],
   ['THUMBNAIL_MAX_DIMENSION', ['thumbnail_max_dimension'], '600'],
   ['RECIPE_URL_FETCH_TIMEOUT_MS', ['recipe_url_fetch_timeout_ms'], '25000'],
   ['RECIPE_URL_MAX_BYTES', ['recipe_url_max_bytes'], '2000000'],

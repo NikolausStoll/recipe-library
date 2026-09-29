@@ -13,6 +13,7 @@ import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 const DEFAULT_MODEL = process.env.OPENAI_HEALTH_SCORE_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_HEALTH_SCORE_TEMPERATURE) || 0.2))
 
+/** Observatory bump: PROMPT_REGISTRY.health_score when this prompt changes. */
 const HEALTH_SCORE_PROMPT = `You estimate a simple health score for a recipe.
 
 Return only valid JSON.

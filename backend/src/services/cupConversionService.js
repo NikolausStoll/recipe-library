@@ -123,7 +123,8 @@ export const CUP_CONVERSION_RESPONSE_SCHEMA = {
   },
 }
 
-/** Placeholder prompt — final tuning is a separate task. */
+/** Placeholder prompt — final tuning is a separate task.
+ * Observatory bump: PROMPT_REGISTRY.cup_conversion when this prompt changes. */
 const CUP_CONVERSION_PROMPT = `
 You convert cup-measured ingredients to grams or milliliters using reasonable culinary estimates.
 

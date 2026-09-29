@@ -12,6 +12,7 @@ import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 const DEFAULT_MODEL = process.env.OPENAI_RECIPE_TAG_MODEL || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_RECIPE_TAG_TEMPERATURE) || 0.2))
 
+/** Observatory bump: PROMPT_REGISTRY.recipe_tag when this prompt changes. */
 const TAG_PROMPT = `Select tags for this recipe.
 
 Return only valid JSON.

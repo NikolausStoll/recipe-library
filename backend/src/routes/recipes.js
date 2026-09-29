@@ -5,7 +5,7 @@ import fs from 'fs'
 import sharp from 'sharp'
 import * as recipeService from '../services/recipeService.js'
 import { extractRecipeFromImages, logAiTokenUsage, parseTranslateToGerman } from '../services/extractRecipeService.js'
-import { prepareTextImage, writeResizedWebp } from '../services/imageProcessingService.js'
+import { prepareTextImage, writeResizedWebp, encodeTextImageWebp } from '../services/imageProcessingService.js'
 import { cropPerspective, cropPerspectiveBuffer } from '../services/cropPerspectiveService.js'
 import { estimateRecipeNutrition } from '../services/nutritionService.js'
 import {
@@ -855,7 +855,8 @@ router.post('/:id/extract-from-images', (req, res, next) => {
     }
   }
   try {
-    // Order: Resize -> Crop -> Send. Points from frontend are in original image coords; convert to resized coords before crop.
+    // Order: Resize+WebP -> Crop (if any) -> re-encode WebP -> Send.
+    // Final buffers are the exact bytes sent to OpenAI and Observatory (high-quality WebP).
     const buffers = await Promise.all(
       files.map(async (f, i) => {
         const origMeta = await sharp(f.buffer).metadata()
@@ -872,7 +873,9 @@ router.post('/:id/extract-from-images', (req, res, next) => {
               x: Math.round((Number(p.x) * rw) / origW),
               y: Math.round((Number(p.y) * rh) / origH),
             }))
-            buf = await cropPerspectiveBuffer(buf, converted, 'png')
+            // Crop returns PNG from OpenCV; re-encode to the same WebP profile as prepareTextImage.
+            buf = await cropPerspectiveBuffer(buf, converted, 'webp')
+            buf = await encodeTextImageWebp(buf)
           }
         }
         return buf
@@ -892,10 +895,29 @@ router.post('/:id/extract-from-images', (req, res, next) => {
       sizeFmt(totalBytes)
     )
     const translateToGerman = parseTranslateToGerman(req.body?.translateToGerman)
-    const { recipe: parsedRecipe, usage, durationMs } = await extractRecipeFromImages(buffers, { translateToGerman })
+    const {
+      recipe: parsedRecipe,
+      usage,
+      durationMs,
+      observatoryRequest,
+      modelInputImages,
+    } = await extractRecipeFromImages(buffers, { translateToGerman })
     const visionModel = process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini'
     if (usage || parsedRecipe) {
-      logAiTokenUsage(id, usage, parsedRecipe, { model: visionModel, usage_kind: 'recipe_image_extract', durationMs })
+      // Artifacts must be the exact bytes sent to the vision model (post resize/crop), not originals.
+      logAiTokenUsage(id, usage, parsedRecipe, {
+        model: visionModel,
+        usage_kind: 'recipe_image_extract',
+        durationMs,
+        observatory_request: observatoryRequest,
+        observatory_artifacts: modelInputImages.map((buf, i) => ({
+          data: buf,
+          role: 'input',
+          label: `recipe-page-${i + 1}`,
+          filename: `recipe-page-${i + 1}.webp`,
+          mimeType: 'image/webp',
+        })),
+      })
     }
     const { recipe: updated } = await finalizeImportedRecipe(id, parsedRecipe, { updateTitle: true })
     res.json({ recipe: updated, usage: usage || null })

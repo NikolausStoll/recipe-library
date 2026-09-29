@@ -72,7 +72,10 @@ describe('aiObservatoryService', () => {
 
   it('buildObservatoryEvent maps tokens and required fields', async () => {
     process.env.NODE_ENV = 'test'
-    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const {
+      buildObservatoryEvent,
+      resolveApplicationVersion,
+    } = await import('../../src/services/aiObservatoryService.js')
     const event = buildObservatoryEvent({
       recipeId: 42,
       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
@@ -91,6 +94,9 @@ describe('aiObservatoryService', () => {
     assert.equal(event.requestedModel, 'gpt-4o-mini')
     assert.equal(event.attemptNumber, 1)
     assert.equal(event.durationMs, 0)
+    assert.equal(event.applicationVersion, resolveApplicationVersion())
+    assert.equal(event.promptId, 'recipe-tag-generation')
+    assert.equal(event.promptVersion, '1')
     assert.deepEqual(event.usage, {
       inputTokens: 10,
       outputTokens: 5,
@@ -182,49 +188,81 @@ describe('aiObservatoryService', () => {
     }
   })
 
-  it('reportAiUsageToObservatory POSTs when URL and key are set', async () => {
+  it('buildObservatoryEvent prefers observatory_request over request_json', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const event = buildObservatoryEvent({
+      recipeId: 3,
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      responseJson: { ok: true },
+      meta: {
+        model: 'gpt-4.1-mini',
+        usage_kind: 'recipe_image_extract',
+        request_json: '{"should":"not-win"}',
+        observatory_request: {
+          input: { system: 'SYS', userText: 'USER' },
+          metadata: { imageCount: 2 },
+        },
+      },
+    })
+
+    assert.deepEqual(event.request, {
+      input: { system: 'SYS', userText: 'USER' },
+      metadata: { imageCount: 2 },
+    })
+    assert.equal(event.promptId, 'recipe-image-extraction')
+  })
+
+  it('reportAiUsageToObservatory POSTs event then input artifacts', async () => {
     process.env.AI_OBSERVATORY_URL = 'http://obs.example'
     process.env.AI_OBSERVATORY_API_KEY = 'obs_key'
     process.env.NODE_ENV = 'test'
 
     const { reportAiUsageToObservatory } = await import('../../src/services/aiObservatoryService.js')
     const originalFetch = globalThis.fetch
-    /** @type {{ url?: string, init?: RequestInit }} */
-    const seen = {}
+    /** @type {Array<{ url: string, init?: RequestInit }>} */
+    const calls = []
     globalThis.fetch = async (url, init) => {
-      seen.url = String(url)
-      seen.init = init
-      return new Response(JSON.stringify({ received: true }), { status: 200 })
+      calls.push({ url: String(url), init })
+      if (String(url).endsWith('/api/v1/events')) {
+        return new Response(JSON.stringify({ received: true, duplicate: false }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ artifactId: 'a1' }), { status: 200 })
     }
     try {
       reportAiUsageToObservatory({
-        recipeId: 7,
-        usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
-        responseJson: { error: 'failed' },
+        recipeId: 9,
+        usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 },
+        responseJson: { status: 'success' },
         meta: {
-          model: 'gpt-4o-mini',
-          usage_kind: 'health_score',
-          request_json: '{"a":1}',
-          durationMs: 1843,
+          model: 'gpt-4.1-mini',
+          usage_kind: 'recipe_image_extract',
+          observatory_request: {
+            input: { system: 'S', userText: 'U' },
+            metadata: { imageCount: 1 },
+          },
         },
+        artifacts: [
+          {
+            data: Buffer.from('fake-png'),
+            role: 'input',
+            label: 'recipe-page-1',
+            filename: 'recipe-page-1.png',
+            mimeType: 'image/png',
+          },
+        ],
       })
-      await new Promise((r) => setTimeout(r, 50))
-      assert.equal(seen.url, 'http://obs.example/api/v1/events')
-      assert.equal(seen.init?.method, 'POST')
-      const headers = /** @type {Record<string, string>} */ (seen.init?.headers)
+      await new Promise((r) => setTimeout(r, 80))
+      assert.equal(calls.length, 2)
+      assert.equal(calls[0].url, 'http://obs.example/api/v1/events')
+      const eventBody = JSON.parse(String(calls[0].init?.body))
+      assert.deepEqual(eventBody.request.input, { system: 'S', userText: 'U' })
+      assert.match(calls[1].url, /\/api\/v1\/events\/[0-9a-f-]+\/artifacts$/i)
+      assert.equal(calls[1].init?.method, 'POST')
+      assert.ok(calls[1].init?.body instanceof FormData)
+      const headers = /** @type {Record<string, string>} */ (calls[1].init?.headers)
       assert.equal(headers.Authorization, 'Bearer obs_key')
-      assert.equal(headers['Content-Type'], 'application/json')
-      const body = JSON.parse(String(seen.init?.body))
-      assert.equal(body.provider, 'openai')
-      assert.equal(body.status, 'error')
-      assert.equal(body.feature, 'recipe-enrichment')
-      assert.equal(body.operation, 'health-score')
-      assert.equal(body.durationMs, 1843)
-      assert.equal(body.usage.inputTokens, 3)
-      assert.equal(body.usage.outputTokens, 2)
-      assert.deepEqual(body.request, { raw: { a: 1 } })
-      assert.deepEqual(body.response, { output: { error: 'failed' } })
-      assert.deepEqual(body.error, { message: 'failed' })
+      assert.equal(headers['Content-Type'], undefined)
     } finally {
       globalThis.fetch = originalFetch
     }

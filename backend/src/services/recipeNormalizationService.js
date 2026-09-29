@@ -16,7 +16,8 @@ import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 const PRIMARY_MODEL = process.env.OPENAI_NORMALIZE_MODEL_PRIMARY || 'gpt-4o-mini'
 const TEMPERATURE = Math.min(0.3, Math.max(0, Number(process.env.OPENAI_NORMALIZE_TEMPERATURE) || 0.2))
 
-/** User-requested instructions; schema uses `amount` / `amountMax` (not amountMin). */
+/** User-requested instructions; schema uses `amount` / `amountMax` (not amountMin).
+ * Observatory bump: PROMPT_REGISTRY.url_recipe_normalize when this prompt (or shared parsing/categories) changes. */
 function buildNormalizationPrompt() {
   return `
 You transform scraped recipe data into structured recipe JSON following the provided JSON schema.

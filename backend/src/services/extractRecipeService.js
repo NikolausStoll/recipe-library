@@ -14,6 +14,7 @@ import { reportAiUsageToObservatory } from './aiObservatoryService.js'
 import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
+/** Observatory bump: PROMPT_REGISTRY.recipe_image_extract when this body (or shared parsing/categories) changes. */
 const EXTRACT_PROMPT_BODY = `You are a recipe extractor. The user will provide one or more images containing recipe text.
 
 Rules:
@@ -343,7 +344,13 @@ export const RECIPE_JSON_SCHEMA = {
 /**
  * @param {Buffer[]} imageBuffers - One or more images (recipe text)
  * @param {{ translateToGerman?: boolean }} [options]
- * @returns {Promise<{ recipe: { status: string, confidence: number, warnings: string[], missingFields: string[], recipe: object|null }, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number }, durationMs: number }>}
+ * @returns {Promise<{
+ *   recipe: { status: string, confidence: number, warnings: string[], missingFields: string[], recipe: object|null },
+ *   usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number },
+ *   durationMs: number,
+ *   observatoryRequest: { input: object, metadata: object },
+ *   modelInputImages: Buffer[],
+ * }>}
  */
 export async function extractRecipeFromImages(imageBuffers, options = {}) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -352,16 +359,33 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
   const translateToGerman = options.translateToGerman === true
   const systemPrompt = buildImageExtractionPrompt(translateToGerman)
   const userMessage = buildImageExtractionUserMessage(translateToGerman)
+  const imageDetail = process.env.OPENAI_EXTRACT_DETAIL || 'high'
 
   const client = new OpenAI({ apiKey })
 
   const imageContents = imageBuffers.map((buf) => ({
     type: 'image_url',
     image_url: {
+      // prepareTextImage / post-crop encodeTextImageWebp → WebP bytes for the model.
       url: `data:image/webp;base64,${buf.toString('base64')}`,
-      detail: process.env.OPENAI_EXTRACT_DETAIL || 'high',
+      detail: imageDetail,
     },
   }))
+
+  /** Text/prompt for Observatory only — images go as artifacts (exact model-input WebP bytes). */
+  const observatoryRequest = {
+    input: {
+      system: systemPrompt,
+      userText: userMessage,
+    },
+    metadata: {
+      translateToGerman,
+      imageCount: imageBuffers.length,
+      imageDetail,
+      imageMimeType: 'image/webp',
+      model: process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini',
+    },
+  }
 
   const started = openaiCallStart()
   const response = await client.chat.completions.create({
@@ -397,7 +421,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
 
   const usage = normalizeOpenAiUsage(response.usage) ?? undefined
 
-  return { recipe, usage, durationMs }
+  return { recipe, usage, durationMs, observatoryRequest, modelInputImages: imageBuffers }
 }
 
 /**
@@ -405,7 +429,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
  * @param {number|null|undefined} recipeId
  * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number, prompt_tokens_details?: object, completion_tokens_details?: object }|null|undefined} usage
  * @param {unknown} responseJson
- * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null, durationMs?: number|null }} [meta]
+ * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null, durationMs?: number|null, observatory_request?: unknown, observatory_artifacts?: Array<{ data: Buffer|Uint8Array, role?: string, label?: string, filename?: string, mimeType?: string, contentType?: string }> }} [meta]
  */
 export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {}) {
   if (!usage && responseJson == null) return
@@ -455,7 +479,8 @@ export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {})
     now,
   )
 
-  // Dual-write to AI Usage Observatory (fire-and-forget; never blocks recipe flows)
+  // Dual-write to AI Usage Observatory (fire-and-forget; never blocks recipe flows).
+  // observatory_request / observatory_artifacts are Observatory-only (not persisted above).
   reportAiUsageToObservatory({
     recipeId,
     usage,
@@ -464,7 +489,9 @@ export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {})
       model,
       usage_kind,
       request_json: meta.request_json,
+      observatory_request: meta.observatory_request,
       durationMs: meta.durationMs,
     },
+    artifacts: Array.isArray(meta.observatory_artifacts) ? meta.observatory_artifacts : [],
   })
 }

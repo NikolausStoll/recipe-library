@@ -30,6 +30,7 @@ options:
   image_quality: 80
   image_max_dimension: 2400
   text_image_max_dimension: 1400
+  text_image_webp_quality: 90
   thumbnail_max_dimension: 600
   recipe_url_fetch_timeout_ms: 25000
   recipe_url_max_bytes: 2000000
@@ -62,6 +63,7 @@ schema:
   image_quality: int(1,100)
   image_max_dimension: int(100,8192)
   text_image_max_dimension: int(100,8192)
+  text_image_webp_quality: int(1,100)
   thumbnail_max_dimension: int(100,8192)
   recipe_url_fetch_timeout_ms: int(1000,120000)
   recipe_url_max_bytes: int(100000,50000000)

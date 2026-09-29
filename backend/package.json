@@ -10,7 +10,7 @@
     "evaluate-vision": "node scripts/evaluate-vision-quality.js"
   },
   "dependencies": {
-    "@nikolausstoll/ai-observatory-client": "https://github.com/NikolausStoll/ai-usage-observatory/releases/download/client-v0.1.0/ai-observatory-client-0.1.0.tgz",
+    "@nikolausstoll/ai-observatory-client": "https://github.com/NikolausStoll/ai-usage-observatory/releases/download/client-v0.2.0/ai-observatory-client-0.2.0.tgz",
     "better-sqlite3": "^9.4.3",
     "cheerio": "^1.2.0",
     "dotenv": "^16.4.1",

@@ -1,6 +1,10 @@
 /**
  * Shared LLM instructions for structured ingredient parsing (amount / unit / ingredient / additionalInfo).
- * Used by vision extract and URL normalization prompts.
+ * Used by vision extract, URL normalization, and text extract prompts.
+ *
+ * Observatory: changing this file changes those prompts — bump
+ * `PROMPT_REGISTRY.recipe_image_extract`, `.url_recipe_normalize`, and `.text_recipe_extract`
+ * `promptVersion` in `constants/promptRegistry.js` in the same change.
  */
 
 const FIELD_SPLIT_RULES = `- originalText: the exact visible or scraped source line, unchanged.

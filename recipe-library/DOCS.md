@@ -17,10 +17,11 @@ This document describes every Home Assistant add-on option defined in `config.ya
 
 | Add-on option | Environment variable | Default | Description |
 | ------------- | -------------------- | ------- | ----------- |
-| `image_quality` | `IMAGE_QUALITY` | `80` | WebP quality (1–100) for resized uploads. |
+| `image_quality` | `IMAGE_QUALITY` | `80` | WebP quality (1–100) for resized recipe/source uploads. |
 | `image_max_dimension` | `IMAGE_MAX_DIMENSION` | `2400` | Longest side cap for recipe/source images. |
 | `thumbnail_max_dimension` | `THUMBNAIL_MAX_DIMENSION` | `600` | Longest side for generated thumbnails. |
-| `text_image_max_dimension` | `TEXT_IMAGE_MAX_DIMENSION` | `1400` | Longest side for OCR/vision uploads before sending to OpenAI. |
+| `text_image_max_dimension` | `TEXT_IMAGE_MAX_DIMENSION` | `1400` | Longest side for vision extract images before sending to OpenAI. |
+| `text_image_webp_quality` | `TEXT_IMAGE_WEBP_QUALITY` | `90` | WebP quality (1–100) for vision model inputs / Observatory artifacts (high by default so text stays sharp). |
 
 The container image installs `opencv-python-headless` + `numpy` (see `backend/requirements.txt`), so 4-point perspective crop works automatically. If you encounter `ModuleNotFoundError: No module named 'cv2'`, rebuild the add-on/image from an up-to-date `Dockerfile`.
 
@@ -67,7 +68,7 @@ Cup conversion, tagging, and the other AI helpers log token usage in `ai_token_u
 | `ai_observatory_url` | `AI_OBSERVATORY_URL` | *(empty)* | Base URL of the Observatory instance (no trailing path). Leave empty to disable dual-write. |
 | `ai_observatory_api_key` | `AI_OBSERVATORY_API_KEY` | *(empty)* | Application API key (`Authorization: Bearer …`). Leave empty to disable dual-write. |
 
-Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package; Recipe Library maps each local `usage_kind` to separate Observatory `feature` (product area) and `operation` (AI work type) in `aiObservatoryService.js` (see mapping table in that file).
+Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package (≥ 0.2.0 for artifact upload); Recipe Library maps each local `usage_kind` to separate Observatory `feature` / `operation`, attaches `applicationVersion` plus `promptId`/`promptVersion` from `backend/src/constants/promptRegistry.js`, and for vision extract uploads the **same post-resize/crop high-quality WebP bytes** sent to OpenAI via `uploadArtifact`.
 
 ### Historical backfill (admin)
 

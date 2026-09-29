@@ -1,6 +1,10 @@
 /**
  * Canonical ingredient category keys persisted in DB and returned by LLM extract/normalize.
  * Must stay in sync with frontend `constants/ingredientCategories.ts`.
+ *
+ * Observatory: changing the category list / `formatCategoryListForPrompt` changes extract
+ * prompts — bump `PROMPT_REGISTRY.recipe_image_extract`, `.url_recipe_normalize`, and
+ * `.text_recipe_extract` in `constants/promptRegistry.js`.
  */
 export const CANONICAL_INGREDIENT_CATEGORIES = [
   'produce',

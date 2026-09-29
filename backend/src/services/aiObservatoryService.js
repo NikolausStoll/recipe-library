@@ -7,6 +7,8 @@
  * - feature = stable product area / capability (e.g. recipe-import)
  * - operation = kind of AI work inside that area (e.g. image-extraction)
  * - operationId = one concrete execution (set in buildObservatoryEvent / backfill)
+ * - applicationVersion = app release (backend package.json)
+ * - promptId / promptVersion = which exact prompt text (see `constants/promptRegistry.js`)
  *
  * usage_kind → { feature, operation }:
  * | usage_kind            | feature               | operation          |
@@ -22,13 +24,33 @@
  * | (unknown / other)     | recipe-unknown        | kebab(usage_kind) or unknown |
  */
 
+import { createRequire } from "node:module";
 import {
   buildEvent,
   createObservatoryClient,
   resolveEnvironment,
 } from "@nikolausstoll/ai-observatory-client";
+import { resolvePromptMeta } from "../constants/promptRegistry.js";
 
 export { resolveEnvironment as resolveObservatoryEnvironment };
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Recipe Library release version sent as Observatory `applicationVersion`.
+ * @returns {string}
+ */
+export function resolveApplicationVersion() {
+  try {
+    const pkg = require("../../package.json");
+    if (pkg?.version != null && String(pkg.version).trim() !== "") {
+      return String(pkg.version).trim();
+    }
+  } catch {
+    // ignore
+  }
+  return "unknown";
+}
 
 /** @type {Readonly<Record<string, { feature: string, operation: string }>>} */
 const USAGE_KIND_FEATURE_OPERATION = Object.freeze({
@@ -162,6 +184,7 @@ function resolveReasoningTokens(usage) {
  *   model?: string|null,
  *   usage_kind?: string|null,
  *   request_json?: unknown,
+ *   observatory_request?: unknown,
  *   durationMs?: number|null,
  * }} params.meta
  */
@@ -187,7 +210,14 @@ export function buildObservatoryEvent({
     status,
     provider: "openai",
     requestedModel,
+    applicationVersion: resolveApplicationVersion(),
   };
+
+  const promptMeta = resolvePromptMeta(meta.usage_kind);
+  if (promptMeta) {
+    partial.promptId = promptMeta.promptId;
+    partial.promptVersion = String(promptMeta.promptVersion);
+  }
 
   if (meta.durationMs != null && Number.isFinite(Number(meta.durationMs))) {
     partial.durationMs = Number(meta.durationMs);
@@ -208,7 +238,7 @@ export function buildObservatoryEvent({
     };
   }
 
-  const request = buildObservatoryRequest(meta.request_json);
+  const request = resolveObservatoryRequestPayload(meta);
   if (request) event.request = request;
 
   const response = buildObservatoryResponsePayload(responseJson);
@@ -229,6 +259,88 @@ export function buildObservatoryEvent({
 }
 
 /**
+ * Prefer `observatory_request` (Observatory-only) over persisted `request_json`.
+ * @param {{ request_json?: unknown, observatory_request?: unknown }} [meta]
+ * @returns {import("@nikolausstoll/ai-observatory-client").ObservatoryRequestResponse|undefined}
+ */
+function resolveObservatoryRequestPayload(meta = {}) {
+  if (meta.observatory_request != null) {
+    const value = meta.observatory_request;
+    if (
+      value != null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      ("input" in value || "raw" in value || "output" in value || "metadata" in value)
+    ) {
+      return /** @type {import("@nikolausstoll/ai-observatory-client").ObservatoryRequestResponse} */ (
+        value
+      );
+    }
+    return { input: value };
+  }
+  return buildObservatoryRequest(meta.request_json);
+}
+
+/**
+ * Map Recipe Library artifact shape → shared client `uploadArtifact` input.
+ * @param {{
+ *   data: import("@nikolausstoll/ai-observatory-client").ArtifactBinary,
+ *   role?: string,
+ *   label?: string,
+ *   filename?: string,
+ *   mimeType?: string,
+ *   contentType?: string,
+ * }} artifact
+ * @returns {import("@nikolausstoll/ai-observatory-client").UploadArtifactInput|null}
+ */
+function toClientArtifactInput(artifact) {
+  if (!artifact?.data) return null;
+  const role = artifact.role === "output" ? "output" : "input";
+  /** @type {import("@nikolausstoll/ai-observatory-client").UploadArtifactInput} */
+  const input = { role, data: artifact.data };
+  const mimeType = artifact.mimeType ?? artifact.contentType;
+  if (mimeType != null && String(mimeType).trim() !== "") {
+    input.mimeType = String(mimeType).trim();
+  }
+  if (artifact.filename != null && String(artifact.filename).trim() !== "") {
+    input.filename = String(artifact.filename).trim();
+  }
+  if (artifact.label != null && String(artifact.label).trim() !== "") {
+    input.label = String(artifact.label).trim();
+  }
+  return input;
+}
+
+/**
+ * POST event then optional artifacts via `@nikolausstoll/ai-observatory-client`. Never throws.
+ * @param {import("@nikolausstoll/ai-observatory-client").ObservatoryEvent} event
+ * @param {Array<{
+ *   data: import("@nikolausstoll/ai-observatory-client").ArtifactBinary,
+ *   role?: string,
+ *   label?: string,
+ *   filename?: string,
+ *   mimeType?: string,
+ *   contentType?: string,
+ * }>} [artifacts]
+ * @param {import("@nikolausstoll/ai-observatory-client").ObservatoryClientOptions} [options]
+ */
+export async function postObservatoryEventWithArtifacts(
+  event,
+  artifacts = [],
+  options = {},
+) {
+  const client = createObservatoryClient(options);
+  if (!client.enabled) return;
+  await client.postEvent(event);
+  if (!Array.isArray(artifacts) || artifacts.length === 0) return;
+  for (const artifact of artifacts) {
+    const input = toClientArtifactInput(artifact);
+    if (!input) continue;
+    await client.uploadArtifact(event.eventId, input);
+  }
+}
+
+/**
  * POST one event. Resolves silently on any failure.
  * @param {import("@nikolausstoll/ai-observatory-client").ObservatoryEvent} event
  * @returns {Promise<void>}
@@ -239,6 +351,8 @@ export async function postObservatoryEvent(event) {
 
 /**
  * Fire-and-forget dual-write after local ai_token_usage INSERT.
+ * Optional `artifacts` are uploaded with the shared client after the event
+ * (`uploadArtifact` → POST …/events/{eventId}/artifacts).
  * @param {object} params
  * @param {number|null|undefined} params.recipeId
  * @param {object|null|undefined} params.usage
@@ -247,21 +361,35 @@ export async function postObservatoryEvent(event) {
  *   model?: string|null,
  *   usage_kind?: string|null,
  *   request_json?: unknown,
+ *   observatory_request?: unknown,
  *   durationMs?: number|null,
  * }} params.meta
+ * @param {Array<{
+ *   data: import("@nikolausstoll/ai-observatory-client").ArtifactBinary,
+ *   role?: string,
+ *   label?: string,
+ *   filename?: string,
+ *   mimeType?: string,
+ *   contentType?: string,
+ * }>} [params.artifacts]
  */
 export function reportAiUsageToObservatory({
   recipeId,
   usage,
   responseJson,
   meta = {},
+  artifacts = [],
 }) {
   try {
     const client = createObservatoryClient();
     if (!client.enabled) return;
-    client.report(
-      buildObservatoryEvent({ recipeId, usage, responseJson, meta }),
-    );
+    const event = buildObservatoryEvent({ recipeId, usage, responseJson, meta });
+    void postObservatoryEventWithArtifacts(event, artifacts).catch((err) => {
+      console.warn(
+        "[ai-observatory] report failed:",
+        err instanceof Error ? err.message : err,
+      );
+    });
   } catch (err) {
     console.warn(
       "[ai-observatory] report failed:",

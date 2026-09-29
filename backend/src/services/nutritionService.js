@@ -5,6 +5,7 @@ import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
 import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
+/** Observatory bump: PROMPT_REGISTRY.nutrition_estimate when this prompt changes. */
 const NUTRITION_PROMPT = `Estimate nutrition for the full recipe and return JSON only.
 
 Rules:
