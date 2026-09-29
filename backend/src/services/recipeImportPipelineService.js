@@ -57,6 +57,7 @@ export async function awaitRecipeTagging(recipeId) {
         usage_kind: 'recipe_tag',
         request_json: result.requestPayload != null ? JSON.stringify(result.requestPayload) : null,
         durationMs: result.durationMs,
+        subjectLabel: recipe.title,
       })
     }
 
@@ -97,11 +98,14 @@ export async function finalizeImportedRecipe(recipeId, structured, options = {})
   pipelineWarnings.push(...(cupResult.warnings ?? []))
 
   if (cupResult.attempt) {
+    const envelopeTitle =
+      cupResult.envelope?.recipe?.title ?? structured?.recipe?.title ?? null
     logAiTokenUsage(recipeId, cupResult.attempt.usage, cupResult.attempt.response, {
       model: cupResult.attempt.model,
       usage_kind: 'cup_conversion',
       request_json: cupResult.attempt.request_json,
       durationMs: cupResult.attempt.durationMs,
+      subjectLabel: envelopeTitle,
     })
   }
 

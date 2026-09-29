@@ -119,6 +119,7 @@ function parseJsonField(value) {
  *   model?: string|null,
  *   usage_kind?: string|null,
  *   created_at?: string|null,
+ *   recipe_title?: string|null,
  * }} row
  * @returns {import('@nikolausstoll/ai-observatory-client').ObservatoryEvent}
  */
@@ -166,6 +167,17 @@ export function buildBackfillEventFromRow(row) {
     },
   }
 
+  if (row.recipe_id != null && String(row.recipe_id).trim() !== '') {
+    /** @type {{ id: string, label?: string }} */
+    const subject = { id: String(row.recipe_id) }
+    const label =
+      row.recipe_title != null && String(row.recipe_title).trim() !== ''
+        ? String(row.recipe_title).trim()
+        : undefined
+    if (label !== undefined) subject.label = label
+    partial.subject = subject
+  }
+
   // Stable promptId from usage_kind only; do not invent historical promptVersion.
   const promptMeta = resolvePromptMeta(usageKindRaw)
   if (promptMeta) {
@@ -209,12 +221,14 @@ export function listAiTokenUsageForBackfill(options = {}) {
     return db
       .prepare(
         `
-      SELECT id, recipe_id, prompt_tokens, completion_tokens, total_tokens,
-             request_json, response_json, model, usage_kind, created_at
-      FROM ai_token_usage
-      WHERE created_at >= ?
-        AND created_at < ?
-      ORDER BY id ASC
+      SELECT u.id, u.recipe_id, u.prompt_tokens, u.completion_tokens, u.total_tokens,
+             u.request_json, u.response_json, u.model, u.usage_kind, u.created_at,
+             r.title AS recipe_title
+      FROM ai_token_usage u
+      LEFT JOIN recipes r ON r.id = u.recipe_id
+      WHERE u.created_at >= ?
+        AND u.created_at < ?
+      ORDER BY u.id ASC
       LIMIT ?
     `,
       )
@@ -224,11 +238,13 @@ export function listAiTokenUsageForBackfill(options = {}) {
   return db
     .prepare(
       `
-    SELECT id, recipe_id, prompt_tokens, completion_tokens, total_tokens,
-           request_json, response_json, model, usage_kind, created_at
-    FROM ai_token_usage
-    WHERE created_at < ?
-    ORDER BY id ASC
+    SELECT u.id, u.recipe_id, u.prompt_tokens, u.completion_tokens, u.total_tokens,
+           u.request_json, u.response_json, u.model, u.usage_kind, u.created_at,
+           r.title AS recipe_title
+    FROM ai_token_usage u
+    LEFT JOIN recipes r ON r.id = u.recipe_id
+    WHERE u.created_at < ?
+    ORDER BY u.id ASC
     LIMIT ?
   `,
     )

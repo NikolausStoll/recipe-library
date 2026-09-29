@@ -61,6 +61,7 @@ describe('observatoryBackfillService', () => {
       model: 'gpt-4o-mini',
       usage_kind: 'recipe_tag',
       created_at: '2026-01-10 08:00:00',
+      recipe_title: 'Soup',
     })
 
     assert.equal(event.eventId, observatoryBackfillEventId(7))
@@ -97,6 +98,8 @@ describe('observatoryBackfillService', () => {
       source: 'backfill',
       localUsageId: 7,
     })
+    assert.equal(event.subjectId, '99')
+    assert.equal(event.subjectLabel, 'Soup')
   })
 
   it('buildBackfillEventFromRow treats response.error as error status', () => {
@@ -118,6 +121,8 @@ describe('observatoryBackfillService', () => {
     assert.equal(event.requestedModel, 'unknown')
     assert.equal(event.operationId, 'backfill:unknown:1')
     assert.deepEqual(event.error, { message: 'timeout' })
+    assert.equal(event.subjectId, undefined)
+    assert.equal(event.subjectLabel, undefined)
   })
 
   it('listAiTokenUsageForBackfill only includes rows before 2026-09-28', () => {

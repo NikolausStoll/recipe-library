@@ -68,7 +68,7 @@ Cup conversion, tagging, and the other AI helpers log token usage in `ai_token_u
 | `ai_observatory_url` | `AI_OBSERVATORY_URL` | *(empty)* | Base URL of the Observatory instance (no trailing path). Leave empty to disable dual-write. |
 | `ai_observatory_api_key` | `AI_OBSERVATORY_API_KEY` | *(empty)* | Application API key (`Authorization: Bearer …`). Leave empty to disable dual-write. |
 
-Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package (≥ 0.2.0 for artifact upload); Recipe Library maps each local `usage_kind` to separate Observatory `feature` / `operation`, attaches `applicationVersion` plus `promptId`/`promptVersion` from `backend/src/constants/promptRegistry.js`, and for vision extract uploads the **same post-resize/crop high-quality WebP bytes** sent to OpenAI via `uploadArtifact`.
+Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package (≥ 0.3.0 for subject context + artifact upload); Recipe Library maps each local `usage_kind` to separate Observatory `feature` / `operation`, attaches `applicationVersion` plus `promptId`/`promptVersion` from `backend/src/constants/promptRegistry.js`, sets optional `subjectId` (recipe id) / `subjectLabel` (best-available recipe title — explicit when known, otherwise looked up from `recipes.title`; later events may refine the label), and for vision extract uploads the **same post-resize/crop high-quality WebP bytes** sent to OpenAI via `uploadArtifact`.
 
 ### Historical backfill (admin)
 

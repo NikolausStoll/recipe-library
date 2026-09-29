@@ -97,6 +97,8 @@ describe('aiObservatoryService', () => {
     assert.equal(event.applicationVersion, resolveApplicationVersion())
     assert.equal(event.promptId, 'recipe-tag-generation')
     assert.equal(event.promptVersion, '1')
+    assert.equal(event.subjectId, '42')
+    assert.equal(event.subjectLabel, undefined)
     assert.deepEqual(event.usage, {
       inputTokens: 10,
       outputTokens: 5,
@@ -108,6 +110,116 @@ describe('aiObservatoryService', () => {
     assert.deepEqual(event.response, { output: { tags: ['vegan'] } })
     assert.equal(event.request, undefined)
     assert.deepEqual(event.metadata, { recipeId: 42 })
+  })
+
+  it('buildObservatoryEvent includes subjectId and subjectLabel when provided', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const event = buildObservatoryEvent({
+      recipeId: 123,
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      responseJson: { ok: true },
+      meta: {
+        model: 'gpt-4o-mini',
+        usage_kind: 'recipe_tag',
+        subjectLabel: 'Kartoffelauflauf',
+      },
+    })
+
+    assert.equal(event.subjectId, '123')
+    assert.equal(event.subjectLabel, 'Kartoffelauflauf')
+  })
+
+  it('buildObservatoryEvent keeps subjectId when subjectLabel is absent', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const event = buildObservatoryEvent({
+      recipeId: 7,
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      responseJson: { status: 'success' },
+      meta: { model: 'gpt-4.1-mini', usage_kind: 'recipe_image_extract' },
+    })
+
+    assert.equal(event.subjectId, '7')
+    assert.equal(event.subjectLabel, undefined)
+  })
+
+  it('buildObservatoryEvent omits subject when recipeId and subjectId are absent', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const event = buildObservatoryEvent({
+      recipeId: null,
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      responseJson: { error: 'boom' },
+      meta: { model: 'gpt-4o-mini', usage_kind: 'health_score' },
+    })
+
+    assert.equal(event.subjectId, undefined)
+    assert.equal(event.subjectLabel, undefined)
+    assert.equal(event.metadata, undefined)
+  })
+
+  it('subjectId stays stable when subjectLabel changes for the same recipe', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const first = buildObservatoryEvent({
+      recipeId: 123,
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      responseJson: {},
+      meta: { model: 'm', usage_kind: 'recipe_tag', subjectLabel: 'Kartoffelauflauf' },
+    })
+    const second = buildObservatoryEvent({
+      recipeId: 123,
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      responseJson: {},
+      meta: {
+        model: 'm',
+        usage_kind: 'recipe_tag',
+        subjectLabel: 'Kartoffelauflauf mit Paprika',
+      },
+    })
+
+    assert.equal(first.subjectId, '123')
+    assert.equal(second.subjectId, '123')
+    assert.equal(first.subjectId, second.subjectId)
+    assert.notEqual(first.subjectLabel, second.subjectLabel)
+  })
+
+  it('subjectFieldsFromRecipe maps recipe id and title', async () => {
+    const {
+      subjectFieldsFromRecipe,
+      normalizeSubjectLabel,
+    } = await import('../../src/services/aiObservatoryService.js')
+
+    assert.deepEqual(subjectFieldsFromRecipe({ id: 9, title: 'Soup' }), {
+      subjectId: '9',
+      subjectLabel: 'Soup',
+    })
+    assert.deepEqual(subjectFieldsFromRecipe({ id: 9, title: '  ' }), {
+      subjectId: '9',
+    })
+    assert.deepEqual(subjectFieldsFromRecipe(null), {})
+    assert.equal(normalizeSubjectLabel('  Pasta  '), 'Pasta')
+    assert.equal(normalizeSubjectLabel(''), undefined)
+  })
+
+  it('explicit meta.subjectId overrides recipeId-derived subject', async () => {
+    process.env.NODE_ENV = 'test'
+    const { buildObservatoryEvent } = await import('../../src/services/aiObservatoryService.js')
+    const event = buildObservatoryEvent({
+      recipeId: 1,
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      responseJson: {},
+      meta: {
+        model: 'm',
+        usage_kind: 'recipe_tag',
+        subjectId: 'custom-subject',
+        subjectLabel: 'Custom',
+      },
+    })
+    assert.equal(event.subjectId, 'custom-subject')
+    assert.equal(event.subjectLabel, 'Custom')
+    assert.deepEqual(event.metadata, { recipeId: 1 })
   })
 
   it('buildObservatoryEvent maps cached/reasoning tokens, request, response, durationMs', async () => {
@@ -237,6 +349,7 @@ describe('aiObservatoryService', () => {
         meta: {
           model: 'gpt-4.1-mini',
           usage_kind: 'recipe_image_extract',
+          subjectLabel: 'Pasta Bake',
           observatory_request: {
             input: { system: 'S', userText: 'U' },
             metadata: { imageCount: 1 },
@@ -257,6 +370,8 @@ describe('aiObservatoryService', () => {
       assert.equal(calls[0].url, 'http://obs.example/api/v1/events')
       const eventBody = JSON.parse(String(calls[0].init?.body))
       assert.deepEqual(eventBody.request.input, { system: 'S', userText: 'U' })
+      assert.equal(eventBody.subjectId, '9')
+      assert.equal(eventBody.subjectLabel, 'Pasta Bake')
       assert.match(calls[1].url, /\/api\/v1\/events\/[0-9a-f-]+\/artifacts$/i)
       assert.equal(calls[1].init?.method, 'POST')
       assert.ok(calls[1].init?.body instanceof FormData)

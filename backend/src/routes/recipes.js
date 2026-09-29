@@ -141,6 +141,7 @@ router.post('/:id/estimate-health-score', async (req, res) => {
       usage_kind: 'health_score',
       request_json: result.requestPayload,
       durationMs: result.durationMs,
+      subjectLabel: result.requestPayload?.title,
     })
     res.json(result)
   } catch (e) {
@@ -155,6 +156,7 @@ router.post('/:id/estimate-health-score', async (req, res) => {
         usage_kind: 'health_score',
         request_json: requestPayload,
         durationMs: e.durationMs,
+        subjectLabel: row?.title,
       })
     }
     const msg = e instanceof Error ? e.message : 'Failed to estimate health score'
@@ -204,6 +206,7 @@ router.post('/:id/estimate-times', async (req, res) => {
         usage_kind: 'recipe_time_estimate',
         request_json: buildTimeEstimateInput(recipe),
         durationMs: estimate.durationMs,
+        subjectLabel: recipe.title,
       })
     }
 
@@ -273,6 +276,7 @@ router.post('/:id/generate-tags', async (req, res) => {
       usage_kind: 'recipe_tag',
       request_json: result.requestPayload != null ? JSON.stringify(result.requestPayload) : null,
       durationMs: result.durationMs,
+      subjectLabel: recipe.title,
     })
     const after = recipeService.getRecipeById(id)
     res.json({
@@ -306,6 +310,7 @@ router.post('/estimate-health-score', async (req, res) => {
         usage_kind: 'health_score',
         request_json: buildHealthScorePayload(recipe),
         durationMs: e.durationMs,
+        subjectLabel: recipe.title,
       })
     }
     const msg = e instanceof Error ? e.message : 'Failed to estimate health score'
@@ -505,6 +510,7 @@ router.post('/import-from-url', async (req, res) => {
           usage_kind: 'url_recipe_normalize',
           request_json: a.request_json,
           durationMs: a.durationMs,
+          subjectLabel: draftTitle,
         })
       }
     }
@@ -540,7 +546,14 @@ router.post('/import-from-text', async (req, res) => {
     const draft = recipeService.createRecipe({ title: 'Imported recipe', import_method: 'text', extract_status: 'pending' })
     createdId = draft.id
     const result = await extractRecipeFromText(text, { translateToGerman: req.body?.translateToGerman })
-    logAiTokenUsage(createdId, result.usage, result.recipe, { model: result.model || getTextExtractionModel(), usage_kind: 'text_recipe_extract', request_json: result.request_json, durationMs: result.durationMs })
+    const extractedTitle = result.recipe?.recipe?.title
+    logAiTokenUsage(createdId, result.usage, result.recipe, {
+      model: result.model || getTextExtractionModel(),
+      usage_kind: 'text_recipe_extract',
+      request_json: result.request_json,
+      durationMs: result.durationMs,
+      subjectLabel: extractedTitle || draft.title,
+    })
     if (result.recipe?.status === 'failed' || !result.recipe?.recipe) {
       const failed = recipeService.markRecipeExtractionFailed(
         createdId,
@@ -905,10 +918,13 @@ router.post('/:id/extract-from-images', (req, res, next) => {
     const visionModel = process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini'
     if (usage || parsedRecipe) {
       // Artifacts must be the exact bytes sent to the vision model (post resize/crop), not originals.
+      // Prefer the extracted title when present; otherwise the current DB title (may be a draft placeholder).
+      const extractedTitle = parsedRecipe?.recipe?.title
       logAiTokenUsage(id, usage, parsedRecipe, {
         model: visionModel,
         usage_kind: 'recipe_image_extract',
         durationMs,
+        subjectLabel: extractedTitle || recipe.title,
         observatory_request: observatoryRequest,
         observatory_artifacts: modelInputImages.map((buf, i) => ({
           data: buf,

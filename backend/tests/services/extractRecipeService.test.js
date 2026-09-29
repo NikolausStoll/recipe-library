@@ -113,6 +113,44 @@ describe('logAiTokenUsage', () => {
     assert.equal(row.usage_kind, 'test')
     delete process.env.DB_PATH
   })
+
+  it('looks up recipe title for Observatory subjectLabel when omitted', async () => {
+    process.env.DB_PATH = ':memory:'
+    process.env.AI_OBSERVATORY_URL = 'http://obs.example'
+    process.env.AI_OBSERVATORY_API_KEY = 'key'
+    process.env.NODE_ENV = 'test'
+    const { initDb } = await import('../../src/db/index.js')
+    initDb()
+    const { createRecipe } = await import('../../src/services/recipeService.js')
+    const recipe = createRecipe({ title: 'Lookup Soup' })
+
+    const { logAiTokenUsage } = await import('../../src/services/extractRecipeService.js')
+    const originalFetch = globalThis.fetch
+    /** @type {object[]} */
+    const bodies = []
+    globalThis.fetch = async (_url, init) => {
+      if (init?.body && typeof init.body === 'string') {
+        bodies.push(JSON.parse(init.body))
+      }
+      return new Response(JSON.stringify({ received: true }), { status: 200 })
+    }
+    try {
+      logAiTokenUsage(recipe.id, { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }, { ok: true }, {
+        model: 'gpt-4o-mini',
+        usage_kind: 'nutrition_estimate',
+      })
+      await new Promise((r) => setTimeout(r, 50))
+      assert.ok(bodies.length >= 1)
+      assert.equal(bodies[0].subjectId, String(recipe.id))
+      assert.equal(bodies[0].subjectLabel, 'Lookup Soup')
+    } finally {
+      globalThis.fetch = originalFetch
+      delete process.env.DB_PATH
+      delete process.env.AI_OBSERVATORY_URL
+      delete process.env.AI_OBSERVATORY_API_KEY
+      delete process.env.NODE_ENV
+    }
+  })
 })
 
 describe('buildImageExtractionUserMessage', () => {

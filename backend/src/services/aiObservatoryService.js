@@ -9,6 +9,7 @@
  * - operationId = one concrete execution (set in buildObservatoryEvent / backfill)
  * - applicationVersion = app release (backend package.json)
  * - promptId / promptVersion = which exact prompt text (see `constants/promptRegistry.js`)
+ * - subjectId / subjectLabel = optional domain object (recipe id / title at event time)
  *
  * usage_kind → { feature, operation }:
  * | usage_kind            | feature               | operation          |
@@ -176,6 +177,62 @@ function resolveReasoningTokens(usage) {
 }
 
 /**
+ * Optional Observatory subject fields from a recipe row/object already in hand.
+ * Does not look up the DB. Empty/missing title → subjectId only (or empty object).
+ *
+ * @param {{ id?: number|string|null, title?: string|null }|null|undefined} recipe
+ * @returns {{ subjectId?: string, subjectLabel?: string }}
+ */
+export function subjectFieldsFromRecipe(recipe) {
+  if (recipe == null || recipe.id == null || String(recipe.id).trim() === "") {
+    return {};
+  }
+  /** @type {{ subjectId?: string, subjectLabel?: string }} */
+  const fields = { subjectId: String(recipe.id) };
+  const label = normalizeSubjectLabel(recipe.title);
+  if (label !== undefined) fields.subjectLabel = label;
+  return fields;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string|undefined}
+ */
+export function normalizeSubjectLabel(value) {
+  if (value == null) return undefined;
+  const trimmed = String(value).trim();
+  return trimmed !== "" ? trimmed : undefined;
+}
+
+/**
+ * Resolve subjectId / subjectLabel for an Observatory event.
+ * Prefer explicit meta; otherwise derive subjectId from recipeId when present.
+ *
+ * @param {number|string|null|undefined} recipeId
+ * @param {{ subjectId?: string|null, subjectLabel?: string|null }} [meta]
+ * @returns {{ subjectId?: string, subjectLabel?: string }}
+ */
+export function resolveObservatorySubject(recipeId, meta = {}) {
+  /** @type {{ subjectId?: string, subjectLabel?: string }} */
+  const subject = {};
+
+  const explicitId =
+    meta.subjectId != null && String(meta.subjectId).trim() !== ""
+      ? String(meta.subjectId).trim()
+      : undefined;
+  if (explicitId !== undefined) {
+    subject.subjectId = explicitId;
+  } else if (recipeId != null && String(recipeId).trim() !== "") {
+    subject.subjectId = String(recipeId);
+  }
+
+  const label = normalizeSubjectLabel(meta.subjectLabel);
+  if (label !== undefined) subject.subjectLabel = label;
+
+  return subject;
+}
+
+/**
  * @param {object} params
  * @param {number|null|undefined} params.recipeId
  * @param {object|null|undefined} params.usage
@@ -186,6 +243,8 @@ function resolveReasoningTokens(usage) {
  *   request_json?: unknown,
  *   observatory_request?: unknown,
  *   durationMs?: number|null,
+ *   subjectId?: string|null,
+ *   subjectLabel?: string|null,
  * }} params.meta
  */
 export function buildObservatoryEvent({
@@ -202,6 +261,8 @@ export function buildObservatoryEvent({
       ? String(meta.model)
       : "unknown";
 
+  const { subjectId, subjectLabel } = resolveObservatorySubject(recipeId, meta);
+
   /** @type {import("@nikolausstoll/ai-observatory-client").ObservatoryEventInput} */
   const partial = {
     feature,
@@ -212,6 +273,13 @@ export function buildObservatoryEvent({
     requestedModel,
     applicationVersion: resolveApplicationVersion(),
   };
+
+  // Prefer client `subject` ergonomics; buildEvent flattens to subjectId / subjectLabel.
+  if (subjectId !== undefined || subjectLabel !== undefined) {
+    partial.subject = {};
+    if (subjectId !== undefined) partial.subject.id = subjectId;
+    if (subjectLabel !== undefined) partial.subject.label = subjectLabel;
+  }
 
   const promptMeta = resolvePromptMeta(meta.usage_kind);
   if (promptMeta) {
@@ -363,6 +431,8 @@ export async function postObservatoryEvent(event) {
  *   request_json?: unknown,
  *   observatory_request?: unknown,
  *   durationMs?: number|null,
+ *   subjectId?: string|null,
+ *   subjectLabel?: string|null,
  * }} params.meta
  * @param {Array<{
  *   data: import("@nikolausstoll/ai-observatory-client").ArtifactBinary,

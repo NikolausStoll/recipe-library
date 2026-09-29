@@ -429,7 +429,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
  * @param {number|null|undefined} recipeId
  * @param {{ prompt_tokens?: number, completion_tokens?: number, total_tokens?: number, prompt_tokens_details?: object, completion_tokens_details?: object }|null|undefined} usage
  * @param {unknown} responseJson
- * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null, durationMs?: number|null, observatory_request?: unknown, observatory_artifacts?: Array<{ data: Buffer|Uint8Array, role?: string, label?: string, filename?: string, mimeType?: string, contentType?: string }> }} [meta]
+ * @param {{ model?: string|null, usage_kind?: string|null, request_json?: string|null, durationMs?: number|null, subjectId?: string|null, subjectLabel?: string|null, observatory_request?: unknown, observatory_artifacts?: Array<{ data: Buffer|Uint8Array, role?: string, label?: string, filename?: string, mimeType?: string, contentType?: string }> }} [meta]
  */
 export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {}) {
   if (!usage && responseJson == null) return
@@ -479,8 +479,22 @@ export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {})
     now,
   )
 
+  // Prefer an explicit label; otherwise best-effort title from the recipe row.
+  let subjectLabel = meta.subjectLabel
+  if (
+    (subjectLabel == null || String(subjectLabel).trim() === '') &&
+    recipeId != null
+  ) {
+    try {
+      const row = db.prepare('SELECT title FROM recipes WHERE id = ?').get(recipeId)
+      subjectLabel = row?.title ?? null
+    } catch {
+      // ignore lookup failures — telemetry must not break recipe flows
+    }
+  }
+
   // Dual-write to AI Usage Observatory (fire-and-forget; never blocks recipe flows).
-  // observatory_request / observatory_artifacts are Observatory-only (not persisted above).
+  // observatory_request / observatory_artifacts / subject* are Observatory-only (not persisted above).
   reportAiUsageToObservatory({
     recipeId,
     usage,
@@ -491,6 +505,8 @@ export function logAiTokenUsage(recipeId, usage, responseJson = null, meta = {})
       request_json: meta.request_json,
       observatory_request: meta.observatory_request,
       durationMs: meta.durationMs,
+      subjectId: meta.subjectId,
+      subjectLabel,
     },
     artifacts: Array.isArray(meta.observatory_artifacts) ? meta.observatory_artifacts : [],
   })
