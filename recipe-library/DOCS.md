@@ -85,7 +85,7 @@ curl -X POST 'http://homeassistant.local:8097/api/admin/observatory-backfill' \
   -d '{"limit":50,"batchSize":25,"delayMs":100}'
 ```
 
-Optional body/query fields: `dryRun`, `limit` (default 50), `since` (ISO / SQLite datetime), `batchSize`, `delayMs`. Without Observatory env/options the endpoint returns **503** (unless `dryRun`). Re-runs are safe: each row uses a deterministic UUID v5 `eventId` (`recipe-library:ai_token_usage:{id}`); Observatory returns `duplicate: true` for already-ingested events. Historical rows have no cached/reasoning token breakdown and no `durationMs` — those fields are not invented (`durationMs` is `0`).
+Optional body/query fields: `dryRun`, `limit` (default 50), `since` (ISO / SQLite datetime), `batchSize`, `delayMs`. **Hard filter:** only rows with `created_at` strictly before `2026-09-28 00:00:00` are exported (later rows are covered by live dual-write; remove this endpoint after migration). Without Observatory env/options the endpoint returns **503** (unless `dryRun`). Re-runs are safe: each row uses a deterministic UUID v5 `eventId` (`recipe-library:ai_token_usage:{id}`); Observatory returns `duplicate: true` for already-ingested events. Historical rows have no cached/reasoning token breakdown and no `durationMs` — those fields are not invented (`durationMs` is `0`).
 
 ## Environment & naming conventions
 

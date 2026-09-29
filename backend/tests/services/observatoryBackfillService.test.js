@@ -6,10 +6,12 @@ process.env.DB_PATH = ':memory:'
 const { initDb, getDb } = await import('../../src/db/index.js')
 const {
   OBSERVATORY_BACKFILL_NAMESPACE,
+  OBSERVATORY_BACKFILL_CREATED_BEFORE,
   observatoryBackfillEventId,
   uuidV5,
   createdAtToIsoUtc,
   buildBackfillEventFromRow,
+  listAiTokenUsageForBackfill,
   runObservatoryBackfill,
 } = await import('../../src/services/observatoryBackfillService.js')
 
@@ -110,6 +112,26 @@ describe('observatoryBackfillService', () => {
     assert.equal(event.requestedModel, 'unknown')
     assert.equal(event.operationId, 'backfill:unknown:1')
     assert.deepEqual(event.error, { message: 'timeout' })
+  })
+
+  it('listAiTokenUsageForBackfill only includes rows before 2026-09-28', () => {
+    const db = getDb()
+    const insert = db.prepare(
+      `
+      INSERT INTO ai_token_usage (
+        recipe_id, prompt_tokens, completion_tokens, total_tokens,
+        response_json, request_json, model, usage_kind, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    )
+    insert.run(null, 1, 1, 2, '{}', null, 'm', 'recipe_tag', '2026-09-27 23:59:59')
+    insert.run(null, 1, 1, 2, '{}', null, 'm', 'recipe_tag', '2026-09-28 00:00:00')
+    insert.run(null, 1, 1, 2, '{}', null, 'm', 'recipe_tag', '2026-09-29 12:00:00')
+
+    const rows = listAiTokenUsageForBackfill({ limit: 100 })
+    assert.equal(OBSERVATORY_BACKFILL_CREATED_BEFORE, '2026-09-28 00:00:00')
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].created_at, '2026-09-27 23:59:59')
   })
 
   it('dryRun counts rows and returns sample without network', async () => {

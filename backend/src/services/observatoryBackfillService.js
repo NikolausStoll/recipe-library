@@ -17,6 +17,12 @@ import {
 /** DNS namespace UUID (RFC 4122) for deterministic backfill eventIds. */
 export const OBSERVATORY_BACKFILL_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
 
+/**
+ * Hard upper bound: only rows created strictly before this SQLite datetime are backfilled.
+ * Temporary one-shot migration cutoff (live dual-write covers later rows). Remove with the endpoint after migration.
+ */
+export const OBSERVATORY_BACKFILL_CREATED_BEFORE = '2026-09-28 00:00:00'
+
 const DEFAULT_LIMIT = 50
 const DEFAULT_BATCH_SIZE = 25
 const DEFAULT_DELAY_MS = 0
@@ -186,6 +192,7 @@ export function listAiTokenUsageForBackfill(options = {}) {
     : null
 
   const db = getDb()
+  // Always exclude rows from the cutoff day onward (live dual-write covers those).
   if (since) {
     const sinceSqlite = since.includes('T')
       ? since.replace('T', ' ').replace(/Z$/, '').slice(0, 19)
@@ -197,11 +204,12 @@ export function listAiTokenUsageForBackfill(options = {}) {
              request_json, response_json, model, usage_kind, created_at
       FROM ai_token_usage
       WHERE created_at >= ?
+        AND created_at < ?
       ORDER BY id ASC
       LIMIT ?
     `,
       )
-      .all(sinceSqlite, limit)
+      .all(sinceSqlite, OBSERVATORY_BACKFILL_CREATED_BEFORE, limit)
   }
 
   return db
@@ -210,11 +218,12 @@ export function listAiTokenUsageForBackfill(options = {}) {
     SELECT id, recipe_id, prompt_tokens, completion_tokens, total_tokens,
            request_json, response_json, model, usage_kind, created_at
     FROM ai_token_usage
+    WHERE created_at < ?
     ORDER BY id ASC
     LIMIT ?
   `,
     )
-    .all(limit)
+    .all(OBSERVATORY_BACKFILL_CREATED_BEFORE, limit)
 }
 
 /**
