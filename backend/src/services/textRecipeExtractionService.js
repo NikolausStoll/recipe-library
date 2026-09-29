@@ -3,6 +3,7 @@ import { RECIPE_JSON_SCHEMA, parseTranslateToGerman } from './extractRecipeServi
 import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
 import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = 'gpt-5.6-luna'
@@ -43,6 +44,7 @@ export async function extractRecipeFromText(text, options = {}) {
   const translateToGerman = parseTranslateToGerman(options.translateToGerman)
   const model = options.model || getTextExtractionModel()
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const started = openaiCallStart()
   const response = await client.chat.completions.create({
     model,
     ...buildOpenAiChatTemperature(model, TEMPERATURE),
@@ -55,6 +57,7 @@ export async function extractRecipeFromText(text, options = {}) {
       json_schema: { name: 'recipe_text_extract', strict: true, schema: RECIPE_JSON_SCHEMA },
     },
   })
+  const durationMs = elapsedMsSince(started)
   const content = response.choices?.[0]?.message?.content
   if (!content) throw new Error('No content in OpenAI response')
   return {
@@ -62,5 +65,6 @@ export async function extractRecipeFromText(text, options = {}) {
     model,
     usage: normalizeOpenAiUsage(response.usage) ?? undefined,
     request_json: sourceText,
+    durationMs,
   }
 }

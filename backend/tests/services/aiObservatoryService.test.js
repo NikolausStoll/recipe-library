@@ -201,7 +201,12 @@ describe('aiObservatoryService', () => {
         recipeId: 7,
         usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
         responseJson: { error: 'failed' },
-        meta: { model: 'gpt-4o-mini', usage_kind: 'health_score', request_json: '{"a":1}' },
+        meta: {
+          model: 'gpt-4o-mini',
+          usage_kind: 'health_score',
+          request_json: '{"a":1}',
+          durationMs: 1843,
+        },
       })
       await new Promise((r) => setTimeout(r, 50))
       assert.equal(seen.url, 'http://obs.example/api/v1/events')
@@ -214,6 +219,7 @@ describe('aiObservatoryService', () => {
       assert.equal(body.status, 'error')
       assert.equal(body.feature, 'recipe-enrichment')
       assert.equal(body.operation, 'health-score')
+      assert.equal(body.durationMs, 1843)
       assert.equal(body.usage.inputTokens, 3)
       assert.equal(body.usage.outputTokens, 2)
       assert.deepEqual(body.request, { raw: { a: 1 } })

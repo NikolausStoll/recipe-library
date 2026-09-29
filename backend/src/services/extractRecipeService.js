@@ -11,6 +11,7 @@ import {
 } from '../constants/ingredientCategories.js'
 import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 import { reportAiUsageToObservatory } from './aiObservatoryService.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const EXTRACT_PROMPT_BODY = `You are a recipe extractor. The user will provide one or more images containing recipe text.
@@ -342,7 +343,7 @@ export const RECIPE_JSON_SCHEMA = {
 /**
  * @param {Buffer[]} imageBuffers - One or more images (recipe text)
  * @param {{ translateToGerman?: boolean }} [options]
- * @returns {Promise<{ recipe: { status: string, confidence: number, warnings: string[], missingFields: string[], recipe: object|null }, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number } }>}
+ * @returns {Promise<{ recipe: { status: string, confidence: number, warnings: string[], missingFields: string[], recipe: object|null }, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number }, durationMs: number }>}
  */
 export async function extractRecipeFromImages(imageBuffers, options = {}) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -362,6 +363,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
     },
   }))
 
+  const started = openaiCallStart()
   const response = await client.chat.completions.create({
     model: process.env.OPENAI_EXTRACT_MODEL || 'gpt-4.1-mini',
     messages: [
@@ -383,6 +385,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
       },
     },
   })
+  const durationMs = elapsedMsSince(started)
 
   const choice = response.choices?.[0]
 
@@ -394,7 +397,7 @@ export async function extractRecipeFromImages(imageBuffers, options = {}) {
 
   const usage = normalizeOpenAiUsage(response.usage) ?? undefined
 
-  return { recipe, usage }
+  return { recipe, usage, durationMs }
 }
 
 /**

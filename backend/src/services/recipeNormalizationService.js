@@ -8,6 +8,7 @@ import { RECIPE_JSON_SCHEMA } from './extractRecipeService.js'
 import { formatCategoryListForPrompt } from '../constants/ingredientCategories.js'
 import { buildIngredientParsingPromptBlock } from '../constants/ingredientParsingPrompt.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 // Cup-to-gram conversion moved to cupConversionService (post-normalization stage).
 // TODO: Remove the "Cup conversion:" prompt block below once normalization prompt is updated.
@@ -191,7 +192,7 @@ export function buildNormalizationPayloadForModel(rawRecipe) {
 /**
  * @param {object} rawRecipe - RawRecipeFromUrl (title, description, ingredient_lines, steps, …)
  * @param {string} model
- * @returns {Promise<{ recipe: object, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number }, request_json: string }>}
+ * @returns {Promise<{ recipe: object, usage?: { prompt_tokens: number, completion_tokens: number, total_tokens: number }, request_json: string, durationMs: number }>}
  */
 async function callLLM(rawRecipe, model) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -210,6 +211,7 @@ async function callLLM(rawRecipe, model) {
       ? `\n\nImportant: The input has ${stepCount} step(s). Return exactly ${stepCount} step(s) in recipe.steps — one translated German step per input step, same order. Do not split or merge steps.`
       : ''
 
+  const started = openaiCallStart()
   const response = await client.chat.completions.create({
     model,
     ...buildOpenAiChatTemperature(model, TEMPERATURE),
@@ -229,12 +231,13 @@ async function callLLM(rawRecipe, model) {
       },
     },
   })
+  const durationMs = elapsedMsSince(started)
 
   const choice = response.choices?.[0]
   if (!choice?.message?.content) throw new Error('No content in OpenAI response')
   const recipe = JSON.parse(choice.message.content)
   const usage = normalizeOpenAiUsage(response.usage) ?? undefined
-  return { recipe, usage, request_json: userPayload }
+  return { recipe, usage, request_json: userPayload, durationMs }
 }
 
 /**
@@ -382,7 +385,7 @@ export function finalizeNormalizedRecipe(structured, rawRecipe) {
 
 /**
  * @param {object} rawRecipe - Same shape as extractRecipeFromUrl().recipe
- * @returns {Promise<{ recipe: object, usage?: object, model: string, attempts: Array<{ recipe: object, usage?: object, model: string, request_json: string }> }>}
+ * @returns {Promise<{ recipe: object, usage?: object, model: string, attempts: Array<{ recipe: object, usage?: object, model: string, request_json: string, durationMs?: number }> }>}
  */
 export async function normalizeRecipeWithLLM(rawRecipe) {
   const raw = rawRecipe && typeof rawRecipe === 'object' ? rawRecipe : {}
@@ -394,6 +397,7 @@ export async function normalizeRecipeWithLLM(rawRecipe) {
       usage: first.usage,
       model: PRIMARY_MODEL,
       request_json: first.request_json,
+      durationMs: first.durationMs,
     },
   ]
 

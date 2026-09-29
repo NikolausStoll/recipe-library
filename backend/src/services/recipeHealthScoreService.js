@@ -7,6 +7,7 @@
 import OpenAI from 'openai'
 import { getRecipeById } from './recipeService.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_HEALTH_SCORE_MODEL || 'gpt-4o-mini'
@@ -75,13 +76,14 @@ const HEALTH_SCORE_JSON_SCHEMA = {
 export class HealthScoreEstimateError extends Error {
   /**
    * @param {string} message
-   * @param {{ model?: string|null, tokenUsage?: object|null }} [meta]
+   * @param {{ model?: string|null, tokenUsage?: object|null, durationMs?: number|null }} [meta]
    */
   constructor(message, meta = {}) {
     super(message)
     this.name = 'HealthScoreEstimateError'
     this.model = meta.model ?? null
     this.tokenUsage = meta.tokenUsage ?? null
+    this.durationMs = meta.durationMs ?? null
   }
 }
 
@@ -164,7 +166,7 @@ function usageFromResponse(usage) {
 /**
  * Call OpenAI and return a sanitized health estimate. Throws on any failure (no fallback).
  * @param {object} recipe – structured recipe (same shape as buildHealthScorePayload output is fine)
- * @returns {Promise<{ estimate: object, model: string, tokenUsage: object|null, requestPayload: object }>}
+ * @returns {Promise<{ estimate: object, model: string, tokenUsage: object|null, requestPayload: object, durationMs: number }>}
  */
 export async function estimateRecipeHealthScore(recipe) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -175,6 +177,7 @@ export async function estimateRecipeHealthScore(recipe) {
   const payload = buildHealthScorePayload(recipe)
   const client = new OpenAI({ apiKey })
   const model = process.env.OPENAI_HEALTH_SCORE_MODEL || DEFAULT_MODEL
+  const started = openaiCallStart()
 
   try {
     const response = await client.chat.completions.create({
@@ -196,6 +199,7 @@ export async function estimateRecipeHealthScore(recipe) {
         },
       },
     })
+    const durationMs = elapsedMsSince(started)
 
     const choice = response.choices?.[0]
     const content = choice?.message?.content
@@ -203,7 +207,7 @@ export async function estimateRecipeHealthScore(recipe) {
 
     if (!content) {
       console.warn('[health-score] Empty OpenAI response')
-      throw new HealthScoreEstimateError('No content returned from model', { model, tokenUsage })
+      throw new HealthScoreEstimateError('No content returned from model', { model, tokenUsage, durationMs })
     }
 
     let parsed
@@ -211,13 +215,13 @@ export async function estimateRecipeHealthScore(recipe) {
       parsed = JSON.parse(content)
     } catch (e) {
       console.warn('[health-score] JSON parse failed:', e)
-      throw new HealthScoreEstimateError('Invalid JSON from model', { model, tokenUsage })
+      throw new HealthScoreEstimateError('Invalid JSON from model', { model, tokenUsage, durationMs })
     }
 
     const sanitized = sanitizeHealthScoreResult(parsed)
     if (!sanitized) {
       console.warn('[health-score] Sanitization failed for:', parsed)
-      throw new HealthScoreEstimateError('Could not normalize model output', { model, tokenUsage })
+      throw new HealthScoreEstimateError('Could not normalize model output', { model, tokenUsage, durationMs })
     }
 
     return {
@@ -225,12 +229,14 @@ export async function estimateRecipeHealthScore(recipe) {
       model,
       tokenUsage,
       requestPayload: payload,
+      durationMs,
     }
   } catch (e) {
     if (e instanceof HealthScoreEstimateError) throw e
+    const durationMs = elapsedMsSince(started)
     console.error('[health-score] OpenAI error:', e)
     const msg = e instanceof Error ? e.message : 'Health score request failed'
-    throw new HealthScoreEstimateError(msg, { model })
+    throw new HealthScoreEstimateError(msg, { model, durationMs })
   }
 }
 

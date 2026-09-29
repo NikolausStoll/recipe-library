@@ -5,6 +5,7 @@
 
 import OpenAI from 'openai'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL =
@@ -200,7 +201,7 @@ export function mergeCupConversionResponse(envelope, response, expectedIds) {
 /**
  * @param {object} requestPayload
  * @param {string} [model]
- * @returns {Promise<{ response: object, usage?: object, model: string, request_json: string }>}
+ * @returns {Promise<{ response: object, usage?: object, model: string, request_json: string, durationMs: number }>}
  */
 async function callCupConversionLLM(requestPayload, model = DEFAULT_MODEL) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -209,6 +210,7 @@ async function callCupConversionLLM(requestPayload, model = DEFAULT_MODEL) {
   const client = new OpenAI({ apiKey })
   const request_json = JSON.stringify(requestPayload)
 
+  const started = openaiCallStart()
   const completion = await client.chat.completions.create({
     model,
     ...buildOpenAiChatTemperature(model, TEMPERATURE),
@@ -228,6 +230,7 @@ async function callCupConversionLLM(requestPayload, model = DEFAULT_MODEL) {
       },
     },
   })
+  const durationMs = elapsedMsSince(started)
 
   const content = completion.choices?.[0]?.message?.content
   if (!content) throw new Error('No content in cup conversion response')
@@ -235,7 +238,7 @@ async function callCupConversionLLM(requestPayload, model = DEFAULT_MODEL) {
   const response = JSON.parse(content)
   const usage = normalizeOpenAiUsage(completion.usage) ?? undefined
 
-  return { response, usage, model, request_json }
+  return { response, usage, model, request_json, durationMs }
 }
 
 /**

@@ -56,6 +56,7 @@ export async function awaitRecipeTagging(recipeId) {
         model: result.model,
         usage_kind: 'recipe_tag',
         request_json: result.requestPayload != null ? JSON.stringify(result.requestPayload) : null,
+        durationMs: result.durationMs,
       })
     }
 
@@ -100,6 +101,7 @@ export async function finalizeImportedRecipe(recipeId, structured, options = {})
       model: cupResult.attempt.model,
       usage_kind: 'cup_conversion',
       request_json: cupResult.attempt.request_json,
+      durationMs: cupResult.attempt.durationMs,
     })
   }
 

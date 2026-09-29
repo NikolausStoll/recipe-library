@@ -6,6 +6,7 @@ import OpenAI from 'openai'
 import { ALL_ALLOWED_TAGS } from '../constants/recipeTags.js'
 import { sanitizeRecipeTags } from './recipeTagValidation.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_RECIPE_TAG_MODEL || 'gpt-4o-mini'
@@ -185,6 +186,7 @@ export async function generateRecipeTags(recipe) {
     const client = new OpenAI({ apiKey })
     const model = process.env.OPENAI_RECIPE_TAG_MODEL || DEFAULT_MODEL
 
+    const started = openaiCallStart()
     const response = await client.chat.completions.create({
       model,
       ...buildOpenAiChatTemperature(model, TEMPERATURE),
@@ -204,6 +206,7 @@ export async function generateRecipeTags(recipe) {
         },
       },
     })
+    const durationMs = elapsedMsSince(started)
 
     const content = response.choices?.[0]?.message?.content
     const tokenUsage = normalizeOpenAiUsage(response.usage)
@@ -218,6 +221,7 @@ export async function generateRecipeTags(recipe) {
         tokenUsage,
         requestPayload,
         rawTags: [],
+        durationMs,
       }
     }
 
@@ -234,6 +238,7 @@ export async function generateRecipeTags(recipe) {
         tokenUsage,
         requestPayload,
         rawTags: [],
+        durationMs,
       }
     }
 
@@ -247,6 +252,7 @@ export async function generateRecipeTags(recipe) {
       tokenUsage,
       requestPayload,
       rawTags,
+      durationMs,
     }
   } catch (e) {
     console.error('generateRecipeTags failed:', e)

@@ -4,6 +4,7 @@
 
 import OpenAI from 'openai'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const DEFAULT_MODEL = process.env.OPENAI_TIME_ESTIMATE_MODEL || 'gpt-4o-mini'
@@ -148,7 +149,7 @@ export function buildTimeEstimateInput(recipe) {
 
 /**
  * @param {object} recipe – full recipe row from getRecipeById
- * @returns {Promise<{ prepTimeMinutes: number|null, prepTimeConfidence: number, cookTimeMinutes: number|null, cookTimeConfidence: number, model: string, tokenUsage: object|null }>}
+ * @returns {Promise<{ prepTimeMinutes: number|null, prepTimeConfidence: number, cookTimeMinutes: number|null, cookTimeConfidence: number, model: string, tokenUsage: object|null, durationMs: number }>}
  */
 export async function estimateRecipePrepCookTimes(recipe) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -160,6 +161,7 @@ export async function estimateRecipePrepCookTimes(recipe) {
   const client = new OpenAI({ apiKey })
   const model = process.env.OPENAI_TIME_ESTIMATE_MODEL || DEFAULT_MODEL
 
+  const started = openaiCallStart()
   const response = await client.chat.completions.create({
     model,
     ...buildOpenAiChatTemperature(model, TEMPERATURE),
@@ -179,6 +181,7 @@ export async function estimateRecipePrepCookTimes(recipe) {
       },
     },
   })
+  const durationMs = elapsedMsSince(started)
 
   const content = response.choices?.[0]?.message?.content
   if (!content) {
@@ -210,5 +213,6 @@ export async function estimateRecipePrepCookTimes(recipe) {
     cookTimeConfidence,
     model,
     tokenUsage,
+    durationMs,
   }
 }

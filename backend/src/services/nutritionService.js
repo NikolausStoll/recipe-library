@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { getDb } from '../db/index.js'
 import { getRecipeById } from './recipeService.js'
 import { buildOpenAiChatTemperature } from '../utils/openaiChatParams.js'
+import { elapsedMsSince, openaiCallStart } from '../utils/openaiDuration.js'
 import { normalizeOpenAiUsage } from '../utils/openaiUsage.js'
 
 const NUTRITION_PROMPT = `Estimate nutrition for the full recipe and return JSON only.
@@ -86,6 +87,7 @@ export async function estimateRecipeNutrition(id) {
   const client = new OpenAI({ apiKey })
   const model = process.env.OPENAI_NUTRITION_MODEL || DEFAULT_MODEL
 
+  const started = openaiCallStart()
   const response = await client.chat.completions.create({
     model,
     ...buildOpenAiChatTemperature(model, TEMPERATURE),
@@ -102,6 +104,7 @@ export async function estimateRecipeNutrition(id) {
       },
     },
   })
+  const durationMs = elapsedMsSince(started)
 
   const choice = response.choices?.[0]
   if (!choice?.message?.content) {
@@ -134,5 +137,6 @@ export async function estimateRecipeNutrition(id) {
     model,
     tokenUsage: normalizeOpenAiUsage(response.usage),
     notes: Array.isArray(estimation?.notes) ? estimation.notes : [],
+    durationMs,
   }
 }
