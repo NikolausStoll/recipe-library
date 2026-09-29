@@ -67,7 +67,7 @@ Cup conversion, tagging, and the other AI helpers log token usage in `ai_token_u
 | `ai_observatory_url` | `AI_OBSERVATORY_URL` | *(empty)* | Base URL of the Observatory instance (no trailing path). Leave empty to disable dual-write. |
 | `ai_observatory_api_key` | `AI_OBSERVATORY_API_KEY` | *(empty)* | Application API key (`Authorization: Bearer …`). Leave empty to disable dual-write. |
 
-Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package; Recipe Library only supplies app-specific field mapping (`usage_kind` → feature/operation).
+Transport uses the shared [`@nikolausstoll/ai-observatory-client`](https://github.com/NikolausStoll/ai-usage-observatory/tree/main/packages/ai-observatory-client) package; Recipe Library maps each local `usage_kind` to separate Observatory `feature` (product area) and `operation` (AI work type) in `aiObservatoryService.js` (see mapping table in that file).
 
 ### Historical backfill (admin)
 

@@ -2,6 +2,24 @@
  * Recipe-library adapter for AI Usage Observatory dual-write.
  * Shared transport lives in `@nikolausstoll/ai-observatory-client`.
  * Never throws; missing URL/key is a no-op.
+ *
+ * Observatory dimensions (strings are opaque to Observatory):
+ * - feature = stable product area / capability (e.g. recipe-import)
+ * - operation = kind of AI work inside that area (e.g. image-extraction)
+ * - operationId = one concrete execution (set in buildObservatoryEvent / backfill)
+ *
+ * usage_kind → { feature, operation }:
+ * | usage_kind            | feature               | operation          |
+ * |-----------------------|-----------------------|--------------------|
+ * | recipe_image_extract  | recipe-import         | image-extraction   |
+ * | url_recipe_normalize  | recipe-import         | url-extraction     |
+ * | text_recipe_extract   | recipe-import         | text-extraction    |
+ * | recipe_tag            | recipe-enrichment     | tag-generation     |
+ * | health_score          | recipe-enrichment     | health-score       |
+ * | recipe_time_estimate  | recipe-enrichment     | time-estimate      |
+ * | nutrition_estimate    | recipe-enrichment     | nutrition          |
+ * | cup_conversion        | recipe-normalization  | cup-conversion     |
+ * | (unknown / other)     | recipe-unknown        | kebab(usage_kind) or unknown |
  */
 
 import {
@@ -12,7 +30,23 @@ import {
 
 export { resolveEnvironment as resolveObservatoryEnvironment };
 
+/** @type {Readonly<Record<string, { feature: string, operation: string }>>} */
+const USAGE_KIND_FEATURE_OPERATION = Object.freeze({
+  recipe_image_extract: { feature: "recipe-import", operation: "image-extraction" },
+  url_recipe_normalize: { feature: "recipe-import", operation: "url-extraction" },
+  text_recipe_extract: { feature: "recipe-import", operation: "text-extraction" },
+  recipe_tag: { feature: "recipe-enrichment", operation: "tag-generation" },
+  health_score: { feature: "recipe-enrichment", operation: "health-score" },
+  recipe_time_estimate: { feature: "recipe-enrichment", operation: "time-estimate" },
+  nutrition_estimate: { feature: "recipe-enrichment", operation: "nutrition" },
+  cup_conversion: { feature: "recipe-normalization", operation: "cup-conversion" },
+});
+
 /**
+ * Map local ai_token_usage.usage_kind → Observatory feature + operation.
+ * Known kinds use separate product-area / work-type strings; unknown kinds
+ * fall back to feature `recipe-unknown` and a kebab operation (not feature===operation).
+ *
  * @param {string|null|undefined} usageKind
  * @returns {{ feature: string, operation: string }}
  */
@@ -21,8 +55,16 @@ export function mapUsageKindToFeatureOperation(usageKind) {
     usageKind != null && String(usageKind).trim() !== ""
       ? String(usageKind).trim()
       : "unknown";
+
+  const mapped = USAGE_KIND_FEATURE_OPERATION[kind];
+  if (mapped) return { feature: mapped.feature, operation: mapped.operation };
+
+  if (kind === "unknown") {
+    return { feature: "recipe-unknown", operation: "unknown" };
+  }
+
   const kebab = kind.replace(/_/g, "-");
-  return { feature: kebab, operation: kebab };
+  return { feature: "recipe-unknown", operation: kebab };
 }
 
 /**

@@ -8,18 +8,50 @@ describe('aiObservatoryService', () => {
     delete process.env.NODE_ENV
   })
 
-  it('mapUsageKindToFeatureOperation converts snake_case to kebab and defaults unknown', async () => {
+  it('mapUsageKindToFeatureOperation separates feature and operation for known kinds', async () => {
     const {
       mapUsageKindToFeatureOperation,
     } = await import('../../src/services/aiObservatoryService.js')
 
     assert.deepEqual(mapUsageKindToFeatureOperation('recipe_image_extract'), {
-      feature: 'recipe-image-extract',
-      operation: 'recipe-image-extract',
+      feature: 'recipe-import',
+      operation: 'image-extraction',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('url_recipe_normalize'), {
+      feature: 'recipe-import',
+      operation: 'url-extraction',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('text_recipe_extract'), {
+      feature: 'recipe-import',
+      operation: 'text-extraction',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('recipe_tag'), {
+      feature: 'recipe-enrichment',
+      operation: 'tag-generation',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('health_score'), {
+      feature: 'recipe-enrichment',
+      operation: 'health-score',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('recipe_time_estimate'), {
+      feature: 'recipe-enrichment',
+      operation: 'time-estimate',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('nutrition_estimate'), {
+      feature: 'recipe-enrichment',
+      operation: 'nutrition',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('cup_conversion'), {
+      feature: 'recipe-normalization',
+      operation: 'cup-conversion',
     })
     assert.deepEqual(mapUsageKindToFeatureOperation(null), {
-      feature: 'unknown',
+      feature: 'recipe-unknown',
       operation: 'unknown',
+    })
+    assert.deepEqual(mapUsageKindToFeatureOperation('some_future_kind'), {
+      feature: 'recipe-unknown',
+      operation: 'some-future-kind',
     })
   })
 
@@ -51,8 +83,9 @@ describe('aiObservatoryService', () => {
     assert.equal(typeof event.eventId, 'string')
     assert.match(event.eventId, /^[0-9a-f-]{36}$/i)
     assert.equal(event.provider, 'openai')
-    assert.equal(event.feature, 'recipe-tag')
-    assert.equal(event.operation, 'recipe-tag')
+    assert.equal(event.feature, 'recipe-enrichment')
+    assert.equal(event.operation, 'tag-generation')
+    assert.match(event.operationId, /^recipe-enrichment:42:tag-generation:[0-9a-f-]{36}$/i)
     assert.equal(event.status, 'success')
     assert.equal(event.environment, 'test')
     assert.equal(event.requestedModel, 'gpt-4o-mini')
@@ -179,7 +212,8 @@ describe('aiObservatoryService', () => {
       const body = JSON.parse(String(seen.init?.body))
       assert.equal(body.provider, 'openai')
       assert.equal(body.status, 'error')
-      assert.equal(body.feature, 'health-score')
+      assert.equal(body.feature, 'recipe-enrichment')
+      assert.equal(body.operation, 'health-score')
       assert.equal(body.usage.inputTokens, 3)
       assert.equal(body.usage.outputTokens, 2)
       assert.deepEqual(body.request, { raw: { a: 1 } })
